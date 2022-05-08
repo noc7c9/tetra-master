@@ -3,7 +3,9 @@ const COLOR_BLUE: &str = "\x1b[0;34m";
 const COLOR_RESET: &str = "\x1b[0m";
 
 struct GameState {
-    board: [Option<Card>; 4 * 4],
+    board: [PlacedCard; 4 * 4],
+    p1_hand: [Option<Card>; 5],
+    p2_hand: [Option<Card>; 5],
 }
 
 #[derive(Clone, Copy, PartialEq)]
@@ -20,7 +22,7 @@ enum CardType {
     Assault,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Default)]
 struct Arrows {
     top_left: bool,
     top: bool,
@@ -34,7 +36,6 @@ struct Arrows {
 
 #[derive(Clone)]
 struct Card {
-    owner: Player,
     card_type: CardType,
     attack: u8,
     physical_defense: u8,
@@ -43,7 +44,7 @@ struct Card {
 }
 
 impl Card {
-    fn new(owner: Player, stats: &str, arrows: Arrows) -> Self {
+    fn new(stats: &str, arrows: Arrows) -> Self {
         fn from_hex(num: char) -> u8 {
             match num {
                 '0' => 0,
@@ -78,7 +79,6 @@ impl Card {
         let physical_defense = from_hex(stats[2]);
         let magical_defense = from_hex(stats[3]);
         Card {
-            owner,
             card_type,
             attack,
             physical_defense,
@@ -88,8 +88,13 @@ impl Card {
     }
 }
 
+enum PlacedCard {
+    Some { owner: Player, card: Card },
+    None,
+}
+
 fn render_screen(game_state: &GameState, out: &mut String) {
-    fn push_hex_digit(num: u8, out: &mut String) {
+    fn push_hex_digit(out: &mut String, num: u8) {
         match num {
             0 => out.push('0'),
             1 => out.push('1'),
@@ -111,103 +116,156 @@ fn render_screen(game_state: &GameState, out: &mut String) {
         }
     }
 
-    fn push_card_type(card_type: CardType, out: &mut String) {
+    fn push_card_stats(out: &mut String, card: &Card) {
+        push_hex_digit(out, card.attack);
+
         use CardType::*;
-        match card_type {
+        match card.card_type {
             Physical => out.push('P'),
             Magical => out.push('M'),
             Exploit => out.push('X'),
             Assault => out.push('A'),
         }
+
+        push_hex_digit(out, card.physical_defense);
+        push_hex_digit(out, card.magical_defense);
     }
 
-    fn push_card_color(card: &Option<Card>, out: &mut String) {
-        if let Some(card) = card {
-            out.push_str(if card.owner == Player::P1 {
-                COLOR_BLUE
-            } else {
-                COLOR_RED
-            });
+    fn push_color(out: &mut String, player: Player) {
+        out.push_str(if player == Player::P1 {
+            COLOR_BLUE
+        } else {
+            COLOR_RED
+        });
+    }
+    fn push_reset_color(out: &mut String) {
+        out.push_str(COLOR_RESET);
+    }
+
+    fn push_hand(out: &mut String, hand: &[Option<Card>; 5]) {
+        for (i, card) in hand.iter().enumerate() {
+            if card.is_some() {
+                out.push_str("╔═══ ");
+                push_hex_digit(out, i as u8 + 1);
+                out.push_str(" ═══╗");
+            }
         }
-    }
+        out.push('\n');
 
-    fn push_card_line_1(card: &Option<Card>, out: &mut String) {
-        push_card_color(card, out);
-        if let Some(card) = card {
+        let iter = hand.iter().filter_map(Option::as_ref);
+
+        for card in iter.clone() {
+            out.push_str("║ ");
             out.push(if card.arrows.top_left { '⇖' } else { ' ' });
-            out.push_str("   ");
-            out.push(if card.arrows.top { '⇑' } else { ' ' });
-            out.push_str("   ");
-            out.push(if card.arrows.top_right { '⇗' } else { ' ' });
-        } else {
-            out.push_str("         ");
-        }
-        out.push_str(COLOR_RESET);
-    }
-    fn push_card_line_2(card: &Option<Card>, out: &mut String) {
-        push_card_color(card, out);
-        if let Some(card) = card {
-            out.push(if card.arrows.left { '⇐' } else { ' ' });
             out.push_str("  ");
-            push_hex_digit(card.attack, out);
-            push_card_type(card.card_type, out);
-            push_hex_digit(card.physical_defense, out);
-            push_hex_digit(card.magical_defense, out);
+            out.push(if card.arrows.top { '⇑' } else { ' ' });
+            out.push_str("  ");
+            out.push(if card.arrows.top_right { '⇗' } else { ' ' });
+            out.push_str(" ║");
+        }
+        out.push('\n');
+
+        for card in iter.clone() {
+            out.push_str("║ ");
+            out.push(if card.arrows.left { '⇐' } else { ' ' });
             out.push(' ');
+            push_card_stats(out, card);
             out.push(if card.arrows.right { '⇒' } else { ' ' });
-        } else {
-            out.push_str("         ");
+            out.push_str(" ║");
         }
-        out.push_str(COLOR_RESET);
-    }
-    fn push_card_line_3(card: &Option<Card>, out: &mut String) {
-        push_card_color(card, out);
-        if let Some(card) = card {
+        out.push('\n');
+
+        for card in iter.clone() {
+            out.push_str("║ ");
             out.push(if card.arrows.bottom_left { '⇙' } else { ' ' });
-            out.push_str("   ");
+            out.push_str("  ");
             out.push(if card.arrows.bottom { '⇓' } else { ' ' });
-            out.push_str("   ");
+            out.push_str("  ");
             out.push(if card.arrows.bottom_right { '⇘' } else { ' ' });
-        } else {
-            out.push_str("         ");
+            out.push_str(" ║");
         }
-        out.push_str(COLOR_RESET);
+        out.push('\n');
+
+        for _ in iter.clone() {
+            out.push_str("╚═════════╝");
+        }
+        out.push('\n');
     }
 
-    out.push_str("┌───────────┬───────────┬───────────┬───────────┐\n");
+    push_color(out, Player::P1);
+    push_hand(out, &game_state.p1_hand);
+    push_reset_color(out);
+
+    out.push_str("\n   ┌───  1  ───┬───  2  ───┬───  3  ───┬───  4  ───┐\n");
 
     for (i, &row) in [[0, 1, 2, 3], [4, 5, 6, 7], [8, 9, 10, 11], [12, 13, 14, 15]]
         .iter()
         .enumerate()
     {
-        out.push_str("│ ");
+        out.push_str("   │ ");
         for j in row {
-            push_card_line_1(&game_state.board[j], out);
+            if let PlacedCard::Some { owner, card } = &game_state.board[j] {
+                push_color(out, *owner);
+                out.push(if card.arrows.top_left { '⇖' } else { ' ' });
+                out.push_str("   ");
+                out.push(if card.arrows.top { '⇑' } else { ' ' });
+                out.push_str("   ");
+                out.push(if card.arrows.top_right { '⇗' } else { ' ' });
+                push_reset_color(out);
+            } else {
+                out.push_str("         ");
+            }
             out.push_str(" │ ");
         }
 
-        out.push_str("\n│           │           │           │           │\n");
+        out.push_str("\n               │           │           │           │\n   ");
 
-        out.push_str("│ ");
+        push_hex_digit(out, i as u8 + 10); // + 10 so that it prints A, B, C, D
+        out.push(' ');
+
         for j in row {
-            push_card_line_2(&game_state.board[j], out);
+            if let PlacedCard::Some { owner, card } = &game_state.board[j] {
+                push_color(out, *owner);
+                out.push(if card.arrows.left { '⇐' } else { ' ' });
+                out.push_str("  ");
+                push_card_stats(out, card);
+                out.push(' ');
+                out.push(if card.arrows.right { '⇒' } else { ' ' });
+                push_reset_color(out);
+            } else {
+                out.push_str("         ");
+            }
             out.push_str(" │ ");
         }
 
-        out.push_str("\n│           │           │           │           │\n");
+        out.push_str("\n               │           │           │           │\n   ");
 
         out.push_str("│ ");
         for j in row {
-            push_card_line_3(&game_state.board[j], out);
+            if let PlacedCard::Some { owner, card } = &game_state.board[j] {
+                push_color(out, *owner);
+                out.push(if card.arrows.bottom_left { '⇙' } else { ' ' });
+                out.push_str("   ");
+                out.push(if card.arrows.bottom { '⇓' } else { ' ' });
+                out.push_str("   ");
+                out.push(if card.arrows.bottom_right { '⇘' } else { ' ' });
+                push_reset_color(out);
+            } else {
+                out.push_str("         ");
+            }
             out.push_str(" │ ");
         }
 
         if i != 3 {
-            out.push_str("\n├───────────┼───────────┼───────────┼───────────┤\n");
+            out.push_str("\n   ├───────────┼───────────┼───────────┼───────────┤\n");
         }
     }
 
-    out.push_str("\n└───────────┴───────────┴───────────┴───────────┘\n");
+    out.push_str("\n   └───────────┴───────────┴───────────┴───────────┘\n\n");
+
+    push_color(out, Player::P2);
+    push_hand(out, &game_state.p2_hand);
+    push_reset_color(out);
 }
 
 fn clear_screen(out: &mut String) {
@@ -215,42 +273,55 @@ fn clear_screen(out: &mut String) {
 }
 
 fn main() {
-    let card1 = Card::new(
-        Player::P1,
+    let card = Card::new(
         "9P2F",
         Arrows {
             top_left: true,
-            top: false,
             top_right: true,
             left: true,
-            right: false,
-            bottom_left: false,
             bottom: true,
             bottom_right: true,
+            ..Default::default()
         },
     );
-    let card2 = Card {
-        owner: Player::P2,
-        ..card1.clone()
-    };
     let mut state = GameState {
         board: [
-            Some(card1),
-            None,
-            Some(card2),
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
+            PlacedCard::Some {
+                owner: Player::P1,
+                card: card.clone(),
+            },
+            PlacedCard::None,
+            PlacedCard::Some {
+                owner: Player::P2,
+                card: card.clone(),
+            },
+            PlacedCard::None,
+            PlacedCard::None,
+            PlacedCard::None,
+            PlacedCard::None,
+            PlacedCard::None,
+            PlacedCard::None,
+            PlacedCard::None,
+            PlacedCard::None,
+            PlacedCard::None,
+            PlacedCard::None,
+            PlacedCard::None,
+            PlacedCard::None,
+            PlacedCard::None,
+        ],
+        p1_hand: [
+            Some(Card::new("1MFF", Default::default())),
+            Some(card.clone()),
+            Some(Card::new("1PAF", Default::default())),
+            Some(Card::new("1P3F", Default::default())),
+            Some(Card::new("1MF5", Default::default())),
+        ],
+        p2_hand: [
+            Some(Card::new("1MFF", Default::default())),
+            Some(Card::new("2MFF", Default::default())),
+            Some(Card::new("3MFF", Default::default())),
+            Some(Card::new("4MFF", Default::default())),
+            Some(Card::new("5MFF", Default::default())),
         ],
     };
 
