@@ -1,8 +1,10 @@
 const COLOR_RED: &str = "\x1b[0;31m";
 const COLOR_BLUE: &str = "\x1b[0;34m";
+const COLOR_GRAY: &str = "\x1b[0;30m";
 const COLOR_RESET: &str = "\x1b[0m";
 
 struct GameState {
+    turn: Player,
     board: [PlacedCard; 4 * 4],
     p1_hand: [Option<Card>; 5],
     p2_hand: [Option<Card>; 5],
@@ -131,7 +133,7 @@ fn render_screen(game_state: &GameState, out: &mut String) {
         push_hex_digit(out, card.magical_defense);
     }
 
-    fn push_color(out: &mut String, player: Player) {
+    fn push_player_color(out: &mut String, player: Player) {
         out.push_str(if player == Player::P1 {
             COLOR_BLUE
         } else {
@@ -192,7 +194,7 @@ fn render_screen(game_state: &GameState, out: &mut String) {
         out.push('\n');
     }
 
-    push_color(out, Player::P1);
+    push_player_color(out, Player::P1);
     push_hand(out, &game_state.p1_hand);
     push_reset_color(out);
 
@@ -205,7 +207,7 @@ fn render_screen(game_state: &GameState, out: &mut String) {
         out.push_str("   │ ");
         for j in row {
             if let PlacedCard::Some { owner, card } = &game_state.board[j] {
-                push_color(out, *owner);
+                push_player_color(out, *owner);
                 out.push(if card.arrows.top_left { '⇖' } else { ' ' });
                 out.push_str("   ");
                 out.push(if card.arrows.top { '⇑' } else { ' ' });
@@ -225,7 +227,7 @@ fn render_screen(game_state: &GameState, out: &mut String) {
 
         for j in row {
             if let PlacedCard::Some { owner, card } = &game_state.board[j] {
-                push_color(out, *owner);
+                push_player_color(out, *owner);
                 out.push(if card.arrows.left { '⇐' } else { ' ' });
                 out.push_str("  ");
                 push_card_stats(out, card);
@@ -243,7 +245,7 @@ fn render_screen(game_state: &GameState, out: &mut String) {
         out.push_str("│ ");
         for j in row {
             if let PlacedCard::Some { owner, card } = &game_state.board[j] {
-                push_color(out, *owner);
+                push_player_color(out, *owner);
                 out.push(if card.arrows.bottom_left { '⇙' } else { ' ' });
                 out.push_str("   ");
                 out.push(if card.arrows.bottom { '⇓' } else { ' ' });
@@ -263,13 +265,147 @@ fn render_screen(game_state: &GameState, out: &mut String) {
 
     out.push_str("\n   └───────────┴───────────┴───────────┴───────────┘\n\n");
 
-    push_color(out, Player::P2);
+    push_player_color(out, Player::P2);
     push_hand(out, &game_state.p2_hand);
+    push_reset_color(out);
+
+    push_player_color(out, game_state.turn);
+    out.push_str("\nPlayer ");
+    out.push(if game_state.turn == Player::P1 {
+        '1'
+    } else {
+        '2'
+    });
+    out.push_str("'s Turn");
+
+    out.push_str(COLOR_GRAY);
+    out.push_str(" [ format: {CARD#} {COORD1}{COORD2} | eg: `1 a3`, `3 2b` ]\n");
     push_reset_color(out);
 }
 
 fn clear_screen(out: &mut String) {
     out.push_str("\x1b]50;ClearScrollback\x07")
+}
+
+#[derive(Debug)]
+struct Input {
+    card: u8,
+    cell: u8,
+}
+
+fn parse_input(input: &str) -> Result<Input, String> {
+    enum State {
+        ReadingCard,
+        ReadingCoord1 {
+            card: u8,
+        },
+        ReadingCoord2 {
+            card: u8,
+            row: Option<u8>,
+            col: Option<u8>,
+        },
+    }
+
+    fn ch_to_col(ch: char) -> u8 {
+        match ch {
+            '1' => 0,
+            '2' => 1,
+            '3' => 2,
+            '4' => 3,
+            _ => unreachable!(),
+        }
+    }
+    fn ch_to_row(ch: char) -> u8 {
+        match ch {
+            'a' | 'A' => 0,
+            'b' | 'B' => 1,
+            'c' | 'C' => 2,
+            'd' | 'D' => 3,
+            _ => unreachable!(),
+        }
+    }
+
+    let mut state = State::ReadingCard;
+
+    for ch in input.chars() {
+        if ch == ' ' {
+            continue; // ignore spaces
+        }
+        match state {
+            State::ReadingCard => match ch {
+                '1' => state = State::ReadingCoord1 { card: 0 },
+                '2' => state = State::ReadingCoord1 { card: 1 },
+                '3' => state = State::ReadingCoord1 { card: 2 },
+                '4' => state = State::ReadingCoord1 { card: 3 },
+                '5' => state = State::ReadingCoord1 { card: 4 },
+                _ => return Err(format!("Invalid Card {}", ch)),
+            },
+            State::ReadingCoord1 { card } => match ch {
+                '1' | '2' | '3' | '4' => {
+                    state = State::ReadingCoord2 {
+                        card,
+                        row: None,
+                        col: Some(ch_to_col(ch)),
+                    }
+                }
+                'a' | 'A' | 'b' | 'B' | 'c' | 'C' | 'd' | 'D' => {
+                    state = State::ReadingCoord2 {
+                        card,
+                        row: Some(ch_to_row(ch)),
+                        col: None,
+                    }
+                }
+                _ => return Err(format!("Invalid Coord {}", ch)),
+            },
+            State::ReadingCoord2 {
+                card,
+                row,
+                col: None,
+            } => match ch {
+                '1' | '2' | '3' | '4' => {
+                    state = State::ReadingCoord2 {
+                        card,
+                        row,
+                        col: Some(ch_to_col(ch)),
+                    }
+                }
+                'a' | 'A' | 'b' | 'B' | 'c' | 'C' | 'd' | 'D' => {
+                    return Err("Row defined twice".into())
+                }
+                _ => return Err(format!("Invalid Coord {}", ch)),
+            },
+            State::ReadingCoord2 {
+                card,
+                row: None,
+                col,
+            } => match ch {
+                'a' | 'A' | 'b' | 'B' | 'c' | 'C' | 'd' | 'D' => {
+                    state = State::ReadingCoord2 {
+                        card,
+                        col,
+                        row: Some(ch_to_row(ch)),
+                    }
+                }
+                '1' | '2' | '3' | '4' => return Err("Col defined twice".into()),
+                _ => return Err(format!("Invalid Coord {}", ch)),
+            },
+            State::ReadingCoord2 {
+                card,
+                row: Some(row),
+                col: Some(col),
+            } => match ch {
+                '\n' => {
+                    return Ok(Input {
+                        card,
+                        cell: row * 4 + col,
+                    })
+                }
+                _ => return Err(format!("Unexpected Character {}", ch)),
+            },
+        }
+    }
+
+    unreachable!()
 }
 
 fn main() {
@@ -284,7 +420,8 @@ fn main() {
             ..Default::default()
         },
     );
-    let mut state = GameState {
+    let mut game_state = GameState {
+        turn: Player::P1,
         board: [
             PlacedCard::Some {
                 owner: Player::P1,
@@ -330,25 +467,48 @@ fn main() {
 
     let stdout = std::io::stdout();
     let mut out = stdout.lock();
+    let stdin = std::io::stdin();
+    let mut in_ = stdin.lock();
 
     let mut buf = String::new();
     loop {
-        use std::io::Write;
+        use std::io::{BufRead, Write};
 
         buf.clear();
         clear_screen(&mut buf);
-        render_screen(&state, &mut buf);
+        render_screen(&game_state, &mut buf);
         out.write_all(buf.as_bytes()).unwrap();
         out.flush().unwrap();
 
         let old_i = i;
         i = (i + 1) % 16;
-        state.board.swap(old_i, i);
+        game_state.board.swap(old_i, i);
 
         let old_j = j;
         j = (j + 1) % 16;
-        state.board.swap(old_j, j);
+        game_state.board.swap(old_j, j);
 
+        let input = loop {
+            out.write_all(b"> ").unwrap();
+            out.flush().unwrap();
+
+            buf.clear();
+            in_.read_line(&mut buf).unwrap();
+            match parse_input(&buf) {
+                Ok(input) => {
+                    break input;
+                }
+                Err(err) => {
+                    println!("ERR: {}", err);
+                }
+            }
+        };
+
+        println!("Input: {:?}", input);
         std::thread::sleep(std::time::Duration::from_millis(1000));
+        game_state.turn = match game_state.turn {
+            Player::P1 => Player::P2,
+            Player::P2 => Player::P1,
+        };
     }
 }
