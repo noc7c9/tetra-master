@@ -1,11 +1,12 @@
-const COLOR_RED: &str = "\x1b[0;31m";
-const COLOR_BLUE: &str = "\x1b[0;34m";
-const COLOR_GRAY: &str = "\x1b[0;30m";
-const COLOR_RESET: &str = "\x1b[0m";
+const FG_RED: &str = "\x1b[0;31m";
+const FG_BLUE: &str = "\x1b[0;34m";
+const FG_GRAY: &str = "\x1b[0;30m";
+const BG_GRAY: &str = "\x1b[1;30m";
+const RESET: &str = "\x1b[0m";
 
 struct GameState {
     turn: Player,
-    board: [PlacedCard; 4 * 4],
+    board: [Cell; 4 * 4],
     p1_hand: [Option<Card>; 5],
     p2_hand: [Option<Card>; 5],
 }
@@ -90,9 +91,10 @@ impl Card {
     }
 }
 
-enum PlacedCard {
-    Some { owner: Player, card: Card },
-    None,
+enum Cell {
+    Blocked,
+    Card { owner: Player, card: Card },
+    Empty,
 }
 
 fn render_screen(game_state: &GameState, out: &mut String) {
@@ -135,13 +137,10 @@ fn render_screen(game_state: &GameState, out: &mut String) {
 
     fn push_player_color(out: &mut String, player: Player) {
         out.push_str(if player == Player::P1 {
-            COLOR_BLUE
+            FG_BLUE
         } else {
-            COLOR_RED
+            FG_RED
         });
-    }
-    fn push_reset_color(out: &mut String) {
-        out.push_str(COLOR_RESET);
     }
 
     fn push_hand(out: &mut String, hand: &[Option<Card>; 5]) {
@@ -196,7 +195,7 @@ fn render_screen(game_state: &GameState, out: &mut String) {
 
     push_player_color(out, Player::P1);
     push_hand(out, &game_state.p1_hand);
-    push_reset_color(out);
+    out.push_str(RESET);
 
     out.push_str("\n   ┌───  1  ───┬───  2  ───┬───  3  ───┬───  4  ───┐\n");
 
@@ -204,58 +203,102 @@ fn render_screen(game_state: &GameState, out: &mut String) {
         .iter()
         .enumerate()
     {
-        out.push_str("   │ ");
+        out.push_str("   │");
         for j in row {
-            if let PlacedCard::Some { owner, card } = &game_state.board[j] {
-                push_player_color(out, *owner);
-                out.push(if card.arrows.top_left { '⇖' } else { ' ' });
-                out.push_str("   ");
-                out.push(if card.arrows.top { '⇑' } else { ' ' });
-                out.push_str("   ");
-                out.push(if card.arrows.top_right { '⇗' } else { ' ' });
-                push_reset_color(out);
-            } else {
-                out.push_str("         ");
+            match &game_state.board[j] {
+                Cell::Card { owner, card } => {
+                    push_player_color(out, *owner);
+                    out.push(' ');
+                    out.push(if card.arrows.top_left { '⇖' } else { ' ' });
+                    out.push_str("   ");
+                    out.push(if card.arrows.top { '⇑' } else { ' ' });
+                    out.push_str("   ");
+                    out.push(if card.arrows.top_right { '⇗' } else { ' ' });
+                    out.push(' ');
+                    out.push_str(RESET);
+                }
+                Cell::Blocked => {
+                    out.push_str(BG_GRAY);
+                    out.push_str(" ╔═══════╗ ");
+                    out.push_str(RESET);
+                }
+                Cell::Empty => out.push_str("           "),
             }
-            out.push_str(" │ ");
+            out.push('│');
         }
 
-        out.push_str("\n               │           │           │           │\n   ");
+        out.push_str("\n    ");
+        for j in row {
+            if let Cell::Blocked = &game_state.board[j] {
+                out.push_str(BG_GRAY);
+                out.push_str(" ║       ║ ");
+                out.push_str(RESET);
+            } else {
+                out.push_str("           ");
+            }
+            out.push('│');
+        }
+        out.push_str("\n   ");
 
         push_hex_digit(out, i as u8 + 10); // + 10 so that it prints A, B, C, D
-        out.push(' ');
 
         for j in row {
-            if let PlacedCard::Some { owner, card } = &game_state.board[j] {
-                push_player_color(out, *owner);
-                out.push(if card.arrows.left { '⇐' } else { ' ' });
-                out.push_str("  ");
-                push_card_stats(out, card);
-                out.push(' ');
-                out.push(if card.arrows.right { '⇒' } else { ' ' });
-                push_reset_color(out);
-            } else {
-                out.push_str("         ");
+            match &game_state.board[j] {
+                Cell::Card { owner, card } => {
+                    push_player_color(out, *owner);
+                    out.push(' ');
+                    out.push(if card.arrows.left { '⇐' } else { ' ' });
+                    out.push_str("  ");
+                    push_card_stats(out, card);
+                    out.push(' ');
+                    out.push(if card.arrows.right { '⇒' } else { ' ' });
+                    out.push(' ');
+                    out.push_str(RESET);
+                }
+                Cell::Blocked => {
+                    out.push_str(BG_GRAY);
+                    out.push_str(" ║ BLOCK ║ ");
+                    out.push_str(RESET);
+                }
+                Cell::Empty => out.push_str("           "),
             }
-            out.push_str(" │ ");
+            out.push('│');
         }
 
-        out.push_str("\n               │           │           │           │\n   ");
-
-        out.push_str("│ ");
+        out.push_str("\n    ");
         for j in row {
-            if let PlacedCard::Some { owner, card } = &game_state.board[j] {
-                push_player_color(out, *owner);
-                out.push(if card.arrows.bottom_left { '⇙' } else { ' ' });
-                out.push_str("   ");
-                out.push(if card.arrows.bottom { '⇓' } else { ' ' });
-                out.push_str("   ");
-                out.push(if card.arrows.bottom_right { '⇘' } else { ' ' });
-                push_reset_color(out);
+            if let Cell::Blocked = &game_state.board[j] {
+                out.push_str(BG_GRAY);
+                out.push_str(" ║       ║ ");
+                out.push_str(RESET);
             } else {
-                out.push_str("         ");
+                out.push_str("           ");
             }
-            out.push_str(" │ ");
+            out.push('│');
+        }
+        out.push_str("\n   │");
+
+        for j in row {
+            match &game_state.board[j] {
+                Cell::Card { owner, card } => {
+                    push_player_color(out, *owner);
+                    out.push(' ');
+                    out.push(if card.arrows.bottom_left { '⇙' } else { ' ' });
+                    out.push_str("   ");
+                    out.push(if card.arrows.bottom { '⇓' } else { ' ' });
+                    out.push_str("   ");
+                    out.push(if card.arrows.bottom_right { '⇘' } else { ' ' });
+                    out.push(' ');
+                    out.push_str(RESET);
+                }
+                Cell::Blocked => {
+                    out.push_str(BG_GRAY);
+                    out.push_str(" ╚═══════╝ ");
+                    out.push_str(RESET);
+                }
+                Cell::Empty => out.push_str("           "),
+            }
+            out.push('│');
         }
 
         if i != 3 {
@@ -267,7 +310,7 @@ fn render_screen(game_state: &GameState, out: &mut String) {
 
     push_player_color(out, Player::P2);
     push_hand(out, &game_state.p2_hand);
-    push_reset_color(out);
+    out.push_str(RESET);
 
     push_player_color(out, game_state.turn);
     out.push_str("\nPlayer ");
@@ -278,9 +321,9 @@ fn render_screen(game_state: &GameState, out: &mut String) {
     });
     out.push_str("'s Turn");
 
-    out.push_str(COLOR_GRAY);
+    out.push_str(FG_GRAY);
     out.push_str(" [ format: {CARD#} {COORD1}{COORD2} | eg: `1 a3`, `3 2b` ]\n");
-    push_reset_color(out);
+    out.push_str(RESET);
 }
 
 fn clear_screen(out: &mut String) {
@@ -423,28 +466,28 @@ fn main() {
     let mut game_state = GameState {
         turn: Player::P1,
         board: [
-            PlacedCard::Some {
+            Cell::Card {
                 owner: Player::P1,
                 card: card.clone(),
             },
-            PlacedCard::None,
-            PlacedCard::Some {
+            Cell::Blocked,
+            Cell::Card {
                 owner: Player::P2,
                 card: card.clone(),
             },
-            PlacedCard::None,
-            PlacedCard::None,
-            PlacedCard::None,
-            PlacedCard::None,
-            PlacedCard::None,
-            PlacedCard::None,
-            PlacedCard::None,
-            PlacedCard::None,
-            PlacedCard::None,
-            PlacedCard::None,
-            PlacedCard::None,
-            PlacedCard::None,
-            PlacedCard::None,
+            Cell::Empty,
+            Cell::Blocked,
+            Cell::Empty,
+            Cell::Empty,
+            Cell::Blocked,
+            Cell::Empty,
+            Cell::Blocked,
+            Cell::Empty,
+            Cell::Empty,
+            Cell::Blocked,
+            Cell::Empty,
+            Cell::Blocked,
+            Cell::Empty,
         ],
         p1_hand: [
             Some(Card::new("1MFF", Default::default())),
