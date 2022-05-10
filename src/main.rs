@@ -1,13 +1,6 @@
 mod input;
 mod render;
 
-struct GameState {
-    turn: Player,
-    board: [Cell; 4 * 4],
-    p1_hand: [Option<Card>; 5],
-    p2_hand: [Option<Card>; 5],
-}
-
 #[derive(Clone, Copy, PartialEq)]
 enum Player {
     P1,
@@ -44,46 +37,51 @@ struct Card {
 }
 
 impl Card {
-    fn new(stats: &str, arrows: Arrows) -> Self {
-        fn from_hex(num: char) -> u8 {
-            match num {
-                '0' => 0,
-                '1' => 1,
-                '2' => 2,
-                '3' => 3,
-                '4' => 4,
-                '5' => 5,
-                '6' => 6,
-                '7' => 7,
-                '8' => 8,
-                '9' => 9,
-                'A' => 10,
-                'B' => 11,
-                'C' => 12,
-                'D' => 13,
-                'E' => 14,
-                'F' => 15,
-                ch => panic!("Invalid hex digit: {ch}"),
-            }
+    fn random_card_type() -> CardType {
+        match fastrand::f32() {
+            n if n < 0.40 => CardType::Physical, // 40%
+            n if n < 0.80 => CardType::Magical,  // 40%
+            n if n < 0.95 => CardType::Exploit,  // 15%
+            _ => CardType::Assault,              // 5%
+        }
+    }
+
+    fn random_stat() -> u8 {
+        fn randpick<T>(values: &[T]) -> &T {
+            let len = values.len();
+            let idx = fastrand::usize(..len);
+            &values[idx]
         }
 
-        let stats: Vec<char> = stats.chars().collect();
-        let attack = from_hex(stats[0]);
-        let card_type = match stats[1] {
-            'P' => CardType::Physical,
-            'M' => CardType::Magical,
-            'X' => CardType::Exploit,
-            'A' => CardType::Assault,
-            ch => panic!("Invalid card type: {ch}"),
-        };
-        let physical_defense = from_hex(stats[2]);
-        let magical_defense = from_hex(stats[3]);
+        *match fastrand::f32() {
+            n if n < 0.05 => randpick(&[0, 1]),
+            n if n < 0.35 => randpick(&[2, 3, 4, 5]),
+            n if n < 0.8 => randpick(&[6, 7, 8, 9, 10]),
+            n if n < 0.95 => randpick(&[11, 12, 13]),
+            _ => randpick(&[14, 15]),
+        }
+    }
+
+    fn random_arrows() -> Arrows {
+        Arrows {
+            top_left: fastrand::bool(),
+            top: fastrand::bool(),
+            top_right: fastrand::bool(),
+            left: fastrand::bool(),
+            right: fastrand::bool(),
+            bottom_left: fastrand::bool(),
+            bottom: fastrand::bool(),
+            bottom_right: fastrand::bool(),
+        }
+    }
+
+    fn new_random() -> Self {
         Card {
-            card_type,
-            attack,
-            physical_defense,
-            magical_defense,
-            arrows,
+            card_type: Self::random_card_type(),
+            attack: Self::random_stat(),
+            physical_defense: Self::random_stat(),
+            magical_defense: Self::random_stat(),
+            arrows: Self::random_arrows(),
         }
     }
 }
@@ -94,62 +92,55 @@ enum Cell {
     Empty,
 }
 
-fn main() {
-    let card = Card::new(
-        "9P2F",
-        Arrows {
-            top_left: true,
-            top_right: true,
-            left: true,
-            bottom: true,
-            bottom_right: true,
-            ..Default::default()
-        },
-    );
-    let mut game_state = GameState {
-        turn: Player::P1,
-        board: [
-            Cell::Card {
-                owner: Player::P1,
-                card: card.clone(),
-            },
-            Cell::Blocked,
-            Cell::Card {
-                owner: Player::P2,
-                card: card.clone(),
-            },
-            Cell::Empty,
-            Cell::Blocked,
-            Cell::Empty,
-            Cell::Empty,
-            Cell::Blocked,
-            Cell::Empty,
-            Cell::Blocked,
-            Cell::Empty,
-            Cell::Empty,
-            Cell::Blocked,
-            Cell::Empty,
-            Cell::Blocked,
-            Cell::Empty,
-        ],
-        p1_hand: [
-            Some(Card::new("1MFF", Default::default())),
-            Some(card.clone()),
-            Some(Card::new("1PAF", Default::default())),
-            Some(Card::new("1P3F", Default::default())),
-            Some(Card::new("1MF5", Default::default())),
-        ],
-        p2_hand: [
-            Some(Card::new("1MFF", Default::default())),
-            Some(Card::new("2MFF", Default::default())),
-            Some(Card::new("3MFF", Default::default())),
-            Some(Card::new("4MFF", Default::default())),
-            Some(Card::new("5MFF", Default::default())),
-        ],
-    };
+impl Default for Cell {
+    fn default() -> Self {
+        Cell::Empty
+    }
+}
 
-    let mut i = 0;
-    let mut j = 2;
+struct GameState {
+    turn: Player,
+    board: [Cell; 4 * 4],
+    p1_hand: [Option<Card>; 5],
+    p2_hand: [Option<Card>; 5],
+}
+
+impl GameState {
+    fn new() -> Self {
+        let turn = Player::P1;
+        let mut board: [Cell; 4 * 4] = Default::default();
+        let p1_hand: [Option<Card>; 5] = [
+            Some(Card::new_random()),
+            Some(Card::new_random()),
+            Some(Card::new_random()),
+            Some(Card::new_random()),
+            Some(Card::new_random()),
+        ];
+        let p2_hand: [Option<Card>; 5] = [
+            Some(Card::new_random()),
+            Some(Card::new_random()),
+            Some(Card::new_random()),
+            Some(Card::new_random()),
+            Some(Card::new_random()),
+        ];
+
+        // block 0-6 cells
+        for _ in 0..=fastrand::u8(..=6) {
+            let idx = fastrand::usize(..(4 * 4));
+            board[idx] = Cell::Blocked;
+        }
+
+        GameState {
+            turn,
+            board,
+            p1_hand,
+            p2_hand,
+        }
+    }
+}
+
+fn main() {
+    let mut game_state = GameState::new();
 
     let stdout = std::io::stdout();
     let mut out = stdout.lock();
@@ -164,14 +155,6 @@ fn main() {
         render::screen(&game_state, &mut buf);
         out.write_all(buf.as_bytes()).unwrap();
         out.flush().unwrap();
-
-        let old_i = i;
-        i = (i + 1) % 16;
-        game_state.board.swap(old_i, i);
-
-        let old_j = j;
-        j = (j + 1) % 16;
-        game_state.board.swap(old_j, j);
 
         let input = loop {
             out.write_all(b"> ").unwrap();
