@@ -1,39 +1,43 @@
-#[derive(Debug)]
-pub(crate) struct Input {
-    card: u8,
-    cell: u8,
-}
+use crate::Move;
 
-pub(crate) fn parse(input: &str) -> Result<Input, String> {
+pub(crate) fn parse(input: &str) -> Result<Move, String> {
     enum State {
         ReadingCard,
-        ReadingCoord1 {
-            card: u8,
-        },
-        ReadingCoord2 {
-            card: u8,
-            row: Option<u8>,
-            col: Option<u8>,
-        },
+        ReadingCell { card: usize },
+        WaitingForEOL { card: usize, cell: usize },
     }
 
-    fn ch_to_col(ch: char) -> u8 {
-        match ch {
-            '1' => 0,
-            '2' => 1,
-            '3' => 2,
-            '4' => 3,
-            _ => unreachable!(),
-        }
+    fn char_to_card(ch: char) -> Option<usize> {
+        Some(match ch {
+            '0' => 0,
+            '1' => 1,
+            '2' => 2,
+            '3' => 3,
+            '4' => 4,
+            _ => return None,
+        })
     }
-    fn ch_to_row(ch: char) -> u8 {
-        match ch {
-            'a' | 'A' => 0,
-            'b' | 'B' => 1,
-            'c' | 'C' => 2,
-            'd' | 'D' => 3,
-            _ => unreachable!(),
-        }
+
+    fn char_to_cell(ch: char) -> Option<usize> {
+        Some(match ch {
+            '0' => 0,
+            '1' => 1,
+            '2' => 2,
+            '3' => 3,
+            '4' => 4,
+            '5' => 5,
+            '6' => 6,
+            '7' => 7,
+            '8' => 8,
+            '9' => 9,
+            'a' | 'A' => 10,
+            'b' | 'B' => 11,
+            'c' | 'C' => 12,
+            'd' | 'D' => 13,
+            'e' | 'E' => 14,
+            'f' | 'F' => 15,
+            _ => return None,
+        })
     }
 
     let mut state = State::ReadingCard;
@@ -43,74 +47,16 @@ pub(crate) fn parse(input: &str) -> Result<Input, String> {
             continue; // ignore spaces
         }
         match state {
-            State::ReadingCard => match ch {
-                '1' => state = State::ReadingCoord1 { card: 0 },
-                '2' => state = State::ReadingCoord1 { card: 1 },
-                '3' => state = State::ReadingCoord1 { card: 2 },
-                '4' => state = State::ReadingCoord1 { card: 3 },
-                '5' => state = State::ReadingCoord1 { card: 4 },
+            State::ReadingCard => match char_to_card(ch) {
+                Some(card) => state = State::ReadingCell { card },
                 _ => return Err(format!("Invalid Card {}", ch)),
             },
-            State::ReadingCoord1 { card } => match ch {
-                '1' | '2' | '3' | '4' => {
-                    state = State::ReadingCoord2 {
-                        card,
-                        row: None,
-                        col: Some(ch_to_col(ch)),
-                    }
-                }
-                'a' | 'A' | 'b' | 'B' | 'c' | 'C' | 'd' | 'D' => {
-                    state = State::ReadingCoord2 {
-                        card,
-                        row: Some(ch_to_row(ch)),
-                        col: None,
-                    }
-                }
-                _ => return Err(format!("Invalid Coord {}", ch)),
+            State::ReadingCell { card } => match char_to_cell(ch) {
+                Some(cell) => state = State::WaitingForEOL { card, cell },
+                _ => return Err(format!("Invalid Cell {}", ch)),
             },
-            State::ReadingCoord2 {
-                card,
-                row,
-                col: None,
-            } => match ch {
-                '1' | '2' | '3' | '4' => {
-                    state = State::ReadingCoord2 {
-                        card,
-                        row,
-                        col: Some(ch_to_col(ch)),
-                    }
-                }
-                'a' | 'A' | 'b' | 'B' | 'c' | 'C' | 'd' | 'D' => {
-                    return Err("Row defined twice".into())
-                }
-                _ => return Err(format!("Invalid Coord {}", ch)),
-            },
-            State::ReadingCoord2 {
-                card,
-                row: None,
-                col,
-            } => match ch {
-                'a' | 'A' | 'b' | 'B' | 'c' | 'C' | 'd' | 'D' => {
-                    state = State::ReadingCoord2 {
-                        card,
-                        col,
-                        row: Some(ch_to_row(ch)),
-                    }
-                }
-                '1' | '2' | '3' | '4' => return Err("Col defined twice".into()),
-                _ => return Err(format!("Invalid Coord {}", ch)),
-            },
-            State::ReadingCoord2 {
-                card,
-                row: Some(row),
-                col: Some(col),
-            } => match ch {
-                '\n' => {
-                    return Ok(Input {
-                        card,
-                        cell: row * 4 + col,
-                    })
-                }
+            State::WaitingForEOL { card, cell } => match ch {
+                '\n' => return Ok(Move { card, cell }),
                 _ => return Err(format!("Unexpected Character {}", ch)),
             },
         }

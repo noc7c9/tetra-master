@@ -1,4 +1,5 @@
 mod input;
+mod logic;
 mod render;
 
 #[derive(Clone, Copy, PartialEq)]
@@ -92,6 +93,16 @@ enum Cell {
     Empty,
 }
 
+impl Cell {
+    fn is_empty(&self) -> bool {
+        if let Cell::Empty = self {
+            true
+        } else {
+            false
+        }
+    }
+}
+
 impl Default for Cell {
     fn default() -> Self {
         Cell::Empty
@@ -139,7 +150,37 @@ impl GameState {
     }
 }
 
+struct Move {
+    card: usize,
+    cell: usize,
+}
+
+enum GameLogEntry {
+    PlaceCard { card: Card, cell: usize },
+}
+
+struct GameLog(Vec<(usize, Player, GameLogEntry)>);
+
+impl GameLog {
+    fn new() -> Self {
+        GameLog(Vec::new())
+    }
+
+    fn append(&mut self, player: Player, entry: GameLogEntry) {
+        self.0.push((self.0.len() + 1, player, entry))
+    }
+
+    fn is_empty(&self) -> bool {
+        self.0.is_empty()
+    }
+
+    fn iter(&self) -> std::slice::Iter<'_, (usize, Player, GameLogEntry)> {
+        self.0.iter()
+    }
+}
+
 fn main() {
+    let mut game_log = GameLog::new();
     let mut game_state = GameState::new();
 
     let stdout = std::io::stdout();
@@ -152,31 +193,26 @@ fn main() {
         use std::io::{BufRead, Write};
 
         buf.clear();
-        render::screen(&game_state, &mut buf);
+        render::screen(&game_log, &game_state, &mut buf);
         out.write_all(buf.as_bytes()).unwrap();
         out.flush().unwrap();
 
-        let input = loop {
+        loop {
             out.write_all(b"> ").unwrap();
             out.flush().unwrap();
 
             buf.clear();
             in_.read_line(&mut buf).unwrap();
-            match input::parse(&buf) {
-                Ok(input) => {
-                    break input;
+            match input::parse(&buf)
+                .and_then(|input| logic::next(&mut game_state, &mut game_log, input))
+            {
+                Ok(_) => {
+                    break;
                 }
                 Err(err) => {
                     println!("ERR: {}", err);
                 }
             }
-        };
-
-        println!("Input: {:?}", input);
-        std::thread::sleep(std::time::Duration::from_millis(1000));
-        game_state.turn = match game_state.turn {
-            Player::P1 => Player::P2,
-            Player::P2 => Player::P1,
-        };
+        }
     }
 }
