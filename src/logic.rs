@@ -1,4 +1,4 @@
-use crate::{Card, Cell, GameLog, GameLogEntry, GameState, Move, Player};
+use crate::{game_log::GameLog, Card, Cell, GameState, Move, Player};
 
 pub(crate) fn next(
     game_state: &mut GameState,
@@ -19,16 +19,9 @@ pub(crate) fn next(
     }
 
     // place card
-    let card = hand[next_move.card].take().unwrap();
-    let log_entry = GameLogEntry::PlaceCard {
-        card: card.clone(),
-        cell: next_move.cell,
-    };
-    game_log.append(game_state.turn, log_entry);
-    game_state.board[next_move.cell] = Cell::Card {
-        owner: game_state.turn,
-        card,
-    };
+    let attacking_card = hand[next_move.card].take().unwrap();
+
+    game_log.append_place_card(&attacking_card, next_move.cell);
 
     // handle flips
     for &(idx, arrow) in get_neighbours(next_move.cell).iter() {
@@ -42,22 +35,48 @@ pub(crate) fn next(
                 continue;
             }
 
+            // skip if the attacking card doesn't have a arrow in this direction
+            if !is_attacking(&attacking_card, arrow) {
+                continue;
+            }
+
             if is_defending(attacked_card, arrow) {
                 // TODO implement battle
                 continue;
             } else {
+                // card isn't defending so flip it
+                game_log.append_flip_card(attacked_card, idx, game_state.turn);
+
                 *owner = game_state.turn;
             }
         }
     }
 
-    // next turn
-    game_state.turn = match game_state.turn {
-        Player::P1 => Player::P2,
-        Player::P2 => Player::P1,
+    // actually move card onto the board
+    game_state.board[next_move.cell] = Cell::Card {
+        owner: game_state.turn,
+        card: attacking_card,
     };
 
+    // next turn
+    game_state.turn = game_state.turn.opposite();
+
+    game_log.next_turn(game_state.turn);
+
     Ok(())
+}
+
+fn is_attacking(attacking_card: &Card, attack_direction: Arrow) -> bool {
+    match attack_direction {
+        Arrow::TopLeft => attacking_card.arrows.top_left,
+        Arrow::Top => attacking_card.arrows.top,
+        Arrow::TopRight => attacking_card.arrows.top_right,
+        Arrow::Left => attacking_card.arrows.left,
+        Arrow::Right => attacking_card.arrows.right,
+        Arrow::BottomLeft => attacking_card.arrows.bottom_left,
+        Arrow::Bottom => attacking_card.arrows.bottom,
+        Arrow::BottomRight => attacking_card.arrows.bottom_right,
+    }
 }
 
 fn is_defending(attacked_card: &Card, attack_direction: Arrow) -> bool {

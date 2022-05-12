@@ -1,3 +1,4 @@
+mod game_log;
 mod input;
 mod logic;
 mod render;
@@ -6,6 +7,15 @@ mod render;
 enum Player {
     P1,
     P2,
+}
+
+impl Player {
+    fn opposite(&self) -> Self {
+        match self {
+            Player::P1 => Player::P2,
+            Player::P2 => Player::P1,
+        }
+    }
 }
 
 #[derive(Clone, Copy)]
@@ -151,29 +161,9 @@ struct Move {
     cell: usize,
 }
 
-enum GameLogEntry {
-    PlaceCard { card: Card, cell: usize },
-}
-
-struct GameLog(Vec<(usize, Player, GameLogEntry)>);
-
-impl GameLog {
-    fn new() -> Self {
-        GameLog(Vec::new())
-    }
-
-    fn append(&mut self, player: Player, entry: GameLogEntry) {
-        self.0.push((self.0.len() + 1, player, entry))
-    }
-
-    fn iter(&self) -> std::slice::Iter<'_, (usize, Player, GameLogEntry)> {
-        self.0.iter()
-    }
-}
-
 fn main() {
-    let mut game_log = GameLog::new();
     let mut game_state = GameState::new();
+    let mut game_log = game_log::GameLog::new(game_state.turn);
 
     let stdout = std::io::stdout();
     let mut out = stdout.lock();

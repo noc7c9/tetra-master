@@ -1,4 +1,7 @@
-use crate::{Card, CardType, Cell, GameLog, GameLogEntry, GameState, Player};
+use crate::{
+    game_log::{self, GameLog},
+    Card, CardType, Cell, GameState, Player,
+};
 
 const FG_RED: &str = "\x1b[0;31m";
 const FG_BLUE: &str = "\x1b[0;34m";
@@ -135,22 +138,40 @@ pub(crate) fn screen(game_log: &GameLog, game_state: &GameState, out: &mut Strin
     out.push_str(BG_GRAY);
     out.push_str("\n                     ══ GAMELOG ══\n");
     out.push_str(RESET);
-    for (turn, player, entry) in game_log.iter() {
+    let mut prev_turn = 0;
+    for entry in game_log.iter() {
         use std::fmt::Write;
-        out.push_str(player.to_color());
-        if *turn < 10 {
-            write!(out, "  Turn {} ", turn).unwrap();
+        out.push_str(entry.player.to_color());
+        if entry.turn == prev_turn {
+            out.push_str("         ");
+        } else if entry.turn < 10 {
+            write!(out, "  Turn {} ", entry.turn).unwrap();
         } else {
             out.push_str(" Turn 10 ");
         }
+        prev_turn = entry.turn;
         out.push_str(RESET);
         out.push_str("│ ");
-        match entry {
-            GameLogEntry::PlaceCard { card, cell } => {
-                out.push_str("Placed ");
+        match &entry.data {
+            game_log::EntryData::PlaceCard { card, cell } => {
+                out.push_str("Placed  ");
+                out.push_str(entry.player.to_color());
                 push_card_stats(out, card);
+                out.push_str(RESET);
                 out.push_str(" on cell ");
                 out.push(to_hex_digit(*cell as u8));
+            }
+            game_log::EntryData::FlipCard { card, cell, to } => {
+                out.push_str("Flipped ");
+                out.push_str(to.opposite().to_color());
+                push_card_stats(out, card);
+                out.push_str(RESET);
+                out.push_str(" on cell ");
+                out.push(to_hex_digit(*cell as u8));
+                out.push_str(" to ");
+                out.push_str(to.to_color());
+                out.push_str(to.to_color_name());
+                out.push_str(RESET);
             }
         }
         out.push('\n');
@@ -248,6 +269,13 @@ impl Player {
         match self {
             Player::P1 => FG_BLUE,
             Player::P2 => FG_RED,
+        }
+    }
+
+    fn to_color_name(self) -> &'static str {
+        match self {
+            Player::P1 => "blue",
+            Player::P2 => "red",
         }
     }
 }
