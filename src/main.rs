@@ -95,11 +95,7 @@ enum Cell {
 
 impl Cell {
     fn is_empty(&self) -> bool {
-        if let Cell::Empty = self {
-            true
-        } else {
-            false
-        }
+        matches!(self, Cell::Empty)
     }
 }
 
@@ -168,10 +164,6 @@ impl GameLog {
 
     fn append(&mut self, player: Player, entry: GameLogEntry) {
         self.0.push((self.0.len() + 1, player, entry))
-    }
-
-    fn is_empty(&self) -> bool {
-        self.0.is_empty()
     }
 
     fn iter(&self) -> std::slice::Iter<'_, (usize, Player, GameLogEntry)> {
