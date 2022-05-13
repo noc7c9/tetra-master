@@ -124,7 +124,11 @@ struct GameState {
 
 impl GameState {
     fn new() -> Self {
-        let turn = Player::P1;
+        let turn = if fastrand::bool() {
+            Player::P1
+        } else {
+            Player::P2
+        };
         let mut board: [Cell; 4 * 4] = Default::default();
         let p1_hand: [Option<Card>; 5] = [
             Some(Card::new_random()),
