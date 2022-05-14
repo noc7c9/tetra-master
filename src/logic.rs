@@ -1,4 +1,7 @@
-use crate::{game_log::GameLog, Card, Cell, GameState, Move, Player};
+use crate::{
+    game_log::{self, GameLog},
+    Card, Cell, GameState, Move, Player,
+};
 
 pub(crate) fn next(
     game_state: &mut GameState,
@@ -24,7 +27,11 @@ pub(crate) fn next(
     };
 
     // append the place event here to ensure correct ordering
-    game_log.append_place_card(&attacking_card, next_move.cell);
+    game_log.append(game_log::Entry::place_card(
+        &attacking_card,
+        next_move.cell,
+        game_state.turn,
+    ));
 
     // handle interactions
     for &(idx, arrow) in get_neighbours(next_move.cell).iter() {
@@ -44,7 +51,11 @@ pub(crate) fn next(
             }
 
             // flip the card
-            game_log.append_flip_card(attacked_card, idx, game_state.turn);
+            game_log.append(game_log::Entry::flip_card(
+                attacked_card,
+                idx,
+                game_state.turn,
+            ));
             *owner = game_state.turn;
         }
     }
@@ -57,7 +68,7 @@ pub(crate) fn next(
 
     // next turn
     game_state.turn = game_state.turn.opposite();
-    game_log.next_turn(game_state.turn);
+    game_log.append(game_log::Entry::next_turn(game_state.turn));
 
     Ok(())
 }
@@ -339,11 +350,19 @@ mod test {
         let mut iter = game_log.iter();
         assert_eq!(
             iter.next(),
-            Some(&game_log::Entry {
-                turn_number: 1,
-                turn: Player::P1,
-                data: game_log::EntryData::PlaceCard { card, cell: 7 }
+            Some(&game_log::Entry::NextTurn { turn: Player::P1 })
+        );
+        assert_eq!(
+            iter.next(),
+            Some(&game_log::Entry::PlaceCard {
+                card,
+                cell: 7,
+                owner: Player::P1
             })
+        );
+        assert_eq!(
+            iter.next(),
+            Some(&game_log::Entry::NextTurn { turn: Player::P2 })
         );
         assert_eq!(iter.next(), None);
     }
@@ -439,26 +458,27 @@ mod test {
         let mut iter = game_log.iter();
         assert_eq!(
             iter.next(),
-            Some(&game_log::Entry {
-                turn_number: 1,
-                turn: Player::P1,
-                data: game_log::EntryData::PlaceCard {
-                    card: card_points_up,
-                    cell: 4
-                }
+            Some(&game_log::Entry::NextTurn { turn: Player::P1 })
+        );
+        assert_eq!(
+            iter.next(),
+            Some(&game_log::Entry::PlaceCard {
+                card: card_points_up,
+                cell: 4,
+                owner: Player::P1
             })
         );
         assert_eq!(
             iter.next(),
-            Some(&game_log::Entry {
-                turn_number: 1,
-                turn: Player::P1,
-                data: game_log::EntryData::FlipCard {
-                    card: card_no_arrows,
-                    cell: 0,
-                    to: Player::P1
-                }
+            Some(&game_log::Entry::FlipCard {
+                card: card_no_arrows,
+                cell: 0,
+                to: Player::P1
             })
+        );
+        assert_eq!(
+            iter.next(),
+            Some(&game_log::Entry::NextTurn { turn: Player::P2 })
         );
         assert_eq!(iter.next(), None);
     }

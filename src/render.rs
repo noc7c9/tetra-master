@@ -138,30 +138,40 @@ pub(crate) fn screen(game_log: &GameLog, game_state: &GameState, out: &mut Strin
     out.push_str(GRAY_BOLD);
     out.push_str("\n                     ══ GAMELOG ══\n");
     out.push_str(RESET);
-    let mut prev_turn_number = 0;
+    let mut curr_turn_number = 0;
+    let mut curr_turn = Player::P1; // note: initial value will be overwritten immediately
+    let mut print_prefix = true;
     for entry in game_log.iter() {
-        use std::fmt::Write;
-        out.push_str(entry.turn.to_color());
-        if entry.turn_number == prev_turn_number {
+        if let game_log::Entry::NextTurn { turn } = entry {
+            curr_turn_number += 1;
+            curr_turn = *turn;
+            print_prefix = true;
+            continue;
+        }
+
+        out.push_str(curr_turn.to_color());
+        if !print_prefix {
             out.push_str("         ");
-        } else if entry.turn_number < 10 {
-            write!(out, "  Turn {} ", entry.turn_number).unwrap();
+        } else if curr_turn_number < 10 {
+            use std::fmt::Write;
+            write!(out, "  Turn {curr_turn_number} ").unwrap();
         } else {
             out.push_str(" Turn 10 ");
         }
-        prev_turn_number = entry.turn_number;
+        print_prefix = false;
         out.push_str(RESET);
         out.push_str("│ ");
-        match &entry.data {
-            game_log::EntryData::PlaceCard { card, cell } => {
+
+        match entry {
+            game_log::Entry::PlaceCard { card, cell, owner } => {
                 out.push_str("Placed  ");
-                out.push_str(entry.turn.to_color());
+                out.push_str(owner.to_color());
                 push_card_stats(out, card);
                 out.push_str(RESET);
                 out.push_str(" on cell ");
                 out.push(to_hex_digit(*cell as u8));
             }
-            game_log::EntryData::FlipCard { card, cell, to } => {
+            game_log::Entry::FlipCard { card, cell, to } => {
                 out.push_str("Flipped ");
                 out.push_str(to.opposite().to_color());
                 push_card_stats(out, card);
@@ -173,6 +183,7 @@ pub(crate) fn screen(game_log: &GameLog, game_state: &GameState, out: &mut Strin
                 out.push_str(to.to_color_name());
                 out.push_str(RESET);
             }
+            _ => unreachable!(),
         }
         out.push('\n');
     }
