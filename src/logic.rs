@@ -5,62 +5,61 @@ pub(crate) fn next(
     game_log: &mut GameLog,
     next_move: Move,
 ) -> Result<(), String> {
-    let hand = match game_state.turn {
-        Player::P1 => &mut game_state.p1_hand,
-        Player::P2 => &mut game_state.p2_hand,
-    };
+    // let hand = match game_state.turn {
+    //     Player::P1 => &mut game_state.p1_hand,
+    //     Player::P2 => &mut game_state.p2_hand,
+    // };
 
-    // ensure move is valid
-    if hand[next_move.card].is_none() {
-        return Err(format!("Card {} has already been played", next_move.card));
-    }
-    if !game_state.board[next_move.cell].is_empty() {
-        return Err(format!("Cell {} is not empty", next_move.cell));
-    }
+    // // ensure move is valid
+    // if hand[next_move.card].is_none() {
+    //     return Err(format!("Card {} has already been played", next_move.card));
+    // }
+    // if !game_state.board[next_move.cell].is_empty() {
+    //     return Err(format!("Cell {} is not empty", next_move.cell));
+    // }
 
-    // place card
-    let attacking_card = hand[next_move.card].take().unwrap();
+    // // place card
+    // let attacking_card = hand[next_move.card].take().unwrap();
 
-    game_log.append_place_card(&attacking_card, next_move.cell);
+    // game_log.append_place_card(&attacking_card, next_move.cell);
 
-    // handle flips
-    for &(idx, arrow) in get_neighbours(next_move.cell).iter() {
-        if let Cell::Card {
-            owner,
-            card: attacked_card,
-        } = &mut game_state.board[idx]
-        {
-            // skip over cards belong to the attacking player
-            if *owner == game_state.turn {
-                continue;
-            }
+    // // handle flips
+    // for &(idx, arrow) in get_neighbours(next_move.cell).iter() {
+    //     if let Cell::Card {
+    //         owner,
+    //         card: attacked_card,
+    //     } = &mut game_state.board[idx]
+    //     {
+    //         // skip over cards belong to the attacking player
+    //         if *owner == game_state.turn {
+    //             continue;
+    //         }
 
-            // skip if the attacking card doesn't have a arrow in this direction
-            if !is_attacking(&attacking_card, arrow) {
-                continue;
-            }
+    //         // skip if the attacking card doesn't have a arrow in this direction
+    //         if !is_attacking(&attacking_card, arrow) {
+    //             continue;
+    //         }
 
-            if is_defending(attacked_card, arrow) {
-                // TODO implement battle
-                continue;
-            } else {
-                // card isn't defending so flip it
-                game_log.append_flip_card(attacked_card, idx, game_state.turn);
+    //         if is_defending(attacked_card, arrow) {
+    //             // TODO implement battle
+    //             continue;
+    //         } else {
+    //             // card isn't defending so flip it
+    //             game_log.append_flip_card(attacked_card, idx, game_state.turn);
 
-                *owner = game_state.turn;
-            }
-        }
-    }
+    //             *owner = game_state.turn;
+    //         }
+    //     }
+    // }
 
-    // actually move card onto the board
-    game_state.board[next_move.cell] = Cell::Card {
-        owner: game_state.turn,
-        card: attacking_card,
-    };
+    // // actually move card onto the board
+    // game_state.board[next_move.cell] = Cell::Card {
+    //     owner: game_state.turn,
+    //     card: attacking_card,
+    // };
 
     // next turn
     game_state.turn = game_state.turn.opposite();
-
     game_log.next_turn(game_state.turn);
 
     Ok(())
@@ -209,5 +208,52 @@ fn get_neighbours(cell: usize) -> &'static [(usize, Arrow)] {
         ],
         0xF => &[(0xB, Top), (0xE, Left), (0xA, TopLeft)],
         _ => unreachable!(),
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    impl GameState {
+        fn new_empty() -> Self {
+            GameState {
+                turn: Player::P1,
+                board: [
+                    Cell::Empty,
+                    Cell::Empty,
+                    Cell::Empty,
+                    Cell::Empty,
+                    Cell::Empty,
+                    Cell::Empty,
+                    Cell::Empty,
+                    Cell::Empty,
+                    Cell::Empty,
+                    Cell::Empty,
+                    Cell::Empty,
+                    Cell::Empty,
+                    Cell::Empty,
+                    Cell::Empty,
+                    Cell::Empty,
+                    Cell::Empty,
+                ],
+                p1_hand: [None, None, None, None, None],
+                p2_hand: [None, None, None, None, None],
+            }
+        }
+    }
+
+    #[test]
+    fn turn_should_change_after_playing_a_move() {
+        let mut game_state = GameState {
+            turn: Player::P1,
+            p1_hand: [Some(Card::new_random()), None, None, None, None],
+            ..GameState::new_empty()
+        };
+        let mut game_log = GameLog::new(game_state.turn);
+
+        next(&mut game_state, &mut game_log, Move { card: 0, cell: 0 }).unwrap();
+
+        assert_eq!(game_state.turn, Player::P2);
     }
 }

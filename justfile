@@ -20,3 +20,6 @@ check +ARGS='':
 
 build +ARGS='':
     cargo build {{ARGS}}
+
+test +ARGS='':
+    cargo test {{ARGS}}

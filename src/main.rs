@@ -3,7 +3,7 @@ mod input;
 mod logic;
 mod render;
 
-#[derive(Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 enum Player {
     P1,
     P2,
