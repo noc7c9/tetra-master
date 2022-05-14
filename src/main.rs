@@ -180,6 +180,7 @@ fn main() {
         use std::io::{BufRead, Write};
 
         buf.clear();
+        render::clear(&mut buf);
         render::screen(&game_log, &game_state, &mut buf);
         out.write_all(buf.as_bytes()).unwrap();
         out.flush().unwrap();
