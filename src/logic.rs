@@ -222,11 +222,12 @@ fn get_neighbours(cell: usize) -> &'static [(usize, Arrow)] {
 #[cfg(test)]
 mod test {
     use super::*;
-    use crate::{game_log, Arrows};
+    use crate::{game_log, Arrows, CardType};
 
     impl GameState {
-        fn new_empty() -> Self {
+        fn empty() -> Self {
             GameState {
+                rng: fastrand::Rng::with_seed(0),
                 turn: Player::P1,
                 board: [
                     Cell::Empty,
@@ -252,12 +253,39 @@ mod test {
         }
     }
 
+    impl Card {
+        fn basic() -> Self {
+            Card {
+                card_type: CardType::Physical,
+                arrows: Arrows::none(),
+                attack: 0,
+                physical_defense: 0,
+                magical_defense: 0,
+            }
+        }
+    }
+
+    impl Arrows {
+        fn none() -> Self {
+            Arrows {
+                top_left: false,
+                top: false,
+                top_right: false,
+                left: false,
+                right: false,
+                bottom_left: false,
+                bottom: false,
+                bottom_right: false,
+            }
+        }
+    }
+
     #[test]
     fn turn_should_change_after_playing_a_move() {
         let mut game_state = GameState {
             turn: Player::P1,
-            p1_hand: [Some(Card::new_random()), None, None, None, None],
-            ..GameState::new_empty()
+            p1_hand: [Some(Card::basic()), None, None, None, None],
+            ..GameState::empty()
         };
         let mut game_log = GameLog::new(game_state.turn);
 
@@ -271,7 +299,7 @@ mod test {
         let mut game_state = GameState {
             turn: Player::P1,
             p1_hand: [None, None, None, None, None],
-            ..GameState::new_empty()
+            ..GameState::empty()
         };
         let mut game_log = GameLog::new(game_state.turn);
 
@@ -284,8 +312,8 @@ mod test {
     fn reject_move_if_the_cell_played_on_is_blocked() {
         let mut game_state = GameState {
             turn: Player::P1,
-            p1_hand: [Some(Card::new_random()), None, None, None, None],
-            ..GameState::new_empty()
+            p1_hand: [Some(Card::basic()), None, None, None, None],
+            ..GameState::empty()
         };
         let mut game_log = GameLog::new(game_state.turn);
         game_state.board[0xB] = Cell::Blocked;
@@ -299,13 +327,13 @@ mod test {
     fn reject_move_if_the_cell_played_on_already_has_a_card_placed() {
         let mut game_state = GameState {
             turn: Player::P1,
-            p1_hand: [Some(Card::new_random()), None, None, None, None],
-            ..GameState::new_empty()
+            p1_hand: [Some(Card::basic()), None, None, None, None],
+            ..GameState::empty()
         };
         let mut game_log = GameLog::new(game_state.turn);
         game_state.board[3] = Cell::Card {
             owner: Player::P1,
-            card: Card::new_random(),
+            card: Card::basic(),
         };
 
         let res = next(&mut game_state, &mut game_log, Move { card: 0, cell: 3 });
@@ -315,11 +343,11 @@ mod test {
 
     #[test]
     fn move_card_from_hand_to_board_if_move_is_valid() {
-        let card = Card::new_random();
+        let card = Card::basic();
         let mut game_state = GameState {
             turn: Player::P1,
             p1_hand: [Some(card.clone()), None, None, None, None],
-            ..GameState::new_empty()
+            ..GameState::empty()
         };
         let mut game_log = GameLog::new(game_state.turn);
 
@@ -337,11 +365,11 @@ mod test {
 
     #[test]
     fn update_game_log_on_placing_card() {
-        let card = Card::new_random();
+        let card = Card::basic();
         let mut game_state = GameState {
             turn: Player::P1,
             p1_hand: [Some(card.clone()), None, None, None, None],
-            ..GameState::new_empty()
+            ..GameState::empty()
         };
         let mut game_log = GameLog::new(game_state.turn);
 
@@ -370,21 +398,21 @@ mod test {
     #[test]
     fn flip_cards_that_belong_to_opponent_are_pointed_to_and_dont_point_back() {
         let card_no_arrows = Card {
-            arrows: Default::default(),
-            ..Card::new_random()
+            arrows: Arrows::none(),
+            ..Card::basic()
         };
         let card_points_up_and_right = Card {
             arrows: Arrows {
                 top: true,
                 right: true,
-                ..Default::default()
+                ..Arrows::none()
             },
-            ..Card::new_random()
+            ..Card::basic()
         };
         let mut game_state = GameState {
             turn: Player::P1,
             p1_hand: [Some(card_points_up_and_right), None, None, None, None],
-            ..GameState::new_empty()
+            ..GameState::empty()
         };
         let mut game_log = GameLog::new(game_state.turn);
         // should flip, is pointed to, belongs to opponent
@@ -431,21 +459,21 @@ mod test {
     #[test]
     fn update_game_log_on_flipping_cards() {
         let card_no_arrows = Card {
-            arrows: Default::default(),
-            ..Card::new_random()
+            arrows: Arrows::none(),
+            ..Card::basic()
         };
         let card_points_up = Card {
             arrows: Arrows {
                 top: true,
                 right: true,
-                ..Default::default()
+                ..Arrows::none()
             },
-            ..Card::new_random()
+            ..Card::basic()
         };
         let mut game_state = GameState {
             turn: Player::P1,
             p1_hand: [Some(card_points_up.clone()), None, None, None, None],
-            ..GameState::new_empty()
+            ..GameState::empty()
         };
         let mut game_log = GameLog::new(game_state.turn);
         game_state.board[0] = Cell::Card {
