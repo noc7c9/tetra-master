@@ -6,29 +6,29 @@ pub(crate) enum EntryData {
 }
 
 pub(crate) struct Entry {
-    pub(crate) turn: u8,
-    pub(crate) player: Player,
+    pub(crate) turn_number: u8,
+    pub(crate) turn: Player,
     pub(crate) data: EntryData,
 }
 
 pub(crate) struct GameLog {
-    turn: u8,
-    player: Player,
+    turn_number: u8,
+    turn: Player,
     entries: Vec<Entry>,
 }
 
 impl GameLog {
-    pub(crate) fn new(player: Player) -> Self {
+    pub(crate) fn new(turn: Player) -> Self {
         GameLog {
-            turn: 1,
-            player,
+            turn_number: 1,
+            turn,
             entries: Vec::new(),
         }
     }
 
-    pub(crate) fn next_turn(&mut self, player: Player) {
-        self.turn += 1;
-        self.player = player;
+    pub(crate) fn next_turn(&mut self, turn: Player) {
+        self.turn_number += 1;
+        self.turn = turn;
     }
 
     pub(crate) fn append_place_card(&mut self, card: &Card, cell: usize) {
@@ -48,8 +48,8 @@ impl GameLog {
 
     fn append(&mut self, data: EntryData) {
         self.entries.push(Entry {
+            turn_number: self.turn_number,
             turn: self.turn,
-            player: self.player,
             data,
         })
     }

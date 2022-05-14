@@ -138,24 +138,24 @@ pub(crate) fn screen(game_log: &GameLog, game_state: &GameState, out: &mut Strin
     out.push_str(GRAY_BOLD);
     out.push_str("\n                     ══ GAMELOG ══\n");
     out.push_str(RESET);
-    let mut prev_turn = 0;
+    let mut prev_turn_number = 0;
     for entry in game_log.iter() {
         use std::fmt::Write;
-        out.push_str(entry.player.to_color());
-        if entry.turn == prev_turn {
+        out.push_str(entry.turn.to_color());
+        if entry.turn_number == prev_turn_number {
             out.push_str("         ");
-        } else if entry.turn < 10 {
-            write!(out, "  Turn {} ", entry.turn).unwrap();
+        } else if entry.turn_number < 10 {
+            write!(out, "  Turn {} ", entry.turn_number).unwrap();
         } else {
             out.push_str(" Turn 10 ");
         }
-        prev_turn = entry.turn;
+        prev_turn_number = entry.turn_number;
         out.push_str(RESET);
         out.push_str("│ ");
         match &entry.data {
             game_log::EntryData::PlaceCard { card, cell } => {
                 out.push_str("Placed  ");
-                out.push_str(entry.player.to_color());
+                out.push_str(entry.turn.to_color());
                 push_card_stats(out, card);
                 out.push_str(RESET);
                 out.push_str(" on cell ");
