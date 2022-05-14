@@ -3,10 +3,10 @@ use crate::{
     Card, CardType, Cell, GameState, Player,
 };
 
-const FG_RED: &str = "\x1b[0;31m";
-const FG_BLUE: &str = "\x1b[0;34m";
-const FG_GRAY: &str = "\x1b[0;30m";
-const BG_GRAY: &str = "\x1b[1;30m";
+const RED: &str = "\x1b[0;31m";
+const BLUE: &str = "\x1b[0;34m";
+const GRAY: &str = "\x1b[0;30m";
+const GRAY_BOLD: &str = "\x1b[1;30m";
 const RESET: &str = "\x1b[0m";
 
 pub(crate) fn screen(game_log: &GameLog, game_state: &GameState, out: &mut String) {
@@ -38,7 +38,7 @@ pub(crate) fn screen(game_log: &GameLog, game_state: &GameState, out: &mut Strin
                     out.push_str(RESET);
                 }
                 Cell::Blocked => {
-                    out.push_str(BG_GRAY);
+                    out.push_str(GRAY_BOLD);
                     out.push_str(" ╔═══════╗ ");
                     out.push_str(RESET);
                 }
@@ -50,7 +50,7 @@ pub(crate) fn screen(game_log: &GameLog, game_state: &GameState, out: &mut Strin
         out.push_str("\n   │");
         for j in row {
             if let Cell::Blocked = &game_state.board[j] {
-                out.push_str(BG_GRAY);
+                out.push_str(GRAY_BOLD);
                 out.push_str(" ║       ║ ");
                 out.push_str(RESET);
             } else {
@@ -74,7 +74,7 @@ pub(crate) fn screen(game_log: &GameLog, game_state: &GameState, out: &mut Strin
                     out.push_str(RESET);
                 }
                 Cell::Blocked => {
-                    out.push_str(BG_GRAY);
+                    out.push_str(GRAY_BOLD);
                     out.push_str(" ║ BLOCK ║ ");
                     out.push_str(RESET);
                 }
@@ -90,7 +90,7 @@ pub(crate) fn screen(game_log: &GameLog, game_state: &GameState, out: &mut Strin
         out.push_str("\n   │");
         for j in row {
             if let Cell::Blocked = &game_state.board[j] {
-                out.push_str(BG_GRAY);
+                out.push_str(GRAY_BOLD);
                 out.push_str(" ║       ║ ");
                 out.push_str(RESET);
             } else {
@@ -114,7 +114,7 @@ pub(crate) fn screen(game_log: &GameLog, game_state: &GameState, out: &mut Strin
                     out.push_str(RESET);
                 }
                 Cell::Blocked => {
-                    out.push_str(BG_GRAY);
+                    out.push_str(GRAY_BOLD);
                     out.push_str(" ╚═══════╝ ");
                     out.push_str(RESET);
                 }
@@ -135,7 +135,7 @@ pub(crate) fn screen(game_log: &GameLog, game_state: &GameState, out: &mut Strin
     out.push_str(RESET);
 
     // render game log
-    out.push_str(BG_GRAY);
+    out.push_str(GRAY_BOLD);
     out.push_str("\n                     ══ GAMELOG ══\n");
     out.push_str(RESET);
     let mut prev_turn = 0;
@@ -186,7 +186,7 @@ pub(crate) fn screen(game_log: &GameLog, game_state: &GameState, out: &mut Strin
         out.push_str("Player 2");
     }
 
-    out.push_str(FG_GRAY);
+    out.push_str(GRAY);
     out.push_str(" [ format: {CARD#} {COORD} ]\n");
     out.push_str(RESET);
 }
@@ -267,8 +267,8 @@ fn push_hand(out: &mut String, hand: &[Option<Card>; 5]) {
 impl Player {
     fn to_color(self) -> &'static str {
         match self {
-            Player::P1 => FG_BLUE,
-            Player::P2 => FG_RED,
+            Player::P1 => BLUE,
+            Player::P2 => RED,
         }
     }
 
