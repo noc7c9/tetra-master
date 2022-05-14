@@ -18,7 +18,7 @@ impl Player {
     }
 }
 
-#[derive(Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 enum CardType {
     Physical,
     Magical,
@@ -26,7 +26,7 @@ enum CardType {
     Assault,
 }
 
-#[derive(Clone, Default)]
+#[derive(Debug, Clone, Default, PartialEq)]
 struct Arrows {
     top_left: bool,
     top: bool,
@@ -38,7 +38,7 @@ struct Arrows {
     bottom_right: bool,
 }
 
-#[derive(Clone)]
+#[derive(Debug, Clone, PartialEq)]
 struct Card {
     card_type: CardType,
     attack: u8,
@@ -97,6 +97,7 @@ impl Card {
     }
 }
 
+#[derive(Debug, PartialEq)]
 enum Cell {
     Blocked,
     Card { owner: Player, card: Card },

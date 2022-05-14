@@ -1,10 +1,12 @@
 use crate::{Card, Player};
 
+#[derive(Debug, PartialEq)]
 pub(crate) enum EntryData {
     PlaceCard { card: Card, cell: usize },
     FlipCard { card: Card, cell: usize, to: Player },
 }
 
+#[derive(Debug, PartialEq)]
 pub(crate) struct Entry {
     pub(crate) turn_number: u8,
     pub(crate) turn: Player,

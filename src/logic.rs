@@ -5,58 +5,55 @@ pub(crate) fn next(
     game_log: &mut GameLog,
     next_move: Move,
 ) -> Result<(), String> {
-    // let hand = match game_state.turn {
-    //     Player::P1 => &mut game_state.p1_hand,
-    //     Player::P2 => &mut game_state.p2_hand,
-    // };
+    let hand = match game_state.turn {
+        Player::P1 => &mut game_state.p1_hand,
+        Player::P2 => &mut game_state.p2_hand,
+    };
 
-    // // ensure move is valid
-    // if hand[next_move.card].is_none() {
-    //     return Err(format!("Card {} has already been played", next_move.card));
-    // }
-    // if !game_state.board[next_move.cell].is_empty() {
-    //     return Err(format!("Cell {} is not empty", next_move.cell));
-    // }
+    // ensure cell being placed is empty
+    if !game_state.board[next_move.cell].is_empty() {
+        return Err(format!("Cell {:X} is not empty", next_move.cell));
+    }
 
-    // // place card
-    // let attacking_card = hand[next_move.card].take().unwrap();
+    // remove the card from the hand
+    let attacking_card = match hand[next_move.card].take() {
+        None => {
+            return Err(format!("Card {} has already been played", next_move.card));
+        }
+        Some(card) => card,
+    };
 
-    // game_log.append_place_card(&attacking_card, next_move.cell);
+    // append the place event here to ensure correct ordering
+    game_log.append_place_card(&attacking_card, next_move.cell);
 
-    // // handle flips
-    // for &(idx, arrow) in get_neighbours(next_move.cell).iter() {
-    //     if let Cell::Card {
-    //         owner,
-    //         card: attacked_card,
-    //     } = &mut game_state.board[idx]
-    //     {
-    //         // skip over cards belong to the attacking player
-    //         if *owner == game_state.turn {
-    //             continue;
-    //         }
+    // handle interactions
+    for &(idx, arrow) in get_neighbours(next_move.cell).iter() {
+        if let Cell::Card {
+            owner,
+            card: attacked_card,
+        } = &mut game_state.board[idx]
+        {
+            // skip over cards belong to the attacking player
+            if *owner == game_state.turn {
+                continue;
+            }
 
-    //         // skip if the attacking card doesn't have a arrow in this direction
-    //         if !is_attacking(&attacking_card, arrow) {
-    //             continue;
-    //         }
+            // skip if the attacking card doesn't have an arrow in this direction
+            if !is_attacking(&attacking_card, arrow) {
+                continue;
+            }
 
-    //         if is_defending(attacked_card, arrow) {
-    //             // TODO implement battle
-    //             continue;
-    //         } else {
-    //             // card isn't defending so flip it
-    //             game_log.append_flip_card(attacked_card, idx, game_state.turn);
+            // flip the card
+            game_log.append_flip_card(attacked_card, idx, game_state.turn);
+            *owner = game_state.turn;
+        }
+    }
 
-    //             *owner = game_state.turn;
-    //         }
-    //     }
-    // }
-
-    // // actually move card onto the board
-    // game_state.board[next_move.cell] = Cell::Card {
-    //     owner: game_state.turn,
-    //     card: attacking_card,
-    // };
+    // move card onto the board
+    game_state.board[next_move.cell] = Cell::Card {
+        owner: game_state.turn,
+        card: attacking_card,
+    };
 
     // next turn
     game_state.turn = game_state.turn.opposite();
@@ -214,6 +211,7 @@ fn get_neighbours(cell: usize) -> &'static [(usize, Arrow)] {
 #[cfg(test)]
 mod test {
     use super::*;
+    use crate::{game_log, Arrows};
 
     impl GameState {
         fn new_empty() -> Self {
@@ -255,5 +253,213 @@ mod test {
         next(&mut game_state, &mut game_log, Move { card: 0, cell: 0 }).unwrap();
 
         assert_eq!(game_state.turn, Player::P2);
+    }
+
+    #[test]
+    fn reject_move_if_the_card_has_already_been_played() {
+        let mut game_state = GameState {
+            turn: Player::P1,
+            p1_hand: [None, None, None, None, None],
+            ..GameState::new_empty()
+        };
+        let mut game_log = GameLog::new(game_state.turn);
+
+        let res = next(&mut game_state, &mut game_log, Move { card: 2, cell: 0 });
+
+        assert_eq!(res, Err("Card 2 has already been played".into()));
+    }
+
+    #[test]
+    fn reject_move_if_the_cell_played_on_is_blocked() {
+        let mut game_state = GameState {
+            turn: Player::P1,
+            p1_hand: [Some(Card::new_random()), None, None, None, None],
+            ..GameState::new_empty()
+        };
+        let mut game_log = GameLog::new(game_state.turn);
+        game_state.board[0xB] = Cell::Blocked;
+
+        let res = next(&mut game_state, &mut game_log, Move { card: 0, cell: 0xB });
+
+        assert_eq!(res, Err("Cell B is not empty".into()));
+    }
+
+    #[test]
+    fn reject_move_if_the_cell_played_on_already_has_a_card_placed() {
+        let mut game_state = GameState {
+            turn: Player::P1,
+            p1_hand: [Some(Card::new_random()), None, None, None, None],
+            ..GameState::new_empty()
+        };
+        let mut game_log = GameLog::new(game_state.turn);
+        game_state.board[3] = Cell::Card {
+            owner: Player::P1,
+            card: Card::new_random(),
+        };
+
+        let res = next(&mut game_state, &mut game_log, Move { card: 0, cell: 3 });
+
+        assert_eq!(res, Err("Cell 3 is not empty".into()));
+    }
+
+    #[test]
+    fn move_card_from_hand_to_board_if_move_is_valid() {
+        let card = Card::new_random();
+        let mut game_state = GameState {
+            turn: Player::P1,
+            p1_hand: [Some(card.clone()), None, None, None, None],
+            ..GameState::new_empty()
+        };
+        let mut game_log = GameLog::new(game_state.turn);
+
+        next(&mut game_state, &mut game_log, Move { card: 0, cell: 7 }).unwrap();
+
+        assert_eq!(game_state.p1_hand[0], None);
+        assert_eq!(
+            game_state.board[0x7],
+            Cell::Card {
+                owner: Player::P1,
+                card
+            }
+        );
+    }
+
+    #[test]
+    fn update_game_log_on_placing_card() {
+        let card = Card::new_random();
+        let mut game_state = GameState {
+            turn: Player::P1,
+            p1_hand: [Some(card.clone()), None, None, None, None],
+            ..GameState::new_empty()
+        };
+        let mut game_log = GameLog::new(game_state.turn);
+
+        next(&mut game_state, &mut game_log, Move { card: 0, cell: 7 }).unwrap();
+
+        let mut iter = game_log.iter();
+        assert_eq!(
+            iter.next(),
+            Some(&game_log::Entry {
+                turn_number: 1,
+                turn: Player::P1,
+                data: game_log::EntryData::PlaceCard { card, cell: 7 }
+            })
+        );
+        assert_eq!(iter.next(), None);
+    }
+
+    #[test]
+    fn flip_cards_that_belong_to_opponent_are_pointed_to_and_dont_point_back() {
+        let card_no_arrows = Card {
+            arrows: Default::default(),
+            ..Card::new_random()
+        };
+        let card_points_up_and_right = Card {
+            arrows: Arrows {
+                top: true,
+                right: true,
+                ..Default::default()
+            },
+            ..Card::new_random()
+        };
+        let mut game_state = GameState {
+            turn: Player::P1,
+            p1_hand: [Some(card_points_up_and_right), None, None, None, None],
+            ..GameState::new_empty()
+        };
+        let mut game_log = GameLog::new(game_state.turn);
+        // should flip, is pointed to, belongs to opponent
+        game_state.board[0] = Cell::Card {
+            owner: Player::P2,
+            card: card_no_arrows.clone(),
+        };
+        // shouldn't flip, doesn't belongs to opponent
+        game_state.board[5] = Cell::Card {
+            owner: Player::P1,
+            card: card_no_arrows.clone(),
+        };
+        // shouldn't flip, isn't pointed to
+        game_state.board[8] = Cell::Card {
+            owner: Player::P2,
+            card: card_no_arrows.clone(),
+        };
+
+        next(&mut game_state, &mut game_log, Move { card: 0, cell: 4 }).unwrap();
+
+        assert_eq!(
+            game_state.board[0],
+            Cell::Card {
+                owner: Player::P1,
+                card: card_no_arrows.clone()
+            }
+        );
+        assert_eq!(
+            game_state.board[5],
+            Cell::Card {
+                owner: Player::P1,
+                card: card_no_arrows.clone()
+            }
+        );
+        assert_eq!(
+            game_state.board[8],
+            Cell::Card {
+                owner: Player::P2,
+                card: card_no_arrows
+            }
+        );
+    }
+
+    #[test]
+    fn update_game_log_on_flipping_cards() {
+        let card_no_arrows = Card {
+            arrows: Default::default(),
+            ..Card::new_random()
+        };
+        let card_points_up = Card {
+            arrows: Arrows {
+                top: true,
+                right: true,
+                ..Default::default()
+            },
+            ..Card::new_random()
+        };
+        let mut game_state = GameState {
+            turn: Player::P1,
+            p1_hand: [Some(card_points_up.clone()), None, None, None, None],
+            ..GameState::new_empty()
+        };
+        let mut game_log = GameLog::new(game_state.turn);
+        game_state.board[0] = Cell::Card {
+            owner: Player::P2,
+            card: card_no_arrows.clone(),
+        };
+
+        next(&mut game_state, &mut game_log, Move { card: 0, cell: 4 }).unwrap();
+
+        let mut iter = game_log.iter();
+        assert_eq!(
+            iter.next(),
+            Some(&game_log::Entry {
+                turn_number: 1,
+                turn: Player::P1,
+                data: game_log::EntryData::PlaceCard {
+                    card: card_points_up,
+                    cell: 4
+                }
+            })
+        );
+        assert_eq!(
+            iter.next(),
+            Some(&game_log::Entry {
+                turn_number: 1,
+                turn: Player::P1,
+                data: game_log::EntryData::FlipCard {
+                    card: card_no_arrows,
+                    cell: 0,
+                    to: Player::P1
+                }
+            })
+        );
+        assert_eq!(iter.next(), None);
     }
 }
