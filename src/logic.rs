@@ -1,6 +1,6 @@
 use crate::{
     game_log::{self, GameLog},
-    Card, Cell, GameState, Move, Player,
+    Card, CardType, Cell, GameState, Move, Player,
 };
 
 pub(crate) fn next(
@@ -33,6 +33,9 @@ pub(crate) fn next(
         game_state.turn,
     ));
 
+    // can be changed if the card loses a battle
+    let mut placed_card_owner = game_state.turn;
+
     // handle interactions
     for &(idx, arrow) in get_neighbours(next_move.cell).iter() {
         if let Cell::Card {
@@ -50,19 +53,33 @@ pub(crate) fn next(
                 continue;
             }
 
-            // flip the card
-            game_log.append(game_log::Entry::flip_card(
-                attacked_card,
-                idx,
-                game_state.turn,
-            ));
-            *owner = game_state.turn;
+            if is_defending(attacked_card, arrow) {
+                let result = run_battle(&game_state.rng, &attacking_card, attacked_card);
+                match result.winner {
+                    BattleWinner::Attacker => {
+                        // flip defender
+                        *owner = game_state.turn;
+                    }
+                    BattleWinner::Defender => {
+                        // flip attacker
+                        placed_card_owner = *owner;
+                    }
+                }
+            } else {
+                // card isn't defending so flip it
+                game_log.append(game_log::Entry::flip_card(
+                    attacked_card,
+                    idx,
+                    game_state.turn,
+                ));
+                *owner = game_state.turn;
+            }
         }
     }
 
     // move card onto the board
     game_state.board[next_move.cell] = Cell::Card {
-        owner: game_state.turn,
+        owner: placed_card_owner,
         card: attacking_card,
     };
 
@@ -96,6 +113,103 @@ fn is_defending(attacked_card: &Card, attack_direction: Arrow) -> bool {
         Arrow::BottomLeft => attacked_card.arrows.top_right,
         Arrow::Bottom => attacked_card.arrows.top,
         Arrow::BottomRight => attacked_card.arrows.top_left,
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+enum BattleWinner {
+    Attacker,
+    Defender,
+}
+
+#[derive(Debug)]
+struct BattleStat {
+    digit: u8,
+    value: u8,
+    roll: u8,
+}
+
+impl BattleStat {
+    fn resolve(&self) -> u8 {
+        self.value - self.roll
+    }
+}
+
+#[derive(Debug)]
+struct BattleResult {
+    winner: BattleWinner,
+    attack_stat: BattleStat,
+    defense_stat: BattleStat,
+}
+
+fn get_attack_stat(rng: &fastrand::Rng, attacker: &Card) -> BattleStat {
+    let (digit, value) = if let CardType::Assault = attacker.card_type {
+        // use the highest stat
+        let att = attacker.attack;
+        let pdef = attacker.physical_defense;
+        let mdef = attacker.magical_defense;
+        if mdef > att && mdef > pdef {
+            (3, mdef)
+        } else if pdef > att {
+            (2, pdef)
+        } else {
+            (0, att)
+        }
+    } else {
+        // otherwise use the attack stat
+        (0, attacker.attack)
+    };
+
+    let roll = rng.u8(..=value);
+    BattleStat { digit, value, roll }
+}
+
+fn get_defense_stat(rng: &fastrand::Rng, attacker: &Card, defender: &Card) -> BattleStat {
+    let (digit, value) = match attacker.card_type {
+        CardType::Physical => (2, defender.physical_defense),
+        CardType::Magical => (3, defender.magical_defense),
+        CardType::Exploit =>
+        // use the lowest defense stat
+        {
+            if defender.physical_defense < defender.magical_defense {
+                (2, defender.physical_defense)
+            } else {
+                (3, defender.magical_defense)
+            }
+        }
+        CardType::Assault => {
+            // use the lowest stat
+            let att = defender.attack;
+            let pdef = defender.physical_defense;
+            let mdef = defender.magical_defense;
+            if att < pdef && att < mdef {
+                (0, att)
+            } else if pdef < mdef {
+                (2, pdef)
+            } else {
+                (3, mdef)
+            }
+        }
+    };
+
+    let roll = rng.u8(..=value);
+    BattleStat { digit, value, roll }
+}
+
+fn run_battle(rng: &fastrand::Rng, attacker: &Card, defender: &Card) -> BattleResult {
+    let attack_stat = get_attack_stat(rng, attacker);
+    let defense_stat = get_defense_stat(rng, attacker, defender);
+
+    let winner = if attack_stat.resolve() > defense_stat.resolve() {
+        BattleWinner::Attacker
+    } else {
+        BattleWinner::Defender
+    };
+
+    BattleResult {
+        winner,
+        attack_stat,
+        defense_stat,
     }
 }
 
@@ -224,6 +338,14 @@ mod test {
     use super::*;
     use crate::{game_log, Arrows, CardType};
 
+    fn rng() -> fastrand::Rng {
+        fastrand::Rng::new()
+    }
+
+    fn with_seed(seed: u64) -> fastrand::Rng {
+        fastrand::Rng::with_seed(seed)
+    }
+
     impl GameState {
         fn empty() -> Self {
             GameState {
@@ -254,6 +376,26 @@ mod test {
     }
 
     impl Card {
+        fn from_str(stats: &str, arrows: Arrows) -> Self {
+            let attack = u8::from_str_radix(&stats[0..1], 16).unwrap();
+            let card_type = match &stats[1..2] {
+                "P" => CardType::Physical,
+                "M" => CardType::Magical,
+                "X" => CardType::Exploit,
+                "A" => CardType::Assault,
+                _ => unreachable!(),
+            };
+            let physical_defense = u8::from_str_radix(&stats[2..3], 16).unwrap();
+            let magical_defense = u8::from_str_radix(&stats[3..4], 16).unwrap();
+            Card {
+                card_type,
+                attack,
+                physical_defense,
+                magical_defense,
+                arrows,
+            }
+        }
+
         fn basic() -> Self {
             Card {
                 card_type: CardType::Physical,
@@ -509,5 +651,200 @@ mod test {
             Some(&game_log::Entry::NextTurn { turn: Player::P2 })
         );
         assert_eq!(iter.next(), None);
+    }
+
+    #[test]
+    fn battle_cards_that_belong_to_opponent_are_pointed_to_and_point_back() {
+        let card_points_down = Card::from_str(
+            "0P90",
+            Arrows {
+                bottom: true,
+                ..Arrows::none()
+            },
+        );
+        let card_points_up = Card::from_str(
+            "9P00",
+            Arrows {
+                top: true,
+                ..Arrows::none()
+            },
+        );
+        let mut game_state = GameState {
+            turn: Player::P1,
+            p1_hand: [Some(card_points_up.clone()), None, None, None, None],
+            ..GameState::empty()
+        };
+        game_state.board[0] = Cell::Card {
+            owner: Player::P2,
+            card: card_points_down.clone(),
+        };
+
+        {
+            // rng is set to make the attacker win
+            let mut game_state = GameState {
+                rng: with_seed(0),
+                ..game_state.clone()
+            };
+            let mut game_log = GameLog::new(game_state.turn);
+            next(&mut game_state, &mut game_log, Move { card: 0, cell: 4 }).unwrap();
+
+            assert_eq!(
+                game_state.board[0],
+                Cell::Card {
+                    owner: Player::P1,
+                    card: card_points_down.clone()
+                }
+            );
+            assert_eq!(
+                game_state.board[4],
+                Cell::Card {
+                    owner: Player::P1,
+                    card: card_points_up.clone()
+                }
+            );
+        }
+
+        {
+            // rng is set to make the defender win
+            let mut game_state = GameState {
+                rng: with_seed(1),
+                ..game_state
+            };
+            let mut game_log = GameLog::new(game_state.turn);
+            next(&mut game_state, &mut game_log, Move { card: 0, cell: 4 }).unwrap();
+
+            assert_eq!(
+                game_state.board[0],
+                Cell::Card {
+                    owner: Player::P2,
+                    card: card_points_down
+                }
+            );
+            assert_eq!(
+                game_state.board[4],
+                Cell::Card {
+                    owner: Player::P2,
+                    card: card_points_up
+                }
+            );
+        }
+    }
+
+    #[cfg(test)]
+    mod test_get_attack_stat {
+        use super::*;
+
+        fn card(stats: &str) -> Card {
+            Card::from_str(stats, Arrows::none())
+        }
+
+        #[test]
+        fn physical_type_attacker_picks_attack_stat() {
+            let stat = get_attack_stat(&rng(), &card("APBC"));
+            assert_eq!(stat.digit, 0);
+            assert_eq!(stat.value, 0xA);
+        }
+
+        #[test]
+        fn magical_type_attacker_picks_attack_stat() {
+            let stat = get_attack_stat(&rng(), &card("AMBC"));
+            assert_eq!(stat.digit, 0);
+            assert_eq!(stat.value, 0xA);
+        }
+
+        #[test]
+        fn exploit_type_attacker_picks_attack_stat() {
+            let stat = get_attack_stat(&rng(), &card("AXBC"));
+            assert_eq!(stat.digit, 0);
+            assert_eq!(stat.value, 0xA);
+        }
+
+        #[test]
+        fn assault_type_attacker_picks_highest_stat() {
+            {
+                let stat = get_attack_stat(&rng(), &card("FA12"));
+                assert_eq!(stat.digit, 0);
+                assert_eq!(stat.value, 0xF);
+            }
+            {
+                let stat = get_attack_stat(&rng(), &card("AAB2"));
+                assert_eq!(stat.digit, 2);
+                assert_eq!(stat.value, 0xB);
+            }
+            {
+                let stat = get_attack_stat(&rng(), &card("AA1F"));
+                assert_eq!(stat.digit, 3);
+                assert_eq!(stat.value, 0xF);
+            }
+
+            // when there is a tie between the attack stat and a defense stat, prefer the attack
+            {
+                assert_eq!(get_attack_stat(&rng(), &card("FAF0")).digit, 0);
+                assert_eq!(get_attack_stat(&rng(), &card("FA0F")).digit, 0);
+                assert_eq!(get_attack_stat(&rng(), &card("FAFF")).digit, 0);
+            }
+        }
+    }
+
+    #[cfg(test)]
+    mod test_get_defense_stat {
+        use super::*;
+
+        fn card(stats: &str) -> Card {
+            Card::from_str(stats, Arrows::none())
+        }
+
+        #[test]
+        fn physical_type_attacker_picks_physical_defense() {
+            let attacker = card("0P00");
+            let defender = card("APBC");
+            let stat = get_defense_stat(&fastrand::Rng::new(), &attacker, &defender);
+            assert_eq!(stat.digit, 2);
+            assert_eq!(stat.value, 0xB);
+        }
+
+        #[test]
+        fn magical_type_attacker_picks_magical_defense() {
+            let attacker = card("0M00");
+            let defender = card("APBC");
+            let stat = get_defense_stat(&fastrand::Rng::new(), &attacker, &defender);
+            assert_eq!(stat.digit, 3);
+            assert_eq!(stat.value, 0xC);
+        }
+
+        #[test]
+        fn exploit_type_attacker_picks_lowest_defense() {
+            let attacker = card("0X00");
+            {
+                let stat = get_defense_stat(&rng(), &attacker, &card("APBC"));
+                assert_eq!(stat.digit, 2);
+                assert_eq!(stat.value, 0xB);
+            }
+            {
+                let stat = get_defense_stat(&rng(), &attacker, &card("APCB"));
+                assert_eq!(stat.digit, 3);
+                assert_eq!(stat.value, 0xB);
+            }
+        }
+
+        #[test]
+        fn assault_type_attacker_picks_lowest_stat() {
+            let attacker = card("0A00");
+            {
+                let stat = get_defense_stat(&rng(), &attacker, &card("APBC"));
+                assert_eq!(stat.digit, 0);
+                assert_eq!(stat.value, 0xA);
+            }
+            {
+                let stat = get_defense_stat(&rng(), &attacker, &card("BPAC"));
+                assert_eq!(stat.digit, 2);
+                assert_eq!(stat.value, 0xA);
+            }
+            {
+                let stat = get_defense_stat(&rng(), &attacker, &card("CPBA"));
+                assert_eq!(stat.digit, 3);
+                assert_eq!(stat.value, 0xA);
+            }
+        }
     }
 }

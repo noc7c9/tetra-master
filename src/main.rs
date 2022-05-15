@@ -93,7 +93,7 @@ impl Card {
     }
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 enum Cell {
     Blocked,
     Card { owner: Player, card: Card },
@@ -112,6 +112,7 @@ impl Default for Cell {
     }
 }
 
+#[derive(Debug, Clone)]
 struct GameState {
     rng: fastrand::Rng,
     turn: Player,
