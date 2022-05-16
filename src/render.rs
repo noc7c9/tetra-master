@@ -45,11 +45,11 @@ fn push_hand(out: &mut String, owner: Player, hand: &[Option<Card>; 5]) {
     for card in hand {
         if let Some(card) = card {
             out.push_str("║ ");
-            out.push(if card.arrows.top_left { '⇖' } else { ' ' });
+            out.push(if card.arrows.up_left() { '⇖' } else { ' ' });
             out.push_str("  ");
-            out.push(if card.arrows.top { '⇑' } else { ' ' });
+            out.push(if card.arrows.up() { '⇑' } else { ' ' });
             out.push_str("  ");
-            out.push(if card.arrows.top_right { '⇗' } else { ' ' });
+            out.push(if card.arrows.up_right() { '⇗' } else { ' ' });
             out.push_str(" ║");
         } else {
             out.push_str("           ");
@@ -60,10 +60,10 @@ fn push_hand(out: &mut String, owner: Player, hand: &[Option<Card>; 5]) {
     for card in hand {
         if let Some(card) = card {
             out.push_str("║ ");
-            out.push(if card.arrows.left { '⇐' } else { ' ' });
+            out.push(if card.arrows.left() { '⇐' } else { ' ' });
             out.push(' ');
-            push_card_stats(out, card);
-            out.push(if card.arrows.right { '⇒' } else { ' ' });
+            push_card_stats(out, *card);
+            out.push(if card.arrows.right() { '⇒' } else { ' ' });
             out.push_str(" ║");
         } else {
             out.push_str("           ");
@@ -74,11 +74,11 @@ fn push_hand(out: &mut String, owner: Player, hand: &[Option<Card>; 5]) {
     for card in hand {
         if let Some(card) = card {
             out.push_str("║ ");
-            out.push(if card.arrows.bottom_left { '⇙' } else { ' ' });
+            out.push(if card.arrows.down_left() { '⇙' } else { ' ' });
             out.push_str("  ");
-            out.push(if card.arrows.bottom { '⇓' } else { ' ' });
+            out.push(if card.arrows.down() { '⇓' } else { ' ' });
             out.push_str("  ");
-            out.push(if card.arrows.bottom_right { '⇘' } else { ' ' });
+            out.push(if card.arrows.down_right() { '⇘' } else { ' ' });
             out.push_str(" ║");
         } else {
             out.push_str("           ");
@@ -111,11 +111,11 @@ fn push_board(out: &mut String, state: &GameState) {
                 Cell::Card(OwnedCard { owner, card }) => {
                     out.push_str(owner.to_color());
                     out.push(' ');
-                    out.push(if card.arrows.top_left { '⇖' } else { ' ' });
+                    out.push(if card.arrows.up_left() { '⇖' } else { ' ' });
                     out.push_str("   ");
-                    out.push(if card.arrows.top { '⇑' } else { ' ' });
+                    out.push(if card.arrows.up() { '⇑' } else { ' ' });
                     out.push_str("   ");
-                    out.push(if card.arrows.top_right { '⇗' } else { ' ' });
+                    out.push(if card.arrows.up_right() { '⇗' } else { ' ' });
                     out.push(' ');
                     out.push_str(RESET);
                 }
@@ -143,15 +143,15 @@ fn push_board(out: &mut String, state: &GameState) {
         out.push_str("\n   │");
 
         for j in row {
-            match &state.board[j] {
+            match state.board[j] {
                 Cell::Card(OwnedCard { owner, card }) => {
                     out.push_str(owner.to_color());
                     out.push(' ');
-                    out.push(if card.arrows.left { '⇐' } else { ' ' });
+                    out.push(if card.arrows.left() { '⇐' } else { ' ' });
                     out.push_str("  ");
                     push_card_stats(out, card);
                     out.push(' ');
-                    out.push(if card.arrows.right { '⇒' } else { ' ' });
+                    out.push(if card.arrows.right() { '⇒' } else { ' ' });
                     out.push(' ');
                     out.push_str(RESET);
                 }
@@ -187,11 +187,11 @@ fn push_board(out: &mut String, state: &GameState) {
                 Cell::Card(OwnedCard { owner, card }) => {
                     out.push_str(owner.to_color());
                     out.push(' ');
-                    out.push(if card.arrows.bottom_left { '⇙' } else { ' ' });
+                    out.push(if card.arrows.down_left() { '⇙' } else { ' ' });
                     out.push_str("   ");
-                    out.push(if card.arrows.bottom { '⇓' } else { ' ' });
+                    out.push(if card.arrows.down() { '⇓' } else { ' ' });
                     out.push_str("   ");
-                    out.push(if card.arrows.bottom_right { '⇘' } else { ' ' });
+                    out.push(if card.arrows.down_right() { '⇘' } else { ' ' });
                     out.push(' ');
                     out.push_str(RESET);
                 }
@@ -246,7 +246,7 @@ fn push_game_log(out: &mut String, log: &GameLog) {
             Entry::PlaceCard { card, cell } => {
                 out.push_str("Placed  ");
                 out.push_str(card.owner.to_color());
-                push_card_stats(out, &card.card);
+                push_card_stats(out, card.card);
                 out.push_str(RESET);
                 out.push_str(" on cell ");
                 out.push(to_hex_digit(*cell as u8));
@@ -255,7 +255,7 @@ fn push_game_log(out: &mut String, log: &GameLog) {
             Entry::FlipCard { card, cell, to } => {
                 out.push_str("Flipped ");
                 out.push_str(to.opposite().to_color());
-                push_card_stats(out, &card.card);
+                push_card_stats(out, card.card);
                 out.push_str(RESET);
                 out.push_str(" on cell ");
                 out.push(to_hex_digit(*cell as u8));
@@ -275,7 +275,7 @@ fn push_game_log(out: &mut String, log: &GameLog) {
                 out.push_str("Battle  ");
                 push_card_stats_with_highlight(
                     out,
-                    &attacker.card,
+                    attacker.card,
                     attacker.owner,
                     result.attack_stat.digit,
                 );
@@ -283,7 +283,7 @@ fn push_game_log(out: &mut String, log: &GameLog) {
                 out.push_str(defender.owner.to_color());
                 push_card_stats_with_highlight(
                     out,
-                    &defender.card,
+                    defender.card,
                     defender.owner,
                     result.defense_stat.digit,
                 );
@@ -361,14 +361,14 @@ fn push_prompt(out: &mut String, turn: Player) {
     out.push_str(RESET);
 }
 
-fn push_card_stats(out: &mut String, card: &Card) {
+fn push_card_stats(out: &mut String, card: Card) {
     out.push(to_hex_digit(card.attack));
     out.push(card.card_type.to_char());
     out.push(to_hex_digit(card.physical_defense));
     out.push(to_hex_digit(card.magical_defense));
 }
 
-fn push_card_stats_with_highlight(out: &mut String, card: &Card, owner: Player, highlight: u8) {
+fn push_card_stats_with_highlight(out: &mut String, card: Card, owner: Player, highlight: u8) {
     out.push_str(if highlight == 0 {
         owner.to_color_bold()
     } else {

@@ -29,15 +29,70 @@ enum CardType {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
-struct Arrows {
-    top_left: bool,
-    top: bool,
-    top_right: bool,
-    left: bool,
-    right: bool,
-    bottom_left: bool,
-    bottom: bool,
-    bottom_right: bool,
+struct Arrows(u8);
+
+impl Arrows {
+    #[allow(dead_code)]
+    const NONE: Arrows = Arrows(0b0000_0000);
+
+    // clockwise from the top
+    const UP: Arrows = Arrows(0b1000_0000);
+    const UP_RIGHT: Arrows = Arrows(0b0100_0000);
+    const RIGHT: Arrows = Arrows(0b0010_0000);
+    const DOWN_RIGHT: Arrows = Arrows(0b0001_0000);
+    const DOWN: Arrows = Arrows(0b0000_1000);
+    const DOWN_LEFT: Arrows = Arrows(0b0000_0100);
+    const LEFT: Arrows = Arrows(0b0000_0010);
+    const UP_LEFT: Arrows = Arrows(0b0000_0001);
+
+    fn flip(self) -> Self {
+        // rotating by 4 bits and wrapping
+        Arrows(self.0 >> 4 | self.0 << 4)
+    }
+
+    fn has(self, other: Self) -> bool {
+        (self.0 & other.0) != 0
+    }
+
+    fn up_left(self) -> bool {
+        self.has(Arrows::UP_LEFT)
+    }
+
+    fn up(self) -> bool {
+        self.has(Arrows::UP)
+    }
+
+    fn up_right(self) -> bool {
+        self.has(Arrows::UP_RIGHT)
+    }
+
+    fn left(self) -> bool {
+        self.has(Arrows::LEFT)
+    }
+
+    fn right(self) -> bool {
+        self.has(Arrows::RIGHT)
+    }
+
+    fn down_left(self) -> bool {
+        self.has(Arrows::DOWN_LEFT)
+    }
+
+    fn down(self) -> bool {
+        self.has(Arrows::DOWN)
+    }
+
+    fn down_right(self) -> bool {
+        self.has(Arrows::DOWN_RIGHT)
+    }
+}
+
+impl std::ops::BitOr for Arrows {
+    type Output = Self;
+
+    fn bitor(self, rhs: Self) -> Self {
+        Arrows(self.0 | rhs.0)
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -74,16 +129,7 @@ impl Card {
             _ => CardType::Assault,              // 5%
         };
 
-        let arrows = Arrows {
-            top_left: rng.bool(),
-            top: rng.bool(),
-            top_right: rng.bool(),
-            left: rng.bool(),
-            right: rng.bool(),
-            bottom_left: rng.bool(),
-            bottom: rng.bool(),
-            bottom_right: rng.bool(),
-        };
+        let arrows = Arrows(rng.u8(..));
 
         Card {
             card_type,

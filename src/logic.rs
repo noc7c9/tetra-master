@@ -1,6 +1,6 @@
 use crate::{
-    BattleResult, BattleStat, BattleWinner, Card, CardType, Cell, GameState, Move, OwnedCard,
-    Player, {Entry, GameLog},
+    Arrows, BattleResult, BattleStat, BattleWinner, Card, CardType, Cell, GameState, Move,
+    OwnedCard, Player, {Entry, GameLog},
 };
 
 pub(crate) fn next(state: &mut GameState, log: &mut GameLog, input: Move) -> Result<(), String> {
@@ -37,12 +37,12 @@ pub(crate) fn next(state: &mut GameState, log: &mut GameLog, input: Move) -> Res
             }
 
             // skip if the attacking card doesn't have an arrow in this direction
-            if !is_attacking(&attacker.card, arrow) {
+            if !is_attacking(attacker.card, arrow) {
                 continue;
             }
 
-            if is_defending(&defender.card, arrow) {
-                let result = run_battle(&state.rng, &attacker.card, &defender.card);
+            if is_defending(defender.card, arrow) {
+                let result = run_battle(&state.rng, attacker.card, defender.card);
                 log.append(Entry::battle(attacker, *defender, result));
                 match result.winner {
                     BattleWinner::Attacker => {
@@ -74,33 +74,15 @@ pub(crate) fn next(state: &mut GameState, log: &mut GameLog, input: Move) -> Res
     Ok(())
 }
 
-fn is_attacking(attacking_card: &Card, attack_direction: Arrow) -> bool {
-    match attack_direction {
-        Arrow::TopLeft => attacking_card.arrows.top_left,
-        Arrow::Top => attacking_card.arrows.top,
-        Arrow::TopRight => attacking_card.arrows.top_right,
-        Arrow::Left => attacking_card.arrows.left,
-        Arrow::Right => attacking_card.arrows.right,
-        Arrow::BottomLeft => attacking_card.arrows.bottom_left,
-        Arrow::Bottom => attacking_card.arrows.bottom,
-        Arrow::BottomRight => attacking_card.arrows.bottom_right,
-    }
+fn is_attacking(card: Card, attack_direction: Arrows) -> bool {
+    card.arrows.has(attack_direction)
 }
 
-fn is_defending(attacked_card: &Card, attack_direction: Arrow) -> bool {
-    match attack_direction {
-        Arrow::TopLeft => attacked_card.arrows.bottom_right,
-        Arrow::Top => attacked_card.arrows.bottom,
-        Arrow::TopRight => attacked_card.arrows.bottom_left,
-        Arrow::Left => attacked_card.arrows.right,
-        Arrow::Right => attacked_card.arrows.left,
-        Arrow::BottomLeft => attacked_card.arrows.top_right,
-        Arrow::Bottom => attacked_card.arrows.top,
-        Arrow::BottomRight => attacked_card.arrows.top_left,
-    }
+fn is_defending(card: Card, attack_direction: Arrows) -> bool {
+    card.arrows.flip().has(attack_direction)
 }
 
-fn get_attack_stat(rng: &fastrand::Rng, attacker: &Card) -> BattleStat {
+fn get_attack_stat(rng: &fastrand::Rng, attacker: Card) -> BattleStat {
     let (digit, value) = if let CardType::Assault = attacker.card_type {
         // use the highest stat
         let att = attacker.attack;
@@ -122,7 +104,7 @@ fn get_attack_stat(rng: &fastrand::Rng, attacker: &Card) -> BattleStat {
     BattleStat { digit, value, roll }
 }
 
-fn get_defense_stat(rng: &fastrand::Rng, attacker: &Card, defender: &Card) -> BattleStat {
+fn get_defense_stat(rng: &fastrand::Rng, attacker: Card, defender: Card) -> BattleStat {
     let (digit, value) = match attacker.card_type {
         CardType::Physical => (2, defender.physical_defense),
         CardType::Magical => (3, defender.magical_defense),
@@ -154,7 +136,7 @@ fn get_defense_stat(rng: &fastrand::Rng, attacker: &Card, defender: &Card) -> Ba
     BattleStat { digit, value, roll }
 }
 
-fn run_battle(rng: &fastrand::Rng, attacker: &Card, defender: &Card) -> BattleResult {
+fn run_battle(rng: &fastrand::Rng, attacker: Card, defender: Card) -> BattleResult {
     let attack_stat = get_attack_stat(rng, attacker);
     let defense_stat = get_defense_stat(rng, attacker, defender);
 
@@ -175,122 +157,69 @@ fn run_battle(rng: &fastrand::Rng, attacker: &Card, defender: &Card) -> BattleRe
     }
 }
 
-#[derive(Debug, Clone, Copy)]
-enum Arrow {
-    TopLeft,
-    Top,
-    TopRight,
-    Left,
-    Right,
-    BottomLeft,
-    Bottom,
-    BottomRight,
-}
-
 // returns index of neighbour cells along with the arrow that points at the neighbour
-fn get_neighbours(cell: usize) -> &'static [(usize, Arrow)] {
-    use Arrow::*;
+fn get_neighbours(cell: usize) -> &'static [(usize, Arrows)] {
+    const U: Arrows = Arrows::UP;
+    const UR: Arrows = Arrows::UP_RIGHT;
+    const R: Arrows = Arrows::RIGHT;
+    const DR: Arrows = Arrows::DOWN_RIGHT;
+    const D: Arrows = Arrows::DOWN;
+    const DL: Arrows = Arrows::DOWN_LEFT;
+    const L: Arrows = Arrows::LEFT;
+    const UL: Arrows = Arrows::UP_LEFT;
     match cell {
-        0x0 => &[(0x1, Right), (0x5, BottomRight), (0x4, Bottom)],
-        0x1 => &[
-            (0x2, Right),
-            (0x6, BottomRight),
-            (0x5, Bottom),
-            (0x4, BottomLeft),
-            (0x0, Left),
-        ],
-        0x2 => &[
-            (0x3, Right),
-            (0x7, BottomRight),
-            (0x6, Bottom),
-            (0x5, BottomLeft),
-            (0x1, Left),
-        ],
-        0x3 => &[(0x7, Bottom), (0x6, BottomLeft), (0x2, Left)],
-        0x4 => &[
-            (0x0, Top),
-            (0x1, TopRight),
-            (0x5, Right),
-            (0x9, BottomRight),
-            (0x8, Bottom),
-        ],
+        0x0 => &[(0x1, R), (0x5, DR), (0x4, D)],
+        0x1 => &[(0x2, R), (0x6, DR), (0x5, D), (0x4, DL), (0x0, L)],
+        0x2 => &[(0x3, R), (0x7, DR), (0x6, D), (0x5, DL), (0x1, L)],
+        0x3 => &[(0x7, D), (0x6, DL), (0x2, L)],
+        0x4 => &[(0x0, U), (0x1, UR), (0x5, R), (0x9, DR), (0x8, D)],
         0x5 => &[
-            (0x1, Top),
-            (0x2, TopRight),
-            (0x6, Right),
-            (0xA, BottomRight),
-            (0x9, Bottom),
-            (0x8, BottomLeft),
-            (0x4, Left),
-            (0x0, TopLeft),
+            (0x1, U),
+            (0x2, UR),
+            (0x6, R),
+            (0xA, DR),
+            (0x9, D),
+            (0x8, DL),
+            (0x4, L),
+            (0x0, UL),
         ],
         0x6 => &[
-            (0x2, Top),
-            (0x3, TopRight),
-            (0x7, Right),
-            (0xB, BottomRight),
-            (0xA, Bottom),
-            (0x9, BottomLeft),
-            (0x5, Left),
-            (0x1, TopLeft),
+            (0x2, U),
+            (0x3, UR),
+            (0x7, R),
+            (0xB, DR),
+            (0xA, D),
+            (0x9, DL),
+            (0x5, L),
+            (0x1, UL),
         ],
-        0x7 => &[
-            (0x3, Top),
-            (0xB, Bottom),
-            (0xA, BottomLeft),
-            (0x6, Left),
-            (0x2, TopLeft),
-        ],
-        0x8 => &[
-            (0x4, Top),
-            (0x5, TopRight),
-            (0x9, Right),
-            (0xD, BottomRight),
-            (0xC, Bottom),
-        ],
+        0x7 => &[(0x3, U), (0xB, D), (0xA, DL), (0x6, L), (0x2, UL)],
+        0x8 => &[(0x4, U), (0x5, UR), (0x9, R), (0xD, DR), (0xC, D)],
         0x9 => &[
-            (0x5, Top),
-            (0x6, TopRight),
-            (0xA, Right),
-            (0xE, BottomRight),
-            (0xD, Bottom),
-            (0xC, BottomLeft),
-            (0x8, Left),
-            (0x4, TopLeft),
+            (0x5, U),
+            (0x6, UR),
+            (0xA, R),
+            (0xE, DR),
+            (0xD, D),
+            (0xC, DL),
+            (0x8, L),
+            (0x4, UL),
         ],
         0xA => &[
-            (0x6, Top),
-            (0x7, TopRight),
-            (0xB, Right),
-            (0xF, BottomRight),
-            (0xE, Bottom),
-            (0xD, BottomLeft),
-            (0x9, Left),
-            (0x5, TopLeft),
+            (0x6, U),
+            (0x7, UR),
+            (0xB, R),
+            (0xF, DR),
+            (0xE, D),
+            (0xD, DL),
+            (0x9, L),
+            (0x5, UL),
         ],
-        0xB => &[
-            (0x7, Top),
-            (0xF, Bottom),
-            (0xE, BottomLeft),
-            (0xA, Left),
-            (0x6, TopLeft),
-        ],
-        0xC => &[(0x8, Top), (0x9, TopRight), (0xD, Right)],
-        0xD => &[
-            (0x9, Top),
-            (0xA, TopRight),
-            (0xE, Right),
-            (0xC, Left),
-            (0x8, TopLeft),
-        ],
-        0xE => &[
-            (0xA, Top),
-            (0xB, TopRight),
-            (0xF, Right),
-            (0xD, Left),
-            (0x9, TopLeft),
-        ],
-        0xF => &[(0xB, Top), (0xE, Left), (0xA, TopLeft)],
+        0xB => &[(0x7, U), (0xF, D), (0xE, DL), (0xA, L), (0x6, UL)],
+        0xC => &[(0x8, U), (0x9, UR), (0xD, R)],
+        0xD => &[(0x9, U), (0xA, UR), (0xE, R), (0xC, L), (0x8, UL)],
+        0xE => &[(0xA, U), (0xB, UR), (0xF, R), (0xD, L), (0x9, UL)],
+        0xF => &[(0xB, U), (0xE, L), (0xA, UL)],
         _ => unreachable!(),
     }
 }
@@ -361,25 +290,10 @@ mod test {
         fn basic() -> Self {
             Card {
                 card_type: CardType::Physical,
-                arrows: Arrows::none(),
+                arrows: Arrows::NONE,
                 attack: 0,
                 physical_defense: 0,
                 magical_defense: 0,
-            }
-        }
-    }
-
-    impl Arrows {
-        fn none() -> Self {
-            Arrows {
-                top_left: false,
-                top: false,
-                top_right: false,
-                left: false,
-                right: false,
-                bottom_left: false,
-                bottom: false,
-                bottom_right: false,
             }
         }
     }
@@ -506,15 +420,11 @@ mod test {
     #[test]
     fn flip_cards_that_belong_to_opponent_are_pointed_to_and_dont_point_back() {
         let card_no_arrows = Card {
-            arrows: Arrows::none(),
+            arrows: Arrows::NONE,
             ..Card::basic()
         };
         let card_points_up_and_right = Card {
-            arrows: Arrows {
-                top: true,
-                right: true,
-                ..Arrows::none()
-            },
+            arrows: Arrows::UP | Arrows::RIGHT,
             ..Card::basic()
         };
         let mut state = GameState {
@@ -540,15 +450,11 @@ mod test {
     #[test]
     fn update_game_log_on_flipping_cards() {
         let card_no_arrows = Card {
-            arrows: Arrows::none(),
+            arrows: Arrows::NONE,
             ..Card::basic()
         };
         let card_points_up = Card {
-            arrows: Arrows {
-                top: true,
-                right: true,
-                ..Arrows::none()
-            },
+            arrows: Arrows::UP | Arrows::RIGHT,
             ..Card::basic()
         };
         let mut state = GameState {
@@ -575,20 +481,8 @@ mod test {
 
     #[test]
     fn battle_cards_that_belong_to_opponent_are_pointed_to_and_point_back() {
-        let card_points_down = Card::from_str(
-            "0P90",
-            Arrows {
-                bottom: true,
-                ..Arrows::none()
-            },
-        );
-        let card_points_up = Card::from_str(
-            "9P00",
-            Arrows {
-                top: true,
-                ..Arrows::none()
-            },
-        );
+        let card_points_down = Card::from_str("0P90", Arrows::DOWN);
+        let card_points_up = Card::from_str("9P00", Arrows::UP);
         let mut state = GameState {
             turn: Player::P1,
             p1_hand: [Some(card_points_up), None, None, None, None],
@@ -638,20 +532,8 @@ mod test {
 
     #[test]
     fn update_game_log_on_battles() {
-        let card_points_down = Card::from_str(
-            "0P90",
-            Arrows {
-                bottom: true,
-                ..Arrows::none()
-            },
-        );
-        let card_points_up = Card::from_str(
-            "9P00",
-            Arrows {
-                top: true,
-                ..Arrows::none()
-            },
-        );
+        let card_points_down = Card::from_str("0P90", Arrows::DOWN);
+        let card_points_up = Card::from_str("9P00", Arrows::UP);
         let mut state = GameState {
             turn: Player::P1,
             p1_hand: [Some(card_points_up), None, None, None, None],
@@ -779,26 +661,26 @@ mod test {
         use super::*;
 
         fn card(stats: &str) -> Card {
-            Card::from_str(stats, Arrows::none())
+            Card::from_str(stats, Arrows::NONE)
         }
 
         #[test]
         fn physical_type_attacker_picks_attack_stat() {
-            let stat = get_attack_stat(&rng(), &card("APBC"));
+            let stat = get_attack_stat(&rng(), card("APBC"));
             assert_eq!(stat.digit, 0);
             assert_eq!(stat.value, 0xA);
         }
 
         #[test]
         fn magical_type_attacker_picks_attack_stat() {
-            let stat = get_attack_stat(&rng(), &card("AMBC"));
+            let stat = get_attack_stat(&rng(), card("AMBC"));
             assert_eq!(stat.digit, 0);
             assert_eq!(stat.value, 0xA);
         }
 
         #[test]
         fn exploit_type_attacker_picks_attack_stat() {
-            let stat = get_attack_stat(&rng(), &card("AXBC"));
+            let stat = get_attack_stat(&rng(), card("AXBC"));
             assert_eq!(stat.digit, 0);
             assert_eq!(stat.value, 0xA);
         }
@@ -806,26 +688,26 @@ mod test {
         #[test]
         fn assault_type_attacker_picks_highest_stat() {
             {
-                let stat = get_attack_stat(&rng(), &card("FA12"));
+                let stat = get_attack_stat(&rng(), card("FA12"));
                 assert_eq!(stat.digit, 0);
                 assert_eq!(stat.value, 0xF);
             }
             {
-                let stat = get_attack_stat(&rng(), &card("AAB2"));
+                let stat = get_attack_stat(&rng(), card("AAB2"));
                 assert_eq!(stat.digit, 2);
                 assert_eq!(stat.value, 0xB);
             }
             {
-                let stat = get_attack_stat(&rng(), &card("AA1F"));
+                let stat = get_attack_stat(&rng(), card("AA1F"));
                 assert_eq!(stat.digit, 3);
                 assert_eq!(stat.value, 0xF);
             }
 
             // when there is a tie between the attack stat and a defense stat, prefer the attack
             {
-                assert_eq!(get_attack_stat(&rng(), &card("FAF0")).digit, 0);
-                assert_eq!(get_attack_stat(&rng(), &card("FA0F")).digit, 0);
-                assert_eq!(get_attack_stat(&rng(), &card("FAFF")).digit, 0);
+                assert_eq!(get_attack_stat(&rng(), card("FAF0")).digit, 0);
+                assert_eq!(get_attack_stat(&rng(), card("FA0F")).digit, 0);
+                assert_eq!(get_attack_stat(&rng(), card("FAFF")).digit, 0);
             }
         }
     }
@@ -835,14 +717,14 @@ mod test {
         use super::*;
 
         fn card(stats: &str) -> Card {
-            Card::from_str(stats, Arrows::none())
+            Card::from_str(stats, Arrows::NONE)
         }
 
         #[test]
         fn physical_type_attacker_picks_physical_defense() {
             let attacker = card("0P00");
             let defender = card("APBC");
-            let stat = get_defense_stat(&fastrand::Rng::new(), &attacker, &defender);
+            let stat = get_defense_stat(&fastrand::Rng::new(), attacker, defender);
             assert_eq!(stat.digit, 2);
             assert_eq!(stat.value, 0xB);
         }
@@ -851,7 +733,7 @@ mod test {
         fn magical_type_attacker_picks_magical_defense() {
             let attacker = card("0M00");
             let defender = card("APBC");
-            let stat = get_defense_stat(&fastrand::Rng::new(), &attacker, &defender);
+            let stat = get_defense_stat(&fastrand::Rng::new(), attacker, defender);
             assert_eq!(stat.digit, 3);
             assert_eq!(stat.value, 0xC);
         }
@@ -860,12 +742,12 @@ mod test {
         fn exploit_type_attacker_picks_lowest_defense() {
             let attacker = card("0X00");
             {
-                let stat = get_defense_stat(&rng(), &attacker, &card("APBC"));
+                let stat = get_defense_stat(&rng(), attacker, card("APBC"));
                 assert_eq!(stat.digit, 2);
                 assert_eq!(stat.value, 0xB);
             }
             {
-                let stat = get_defense_stat(&rng(), &attacker, &card("APCB"));
+                let stat = get_defense_stat(&rng(), attacker, card("APCB"));
                 assert_eq!(stat.digit, 3);
                 assert_eq!(stat.value, 0xB);
             }
@@ -875,17 +757,17 @@ mod test {
         fn assault_type_attacker_picks_lowest_stat() {
             let attacker = card("0A00");
             {
-                let stat = get_defense_stat(&rng(), &attacker, &card("APBC"));
+                let stat = get_defense_stat(&rng(), attacker, card("APBC"));
                 assert_eq!(stat.digit, 0);
                 assert_eq!(stat.value, 0xA);
             }
             {
-                let stat = get_defense_stat(&rng(), &attacker, &card("BPAC"));
+                let stat = get_defense_stat(&rng(), attacker, card("BPAC"));
                 assert_eq!(stat.digit, 2);
                 assert_eq!(stat.value, 0xA);
             }
             {
-                let stat = get_defense_stat(&rng(), &attacker, &card("CPBA"));
+                let stat = get_defense_stat(&rng(), attacker, card("CPBA"));
                 assert_eq!(stat.digit, 3);
                 assert_eq!(stat.value, 0xA);
             }
