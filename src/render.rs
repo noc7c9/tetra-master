@@ -362,10 +362,10 @@ fn push_prompt(out: &mut String, turn: Player) {
 }
 
 fn push_card_stats(out: &mut String, card: Card) {
-    out.push(to_hex_digit(card.attack));
+    out.push(to_hex_digit(card.attack >> 4));
     out.push(card.card_type.to_char());
-    out.push(to_hex_digit(card.physical_defense));
-    out.push(to_hex_digit(card.magical_defense));
+    out.push(to_hex_digit(card.physical_defense >> 4));
+    out.push(to_hex_digit(card.magical_defense >> 4));
 }
 
 fn push_card_stats_with_highlight(out: &mut String, card: Card, owner: Player, highlight: u8) {
@@ -374,7 +374,7 @@ fn push_card_stats_with_highlight(out: &mut String, card: Card, owner: Player, h
     } else {
         owner.to_color()
     });
-    out.push(to_hex_digit(card.attack));
+    out.push(to_hex_digit(card.attack >> 4));
 
     out.push_str(owner.to_color());
     out.push(card.card_type.to_char());
@@ -384,14 +384,14 @@ fn push_card_stats_with_highlight(out: &mut String, card: Card, owner: Player, h
     } else {
         owner.to_color()
     });
-    out.push(to_hex_digit(card.physical_defense));
+    out.push(to_hex_digit(card.physical_defense >> 4));
 
     out.push_str(if highlight == 3 {
         owner.to_color_bold()
     } else {
         owner.to_color()
     });
-    out.push(to_hex_digit(card.magical_defense));
+    out.push(to_hex_digit(card.magical_defense >> 4));
 
     out.push_str(RESET);
 }

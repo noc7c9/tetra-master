@@ -268,7 +268,7 @@ mod test {
 
     impl Card {
         fn from_str(stats: &str, arrows: Arrows) -> Self {
-            let attack = u8::from_str_radix(&stats[0..1], 16).unwrap();
+            let attack = 0xF + 0x10 * u8::from_str_radix(&stats[0..1], 16).unwrap();
             let card_type = match &stats[1..2] {
                 "P" => CardType::Physical,
                 "M" => CardType::Magical,
@@ -276,8 +276,8 @@ mod test {
                 "A" => CardType::Assault,
                 _ => unreachable!(),
             };
-            let physical_defense = u8::from_str_radix(&stats[2..3], 16).unwrap();
-            let magical_defense = u8::from_str_radix(&stats[3..4], 16).unwrap();
+            let physical_defense = 0xF + 0x10 * u8::from_str_radix(&stats[2..3], 16).unwrap();
+            let magical_defense = 0xF + 0x10 * u8::from_str_radix(&stats[3..4], 16).unwrap();
             Card {
                 card_type,
                 attack,
@@ -481,8 +481,8 @@ mod test {
 
     #[test]
     fn battle_cards_that_belong_to_opponent_are_pointed_to_and_point_back() {
-        let card_points_down = Card::from_str("0P90", Arrows::DOWN);
-        let card_points_up = Card::from_str("9P00", Arrows::UP);
+        let card_points_down = Card::from_str("0P10", Arrows::DOWN);
+        let card_points_up = Card::from_str("1P00", Arrows::UP);
         let mut state = GameState {
             turn: Player::P1,
             p1_hand: [Some(card_points_up), None, None, None, None],
@@ -519,7 +519,7 @@ mod test {
         {
             // rng is set to make the battle draw and default as a defender win
             let mut state = GameState {
-                rng: with_seed(5),
+                rng: with_seed(94),
                 ..state
             };
             let mut log = GameLog::new(state.turn);
@@ -532,8 +532,8 @@ mod test {
 
     #[test]
     fn update_game_log_on_battles() {
-        let card_points_down = Card::from_str("0P90", Arrows::DOWN);
-        let card_points_up = Card::from_str("9P00", Arrows::UP);
+        let card_points_down = Card::from_str("0P10", Arrows::DOWN);
+        let card_points_up = Card::from_str("1P00", Arrows::UP);
         let mut state = GameState {
             turn: Player::P1,
             p1_hand: [Some(card_points_up), None, None, None, None],
@@ -563,13 +563,13 @@ mod test {
                             winner: BattleWinner::Attacker,
                             attack_stat: BattleStat {
                                 digit: 0,
-                                value: 9,
-                                roll: 5
+                                value: 0x1F,
+                                roll: 17
                             },
                             defense_stat: BattleStat {
                                 digit: 2,
-                                value: 9,
-                                roll: 9
+                                value: 0x1F,
+                                roll: 31
                             },
                         }
                     ),
@@ -601,13 +601,13 @@ mod test {
                             winner: BattleWinner::Defender,
                             attack_stat: BattleStat {
                                 digit: 0,
-                                value: 9,
-                                roll: 8
+                                value: 0x1F,
+                                roll: 28
                             },
                             defense_stat: BattleStat {
                                 digit: 2,
-                                value: 9,
-                                roll: 1
+                                value: 0x1F,
+                                roll: 3
                             },
                         }
                     ),
@@ -620,7 +620,7 @@ mod test {
         {
             // rng is set to make the battle draw and default as a defender win
             let mut state = GameState {
-                rng: with_seed(5),
+                rng: with_seed(94),
                 ..state
             };
             let mut log = GameLog::new(state.turn);
@@ -639,13 +639,13 @@ mod test {
                             winner: BattleWinner::None,
                             attack_stat: BattleStat {
                                 digit: 0,
-                                value: 9,
-                                roll: 6
+                                value: 0x1F,
+                                roll: 23
                             },
                             defense_stat: BattleStat {
                                 digit: 2,
-                                value: 9,
-                                roll: 6
+                                value: 0x1F,
+                                roll: 23
                             },
                         }
                     ),
@@ -668,21 +668,21 @@ mod test {
         fn physical_type_attacker_picks_attack_stat() {
             let stat = get_attack_stat(&rng(), card("APBC"));
             assert_eq!(stat.digit, 0);
-            assert_eq!(stat.value, 0xA);
+            assert_eq!(stat.value, 0xAF);
         }
 
         #[test]
         fn magical_type_attacker_picks_attack_stat() {
             let stat = get_attack_stat(&rng(), card("AMBC"));
             assert_eq!(stat.digit, 0);
-            assert_eq!(stat.value, 0xA);
+            assert_eq!(stat.value, 0xAF);
         }
 
         #[test]
         fn exploit_type_attacker_picks_attack_stat() {
             let stat = get_attack_stat(&rng(), card("AXBC"));
             assert_eq!(stat.digit, 0);
-            assert_eq!(stat.value, 0xA);
+            assert_eq!(stat.value, 0xAF);
         }
 
         #[test]
@@ -690,17 +690,17 @@ mod test {
             {
                 let stat = get_attack_stat(&rng(), card("FA12"));
                 assert_eq!(stat.digit, 0);
-                assert_eq!(stat.value, 0xF);
+                assert_eq!(stat.value, 0xFF);
             }
             {
                 let stat = get_attack_stat(&rng(), card("AAB2"));
                 assert_eq!(stat.digit, 2);
-                assert_eq!(stat.value, 0xB);
+                assert_eq!(stat.value, 0xBF);
             }
             {
                 let stat = get_attack_stat(&rng(), card("AA1F"));
                 assert_eq!(stat.digit, 3);
-                assert_eq!(stat.value, 0xF);
+                assert_eq!(stat.value, 0xFF);
             }
 
             // when there is a tie between the attack stat and a defense stat, prefer the attack
@@ -726,7 +726,7 @@ mod test {
             let defender = card("APBC");
             let stat = get_defense_stat(&fastrand::Rng::new(), attacker, defender);
             assert_eq!(stat.digit, 2);
-            assert_eq!(stat.value, 0xB);
+            assert_eq!(stat.value, 0xBF);
         }
 
         #[test]
@@ -735,7 +735,7 @@ mod test {
             let defender = card("APBC");
             let stat = get_defense_stat(&fastrand::Rng::new(), attacker, defender);
             assert_eq!(stat.digit, 3);
-            assert_eq!(stat.value, 0xC);
+            assert_eq!(stat.value, 0xCF);
         }
 
         #[test]
@@ -744,12 +744,12 @@ mod test {
             {
                 let stat = get_defense_stat(&rng(), attacker, card("APBC"));
                 assert_eq!(stat.digit, 2);
-                assert_eq!(stat.value, 0xB);
+                assert_eq!(stat.value, 0xBF);
             }
             {
                 let stat = get_defense_stat(&rng(), attacker, card("APCB"));
                 assert_eq!(stat.digit, 3);
-                assert_eq!(stat.value, 0xB);
+                assert_eq!(stat.value, 0xBF);
             }
         }
 
@@ -759,17 +759,17 @@ mod test {
             {
                 let stat = get_defense_stat(&rng(), attacker, card("APBC"));
                 assert_eq!(stat.digit, 0);
-                assert_eq!(stat.value, 0xA);
+                assert_eq!(stat.value, 0xAF);
             }
             {
                 let stat = get_defense_stat(&rng(), attacker, card("BPAC"));
                 assert_eq!(stat.digit, 2);
-                assert_eq!(stat.value, 0xA);
+                assert_eq!(stat.value, 0xAF);
             }
             {
                 let stat = get_defense_stat(&rng(), attacker, card("CPBA"));
                 assert_eq!(stat.digit, 3);
-                assert_eq!(stat.value, 0xA);
+                assert_eq!(stat.value, 0xAF);
             }
         }
     }

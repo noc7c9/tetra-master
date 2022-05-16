@@ -113,13 +113,16 @@ impl Card {
         }
 
         fn random_stat(rng: &fastrand::Rng) -> u8 {
-            *match rng.f32() {
+            let base_stat = *match rng.f32() {
                 n if n < 0.05 => randpick(rng, &[0, 1]),
                 n if n < 0.35 => randpick(rng, &[2, 3, 4, 5]),
                 n if n < 0.8 => randpick(rng, &[6, 7, 8, 9, 10]),
                 n if n < 0.95 => randpick(rng, &[11, 12, 13]),
                 _ => randpick(rng, &[14, 15]),
-            }
+            };
+            // base stats range from 0x0 to 0xF
+            // real stats range from 0x0 to 0xFF
+            0x10 * base_stat + rng.u8(..16)
         }
 
         let card_type = match rng.f32() {
