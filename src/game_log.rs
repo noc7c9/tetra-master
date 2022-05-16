@@ -1,4 +1,4 @@
-use crate::{Card, Player};
+use crate::{BattleResult, Card, Player};
 
 #[derive(Debug, PartialEq)]
 pub(crate) enum Entry {
@@ -15,6 +15,11 @@ pub(crate) enum Entry {
         cell: usize,
         to: Player,
     },
+    Battle {
+        attacker: (Player, Card),
+        defender: (Player, Card),
+        result: BattleResult,
+    },
 }
 
 impl Entry {
@@ -30,6 +35,21 @@ impl Entry {
     pub(crate) fn flip_card(card: &Card, cell: usize, to: Player) -> Self {
         let card = card.clone();
         Entry::FlipCard { card, cell, to }
+    }
+
+    pub(crate) fn battle(
+        attacker: (Player, &Card),
+        defender: (Player, &Card),
+        result: &BattleResult,
+    ) -> Self {
+        let attacker = (attacker.0, attacker.1.clone());
+        let defender = (defender.0, defender.1.clone());
+        let result = result.clone();
+        Entry::Battle {
+            attacker,
+            defender,
+            result,
+        }
     }
 }
 

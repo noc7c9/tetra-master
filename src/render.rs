@@ -1,10 +1,12 @@
 use crate::{
     game_log::{self, GameLog},
-    Card, CardType, Cell, GameState, Player,
+    BattleWinner, Card, CardType, Cell, GameState, Player,
 };
 
 const RED: &str = "\x1b[0;31m";
+const RED_BOLD: &str = "\x1b[1;31m";
 const BLUE: &str = "\x1b[0;34m";
+const BLUE_BOLD: &str = "\x1b[1;34m";
 const GRAY: &str = "\x1b[0;30m";
 const GRAY_BOLD: &str = "\x1b[1;30m";
 const RESET: &str = "\x1b[0m";
@@ -252,6 +254,7 @@ fn push_game_log(out: &mut String, log: &GameLog) {
                 out.push_str(" on cell ");
                 out.push(to_hex_digit(*cell as u8));
             }
+
             game_log::Entry::FlipCard { card, cell, to } => {
                 out.push_str("Flipped ");
                 out.push_str(to.opposite().to_color());
@@ -264,7 +267,84 @@ fn push_game_log(out: &mut String, log: &GameLog) {
                 out.push_str(to.to_color_name());
                 out.push_str(RESET);
             }
-            _ => unreachable!(),
+
+            game_log::Entry::Battle {
+                attacker,
+                defender,
+                result,
+            } => {
+                use std::fmt::Write;
+
+                out.push_str("Battle  ");
+                push_card_stats_with_highlight(
+                    out,
+                    &attacker.1,
+                    attacker.0,
+                    result.attack_stat.digit,
+                );
+                out.push_str(" vs ");
+                out.push_str(defender.0.to_color());
+                push_card_stats_with_highlight(
+                    out,
+                    &defender.1,
+                    defender.0,
+                    result.defense_stat.digit,
+                );
+                out.push_str(RESET);
+                out.push_str("\n         │         ");
+                out.push_str(attacker.0.to_color());
+                out.push_str("Attacker");
+                out.push_str(RESET);
+                out.push_str(" (");
+                write!(out, "{}", result.attack_stat.value).unwrap();
+                out.push_str(") rolled ");
+                write!(out, "{}", result.attack_stat.roll).unwrap();
+                out.push_str(", ");
+                out.push_str(defender.0.to_color());
+                out.push_str("Defender");
+                out.push_str(RESET);
+                out.push_str(" (");
+                write!(out, "{}", result.defense_stat.value).unwrap();
+                out.push_str(") rolled ");
+                write!(out, "{}", result.defense_stat.roll).unwrap();
+                match result.winner {
+                    BattleWinner::Attacker => {
+                        out.push_str("\n         │         ");
+                        out.push_str(attacker.0.to_color());
+                        out.push_str("Attacker wins");
+                        out.push_str(RESET);
+                        out.push_str(" (");
+                        write!(out, "{}", result.attack_stat.resolve()).unwrap();
+                        out.push_str(" > ");
+                        write!(out, "{}", result.defense_stat.resolve()).unwrap();
+                        out.push(')');
+                    }
+                    BattleWinner::Defender => {
+                        out.push_str("\n         │         ");
+                        out.push_str(defender.0.to_color());
+                        out.push_str("Defender wins");
+                        out.push_str(RESET);
+                        out.push_str(" (");
+                        write!(out, "{}", result.attack_stat.resolve()).unwrap();
+                        out.push_str(" < ");
+                        write!(out, "{}", result.defense_stat.resolve()).unwrap();
+                        out.push(')');
+                    }
+                    BattleWinner::None => {
+                        out.push_str("\n         │         Draw, ");
+                        out.push_str(defender.0.to_color());
+                        out.push_str("defender wins");
+                        out.push_str(RESET);
+                        out.push_str(" by default (");
+                        write!(out, "{}", result.attack_stat.resolve()).unwrap();
+                        out.push_str(" = ");
+                        write!(out, "{}", result.defense_stat.resolve()).unwrap();
+                        out.push(')');
+                    }
+                }
+            }
+
+            game_log::Entry::NextTurn { .. } => unreachable!(),
         }
         out.push('\n');
     }
@@ -291,11 +371,46 @@ fn push_card_stats(out: &mut String, card: &Card) {
     out.push(to_hex_digit(card.magical_defense));
 }
 
+fn push_card_stats_with_highlight(out: &mut String, card: &Card, owner: Player, highlight: u8) {
+    out.push_str(if highlight == 0 {
+        owner.to_color_bold()
+    } else {
+        owner.to_color()
+    });
+    out.push(to_hex_digit(card.attack));
+
+    out.push_str(owner.to_color());
+    out.push(card.card_type.to_char());
+
+    out.push_str(if highlight == 2 {
+        owner.to_color_bold()
+    } else {
+        owner.to_color()
+    });
+    out.push(to_hex_digit(card.physical_defense));
+
+    out.push_str(if highlight == 3 {
+        owner.to_color_bold()
+    } else {
+        owner.to_color()
+    });
+    out.push(to_hex_digit(card.magical_defense));
+
+    out.push_str(RESET);
+}
+
 impl Player {
     fn to_color(self) -> &'static str {
         match self {
             Player::P1 => BLUE,
             Player::P2 => RED,
+        }
+    }
+
+    fn to_color_bold(self) -> &'static str {
+        match self {
+            Player::P1 => BLUE_BOLD,
+            Player::P2 => RED_BOLD,
         }
     }
 

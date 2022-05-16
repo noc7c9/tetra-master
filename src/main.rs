@@ -112,6 +112,33 @@ impl Default for Cell {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq)]
+enum BattleWinner {
+    Attacker,
+    Defender,
+    None,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+struct BattleStat {
+    digit: u8,
+    value: u8,
+    roll: u8,
+}
+
+impl BattleStat {
+    fn resolve(&self) -> u8 {
+        self.value - self.roll
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+struct BattleResult {
+    winner: BattleWinner,
+    attack_stat: BattleStat,
+    defense_stat: BattleStat,
+}
+
 #[derive(Debug, Clone)]
 struct GameState {
     rng: fastrand::Rng,

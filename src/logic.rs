@@ -1,6 +1,6 @@
 use crate::{
     game_log::{self, GameLog},
-    Card, CardType, Cell, GameState, Move, Player,
+    BattleResult, BattleStat, BattleWinner, Card, CardType, Cell, GameState, Move, Player,
 };
 
 pub(crate) fn next(
@@ -54,14 +54,32 @@ pub(crate) fn next(
             }
 
             if is_defending(attacked_card, arrow) {
+                let attacking_player = game_state.turn;
+                let defending_player = game_state.turn.opposite();
+
                 let result = run_battle(&game_state.rng, &attacking_card, attacked_card);
+                game_log.append(game_log::Entry::battle(
+                    (attacking_player, &attacking_card),
+                    (defending_player, attacked_card),
+                    &result,
+                ));
                 match result.winner {
                     BattleWinner::Attacker => {
                         // flip defender
+                        game_log.append(game_log::Entry::flip_card(
+                            attacked_card,
+                            idx,
+                            attacking_player,
+                        ));
                         *owner = game_state.turn;
                     }
                     BattleWinner::Defender | BattleWinner::None => {
                         // flip attacker
+                        game_log.append(game_log::Entry::flip_card(
+                            &attacking_card,
+                            next_move.cell,
+                            defending_player,
+                        ));
                         placed_card_owner = *owner;
                     }
                 }
@@ -114,33 +132,6 @@ fn is_defending(attacked_card: &Card, attack_direction: Arrow) -> bool {
         Arrow::Bottom => attacked_card.arrows.top,
         Arrow::BottomRight => attacked_card.arrows.top_left,
     }
-}
-
-#[derive(Debug, Clone, Copy)]
-enum BattleWinner {
-    Attacker,
-    Defender,
-    None,
-}
-
-#[derive(Debug)]
-struct BattleStat {
-    digit: u8,
-    value: u8,
-    roll: u8,
-}
-
-impl BattleStat {
-    fn resolve(&self) -> u8 {
-        self.value - self.roll
-    }
-}
-
-#[derive(Debug)]
-struct BattleResult {
-    winner: BattleWinner,
-    attack_stat: BattleStat,
-    defense_stat: BattleStat,
 }
 
 fn get_attack_stat(rng: &fastrand::Rng, attacker: &Card) -> BattleStat {
