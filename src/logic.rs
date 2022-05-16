@@ -513,24 +513,15 @@ mod test {
 
         next(&mut game_state, &mut game_log, Move { card: 0, cell: 7 }).unwrap();
 
-        let mut iter = game_log.iter();
+        let log: Vec<_> = game_log.iter().collect();
         assert_eq!(
-            iter.next(),
-            Some(&game_log::Entry::NextTurn { turn: Player::P1 })
+            log,
+            vec![
+                &game_log::Entry::next_turn(Player::P1),
+                &game_log::Entry::place_card(&card, 7, Player::P1),
+                &game_log::Entry::next_turn(Player::P2),
+            ]
         );
-        assert_eq!(
-            iter.next(),
-            Some(&game_log::Entry::PlaceCard {
-                card,
-                cell: 7,
-                owner: Player::P1
-            })
-        );
-        assert_eq!(
-            iter.next(),
-            Some(&game_log::Entry::NextTurn { turn: Player::P2 })
-        );
-        assert_eq!(iter.next(), None);
     }
 
     #[test]
@@ -621,32 +612,16 @@ mod test {
 
         next(&mut game_state, &mut game_log, Move { card: 0, cell: 4 }).unwrap();
 
-        let mut iter = game_log.iter();
+        let log: Vec<_> = game_log.iter().collect();
         assert_eq!(
-            iter.next(),
-            Some(&game_log::Entry::NextTurn { turn: Player::P1 })
+            log,
+            vec![
+                &game_log::Entry::next_turn(Player::P1),
+                &game_log::Entry::place_card(&card_points_up, 4, Player::P1),
+                &game_log::Entry::flip_card(&card_no_arrows, 0, Player::P1),
+                &game_log::Entry::next_turn(Player::P2),
+            ]
         );
-        assert_eq!(
-            iter.next(),
-            Some(&game_log::Entry::PlaceCard {
-                card: card_points_up,
-                cell: 4,
-                owner: Player::P1
-            })
-        );
-        assert_eq!(
-            iter.next(),
-            Some(&game_log::Entry::FlipCard {
-                card: card_no_arrows,
-                cell: 0,
-                to: Player::P1
-            })
-        );
-        assert_eq!(
-            iter.next(),
-            Some(&game_log::Entry::NextTurn { turn: Player::P2 })
-        );
-        assert_eq!(iter.next(), None);
     }
 
     #[test]
@@ -786,52 +761,33 @@ mod test {
             let mut game_log = GameLog::new(game_state.turn);
             next(&mut game_state, &mut game_log, Move { card: 0, cell: 4 }).unwrap();
 
-            let mut iter = game_log.iter();
+            let log: Vec<_> = game_log.iter().collect();
             assert_eq!(
-                iter.next(),
-                Some(&game_log::Entry::NextTurn { turn: Player::P1 })
+                log,
+                vec![
+                    &game_log::Entry::next_turn(Player::P1),
+                    &game_log::Entry::place_card(&card_points_up, 4, Player::P1),
+                    &game_log::Entry::battle(
+                        (Player::P1, &card_points_up),
+                        (Player::P2, &card_points_down),
+                        &BattleResult {
+                            winner: BattleWinner::Attacker,
+                            attack_stat: BattleStat {
+                                digit: 0,
+                                value: 9,
+                                roll: 5
+                            },
+                            defense_stat: BattleStat {
+                                digit: 2,
+                                value: 9,
+                                roll: 9
+                            },
+                        }
+                    ),
+                    &game_log::Entry::flip_card(&card_points_down, 0, Player::P1),
+                    &game_log::Entry::next_turn(Player::P2),
+                ]
             );
-            assert_eq!(
-                iter.next(),
-                Some(&game_log::Entry::PlaceCard {
-                    card: card_points_up.clone(),
-                    cell: 4,
-                    owner: Player::P1
-                })
-            );
-            assert_eq!(
-                iter.next(),
-                Some(&game_log::Entry::Battle {
-                    attacker: (Player::P1, card_points_up.clone()),
-                    defender: (Player::P2, card_points_down.clone()),
-                    result: BattleResult {
-                        winner: BattleWinner::Attacker,
-                        attack_stat: BattleStat {
-                            digit: 0,
-                            value: 9,
-                            roll: 5
-                        },
-                        defense_stat: BattleStat {
-                            digit: 2,
-                            value: 9,
-                            roll: 9
-                        },
-                    }
-                })
-            );
-            assert_eq!(
-                iter.next(),
-                Some(&game_log::Entry::FlipCard {
-                    card: card_points_down.clone(),
-                    cell: 0,
-                    to: Player::P1
-                })
-            );
-            assert_eq!(
-                iter.next(),
-                Some(&game_log::Entry::NextTurn { turn: Player::P2 })
-            );
-            assert_eq!(iter.next(), None);
         }
 
         {
@@ -843,52 +799,33 @@ mod test {
             let mut game_log = GameLog::new(game_state.turn);
             next(&mut game_state, &mut game_log, Move { card: 0, cell: 4 }).unwrap();
 
-            let mut iter = game_log.iter();
+            let log: Vec<_> = game_log.iter().collect();
             assert_eq!(
-                iter.next(),
-                Some(&game_log::Entry::NextTurn { turn: Player::P1 })
+                log,
+                vec![
+                    &game_log::Entry::next_turn(Player::P1),
+                    &game_log::Entry::place_card(&card_points_up, 4, Player::P1),
+                    &game_log::Entry::battle(
+                        (Player::P1, &card_points_up),
+                        (Player::P2, &card_points_down),
+                        &BattleResult {
+                            winner: BattleWinner::Defender,
+                            attack_stat: BattleStat {
+                                digit: 0,
+                                value: 9,
+                                roll: 8
+                            },
+                            defense_stat: BattleStat {
+                                digit: 2,
+                                value: 9,
+                                roll: 1
+                            },
+                        }
+                    ),
+                    &game_log::Entry::flip_card(&card_points_up, 4, Player::P2),
+                    &game_log::Entry::next_turn(Player::P2),
+                ]
             );
-            assert_eq!(
-                iter.next(),
-                Some(&game_log::Entry::PlaceCard {
-                    card: card_points_up.clone(),
-                    cell: 4,
-                    owner: Player::P1
-                })
-            );
-            assert_eq!(
-                iter.next(),
-                Some(&game_log::Entry::Battle {
-                    attacker: (Player::P1, card_points_up.clone()),
-                    defender: (Player::P2, card_points_down.clone()),
-                    result: BattleResult {
-                        winner: BattleWinner::Defender,
-                        attack_stat: BattleStat {
-                            digit: 0,
-                            value: 9,
-                            roll: 8
-                        },
-                        defense_stat: BattleStat {
-                            digit: 2,
-                            value: 9,
-                            roll: 1
-                        },
-                    }
-                })
-            );
-            assert_eq!(
-                iter.next(),
-                Some(&game_log::Entry::FlipCard {
-                    card: card_points_up.clone(),
-                    cell: 4,
-                    to: Player::P2
-                })
-            );
-            assert_eq!(
-                iter.next(),
-                Some(&game_log::Entry::NextTurn { turn: Player::P2 })
-            );
-            assert_eq!(iter.next(), None);
         }
 
         {
@@ -900,52 +837,33 @@ mod test {
             let mut game_log = GameLog::new(game_state.turn);
             next(&mut game_state, &mut game_log, Move { card: 0, cell: 4 }).unwrap();
 
-            let mut iter = game_log.iter();
+            let log: Vec<_> = game_log.iter().collect();
             assert_eq!(
-                iter.next(),
-                Some(&game_log::Entry::NextTurn { turn: Player::P1 })
+                log,
+                vec![
+                    &game_log::Entry::next_turn(Player::P1),
+                    &game_log::Entry::place_card(&card_points_up, 4, Player::P1),
+                    &game_log::Entry::battle(
+                        (Player::P1, &card_points_up),
+                        (Player::P2, &card_points_down),
+                        &BattleResult {
+                            winner: BattleWinner::None,
+                            attack_stat: BattleStat {
+                                digit: 0,
+                                value: 9,
+                                roll: 6
+                            },
+                            defense_stat: BattleStat {
+                                digit: 2,
+                                value: 9,
+                                roll: 6
+                            },
+                        }
+                    ),
+                    &game_log::Entry::flip_card(&card_points_up, 4, Player::P2),
+                    &game_log::Entry::next_turn(Player::P2),
+                ]
             );
-            assert_eq!(
-                iter.next(),
-                Some(&game_log::Entry::PlaceCard {
-                    card: card_points_up.clone(),
-                    cell: 4,
-                    owner: Player::P1
-                })
-            );
-            assert_eq!(
-                iter.next(),
-                Some(&game_log::Entry::Battle {
-                    attacker: (Player::P1, card_points_up.clone()),
-                    defender: (Player::P2, card_points_down),
-                    result: BattleResult {
-                        winner: BattleWinner::None,
-                        attack_stat: BattleStat {
-                            digit: 0,
-                            value: 9,
-                            roll: 6
-                        },
-                        defense_stat: BattleStat {
-                            digit: 2,
-                            value: 9,
-                            roll: 6
-                        },
-                    }
-                })
-            );
-            assert_eq!(
-                iter.next(),
-                Some(&game_log::Entry::FlipCard {
-                    card: card_points_up,
-                    cell: 4,
-                    to: Player::P2
-                })
-            );
-            assert_eq!(
-                iter.next(),
-                Some(&game_log::Entry::NextTurn { turn: Player::P2 })
-            );
-            assert_eq!(iter.next(), None);
         }
     }
 
