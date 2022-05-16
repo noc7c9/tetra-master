@@ -751,6 +751,204 @@ mod test {
         }
     }
 
+    #[test]
+    fn update_game_log_on_battles() {
+        let card_points_down = Card::from_str(
+            "0P90",
+            Arrows {
+                bottom: true,
+                ..Arrows::none()
+            },
+        );
+        let card_points_up = Card::from_str(
+            "9P00",
+            Arrows {
+                top: true,
+                ..Arrows::none()
+            },
+        );
+        let mut game_state = GameState {
+            turn: Player::P1,
+            p1_hand: [Some(card_points_up.clone()), None, None, None, None],
+            ..GameState::empty()
+        };
+        game_state.board[0] = Cell::Card {
+            owner: Player::P2,
+            card: card_points_down.clone(),
+        };
+
+        {
+            // rng is set to make the attacker win
+            let mut game_state = GameState {
+                rng: with_seed(0),
+                ..game_state.clone()
+            };
+            let mut game_log = GameLog::new(game_state.turn);
+            next(&mut game_state, &mut game_log, Move { card: 0, cell: 4 }).unwrap();
+
+            let mut iter = game_log.iter();
+            assert_eq!(
+                iter.next(),
+                Some(&game_log::Entry::NextTurn { turn: Player::P1 })
+            );
+            assert_eq!(
+                iter.next(),
+                Some(&game_log::Entry::PlaceCard {
+                    card: card_points_up.clone(),
+                    cell: 4,
+                    owner: Player::P1
+                })
+            );
+            assert_eq!(
+                iter.next(),
+                Some(&game_log::Entry::Battle {
+                    attacker: (Player::P1, card_points_up.clone()),
+                    defender: (Player::P2, card_points_down.clone()),
+                    result: BattleResult {
+                        winner: BattleWinner::Attacker,
+                        attack_stat: BattleStat {
+                            digit: 0,
+                            value: 9,
+                            roll: 5
+                        },
+                        defense_stat: BattleStat {
+                            digit: 2,
+                            value: 9,
+                            roll: 9
+                        },
+                    }
+                })
+            );
+            assert_eq!(
+                iter.next(),
+                Some(&game_log::Entry::FlipCard {
+                    card: card_points_down.clone(),
+                    cell: 0,
+                    to: Player::P1
+                })
+            );
+            assert_eq!(
+                iter.next(),
+                Some(&game_log::Entry::NextTurn { turn: Player::P2 })
+            );
+            assert_eq!(iter.next(), None);
+        }
+
+        {
+            // rng is set to make the defender win
+            let mut game_state = GameState {
+                rng: with_seed(1),
+                ..game_state.clone()
+            };
+            let mut game_log = GameLog::new(game_state.turn);
+            next(&mut game_state, &mut game_log, Move { card: 0, cell: 4 }).unwrap();
+
+            let mut iter = game_log.iter();
+            assert_eq!(
+                iter.next(),
+                Some(&game_log::Entry::NextTurn { turn: Player::P1 })
+            );
+            assert_eq!(
+                iter.next(),
+                Some(&game_log::Entry::PlaceCard {
+                    card: card_points_up.clone(),
+                    cell: 4,
+                    owner: Player::P1
+                })
+            );
+            assert_eq!(
+                iter.next(),
+                Some(&game_log::Entry::Battle {
+                    attacker: (Player::P1, card_points_up.clone()),
+                    defender: (Player::P2, card_points_down.clone()),
+                    result: BattleResult {
+                        winner: BattleWinner::Defender,
+                        attack_stat: BattleStat {
+                            digit: 0,
+                            value: 9,
+                            roll: 8
+                        },
+                        defense_stat: BattleStat {
+                            digit: 2,
+                            value: 9,
+                            roll: 1
+                        },
+                    }
+                })
+            );
+            assert_eq!(
+                iter.next(),
+                Some(&game_log::Entry::FlipCard {
+                    card: card_points_up.clone(),
+                    cell: 4,
+                    to: Player::P2
+                })
+            );
+            assert_eq!(
+                iter.next(),
+                Some(&game_log::Entry::NextTurn { turn: Player::P2 })
+            );
+            assert_eq!(iter.next(), None);
+        }
+
+        {
+            // rng is set to make the battle draw and default as a defender win
+            let mut game_state = GameState {
+                rng: with_seed(5),
+                ..game_state
+            };
+            let mut game_log = GameLog::new(game_state.turn);
+            next(&mut game_state, &mut game_log, Move { card: 0, cell: 4 }).unwrap();
+
+            let mut iter = game_log.iter();
+            assert_eq!(
+                iter.next(),
+                Some(&game_log::Entry::NextTurn { turn: Player::P1 })
+            );
+            assert_eq!(
+                iter.next(),
+                Some(&game_log::Entry::PlaceCard {
+                    card: card_points_up.clone(),
+                    cell: 4,
+                    owner: Player::P1
+                })
+            );
+            assert_eq!(
+                iter.next(),
+                Some(&game_log::Entry::Battle {
+                    attacker: (Player::P1, card_points_up.clone()),
+                    defender: (Player::P2, card_points_down),
+                    result: BattleResult {
+                        winner: BattleWinner::None,
+                        attack_stat: BattleStat {
+                            digit: 0,
+                            value: 9,
+                            roll: 6
+                        },
+                        defense_stat: BattleStat {
+                            digit: 2,
+                            value: 9,
+                            roll: 6
+                        },
+                    }
+                })
+            );
+            assert_eq!(
+                iter.next(),
+                Some(&game_log::Entry::FlipCard {
+                    card: card_points_up,
+                    cell: 4,
+                    to: Player::P2
+                })
+            );
+            assert_eq!(
+                iter.next(),
+                Some(&game_log::Entry::NextTurn { turn: Player::P2 })
+            );
+            assert_eq!(iter.next(), None);
+        }
+    }
+
     #[cfg(test)]
     mod test_get_attack_stat {
         use super::*;
