@@ -59,7 +59,7 @@ pub(crate) struct GameLog {
 
 impl GameLog {
     pub(crate) fn new(turn: Player) -> Self {
-        let mut entries = Vec::new();
+        let mut entries = Vec::with_capacity(25);
         entries.push(Entry::next_turn(turn));
         GameLog { entries }
     }
