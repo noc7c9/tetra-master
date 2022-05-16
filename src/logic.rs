@@ -60,7 +60,7 @@ pub(crate) fn next(
                         // flip defender
                         *owner = game_state.turn;
                     }
-                    BattleWinner::Defender => {
+                    BattleWinner::Defender | BattleWinner::None => {
                         // flip attacker
                         placed_card_owner = *owner;
                     }
@@ -120,6 +120,7 @@ fn is_defending(attacked_card: &Card, attack_direction: Arrow) -> bool {
 enum BattleWinner {
     Attacker,
     Defender,
+    None,
 }
 
 #[derive(Debug)]
@@ -200,10 +201,14 @@ fn run_battle(rng: &fastrand::Rng, attacker: &Card, defender: &Card) -> BattleRe
     let attack_stat = get_attack_stat(rng, attacker);
     let defense_stat = get_defense_stat(rng, attacker, defender);
 
-    let winner = if attack_stat.resolve() > defense_stat.resolve() {
-        BattleWinner::Attacker
-    } else {
-        BattleWinner::Defender
+    let att = attack_stat.resolve();
+    let def = defense_stat.resolve();
+
+    use std::cmp::Ordering;
+    let winner = match att.cmp(&def) {
+        Ordering::Greater => BattleWinner::Attacker,
+        Ordering::Less => BattleWinner::Defender,
+        Ordering::Equal => BattleWinner::None,
     };
 
     BattleResult {
@@ -708,6 +713,31 @@ mod test {
             // rng is set to make the defender win
             let mut game_state = GameState {
                 rng: with_seed(1),
+                ..game_state.clone()
+            };
+            let mut game_log = GameLog::new(game_state.turn);
+            next(&mut game_state, &mut game_log, Move { card: 0, cell: 4 }).unwrap();
+
+            assert_eq!(
+                game_state.board[0],
+                Cell::Card {
+                    owner: Player::P2,
+                    card: card_points_down.clone()
+                }
+            );
+            assert_eq!(
+                game_state.board[4],
+                Cell::Card {
+                    owner: Player::P2,
+                    card: card_points_up.clone()
+                }
+            );
+        }
+
+        {
+            // rng is set to make the battle draw and default as a defender win
+            let mut game_state = GameState {
+                rng: with_seed(5),
                 ..game_state
             };
             let mut game_log = GameLog::new(game_state.turn);
