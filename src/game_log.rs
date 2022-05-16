@@ -1,4 +1,4 @@
-use crate::{BattleResult, Card, Player};
+use crate::{BattleResult, OwnedCard, Player};
 
 #[derive(Debug, PartialEq)]
 pub(crate) enum Entry {
@@ -6,18 +6,17 @@ pub(crate) enum Entry {
         turn: Player,
     },
     PlaceCard {
-        card: Card,
+        card: OwnedCard,
         cell: usize,
-        owner: Player,
     },
     FlipCard {
-        card: Card,
+        card: OwnedCard,
         cell: usize,
         to: Player,
     },
     Battle {
-        attacker: (Player, Card),
-        defender: (Player, Card),
+        attacker: OwnedCard,
+        defender: OwnedCard,
         result: BattleResult,
     },
 }
@@ -27,24 +26,15 @@ impl Entry {
         Entry::NextTurn { turn }
     }
 
-    pub(crate) fn place_card(card: &Card, cell: usize, owner: Player) -> Self {
-        let card = card.clone();
-        Entry::PlaceCard { card, cell, owner }
+    pub(crate) fn place_card(card: OwnedCard, cell: usize) -> Self {
+        Entry::PlaceCard { card, cell }
     }
 
-    pub(crate) fn flip_card(card: &Card, cell: usize, to: Player) -> Self {
-        let card = card.clone();
+    pub(crate) fn flip_card(card: OwnedCard, cell: usize, to: Player) -> Self {
         Entry::FlipCard { card, cell, to }
     }
 
-    pub(crate) fn battle(
-        attacker: (Player, &Card),
-        defender: (Player, &Card),
-        result: &BattleResult,
-    ) -> Self {
-        let attacker = (attacker.0, attacker.1.clone());
-        let defender = (defender.0, defender.1.clone());
-        let result = result.clone();
+    pub(crate) fn battle(attacker: OwnedCard, defender: OwnedCard, result: BattleResult) -> Self {
         Entry::Battle {
             attacker,
             defender,
@@ -59,13 +49,12 @@ pub(crate) struct GameLog {
 
 impl GameLog {
     pub(crate) fn new(turn: Player) -> Self {
-        let mut entries = Vec::with_capacity(25);
-        entries.push(Entry::next_turn(turn));
+        let entries = vec![Entry::next_turn(turn)];
         GameLog { entries }
     }
 
     pub(crate) fn append(&mut self, entry: Entry) {
-        self.entries.push(entry)
+        self.entries.push(entry);
     }
 
     pub(crate) fn iter(&self) -> std::slice::Iter<'_, Entry> {

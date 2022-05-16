@@ -1,109 +1,75 @@
 use crate::{
-    game_log::{self, GameLog},
-    BattleResult, BattleStat, BattleWinner, Card, CardType, Cell, GameState, Move, Player,
+    BattleResult, BattleStat, BattleWinner, Card, CardType, Cell, GameState, Move, OwnedCard,
+    Player, {Entry, GameLog},
 };
 
-pub(crate) fn next(
-    game_state: &mut GameState,
-    game_log: &mut GameLog,
-    next_move: Move,
-) -> Result<(), String> {
-    let hand = match game_state.turn {
-        Player::P1 => &mut game_state.p1_hand,
-        Player::P2 => &mut game_state.p2_hand,
+pub(crate) fn next(state: &mut GameState, log: &mut GameLog, input: Move) -> Result<(), String> {
+    let hand = match state.turn {
+        Player::P1 => &mut state.p1_hand,
+        Player::P2 => &mut state.p2_hand,
     };
 
     // ensure cell being placed is empty
-    if !game_state.board[next_move.cell].is_empty() {
-        return Err(format!("Cell {:X} is not empty", next_move.cell));
+    if !matches!(state.board[input.cell], Cell::Empty) {
+        return Err(format!("Cell {:X} is not empty", input.cell));
     }
 
     // remove the card from the hand
-    let attacking_card = match hand[next_move.card].take() {
+    let mut attacker = match hand[input.card].take() {
         None => {
-            return Err(format!("Card {} has already been played", next_move.card));
+            return Err(format!("Card {} has already been played", input.card));
         }
-        Some(card) => card,
+        Some(card) => OwnedCard {
+            owner: state.turn,
+            card,
+        },
     };
 
     // append the place event here to ensure correct ordering
-    game_log.append(game_log::Entry::place_card(
-        &attacking_card,
-        next_move.cell,
-        game_state.turn,
-    ));
-
-    // can be changed if the card loses a battle
-    let mut placed_card_owner = game_state.turn;
+    log.append(Entry::place_card(attacker, input.cell));
 
     // handle interactions
-    for &(idx, arrow) in get_neighbours(next_move.cell).iter() {
-        if let Cell::Card {
-            owner,
-            card: attacked_card,
-        } = &mut game_state.board[idx]
-        {
+    for &(idx, arrow) in get_neighbours(input.cell).iter() {
+        if let Cell::Card(defender) = &mut state.board[idx] {
             // skip over cards belong to the attacking player
-            if *owner == game_state.turn {
+            if defender.owner == attacker.owner {
                 continue;
             }
 
             // skip if the attacking card doesn't have an arrow in this direction
-            if !is_attacking(&attacking_card, arrow) {
+            if !is_attacking(&attacker.card, arrow) {
                 continue;
             }
 
-            if is_defending(attacked_card, arrow) {
-                let attacking_player = game_state.turn;
-                let defending_player = game_state.turn.opposite();
-
-                let result = run_battle(&game_state.rng, &attacking_card, attacked_card);
-                game_log.append(game_log::Entry::battle(
-                    (attacking_player, &attacking_card),
-                    (defending_player, attacked_card),
-                    &result,
-                ));
+            if is_defending(&defender.card, arrow) {
+                let result = run_battle(&state.rng, &attacker.card, &defender.card);
+                log.append(Entry::battle(attacker, *defender, result));
                 match result.winner {
                     BattleWinner::Attacker => {
                         // flip defender
-                        game_log.append(game_log::Entry::flip_card(
-                            attacked_card,
-                            idx,
-                            attacking_player,
-                        ));
-                        *owner = game_state.turn;
+                        log.append(Entry::flip_card(*defender, idx, attacker.owner));
+                        defender.owner = attacker.owner;
                     }
                     BattleWinner::Defender | BattleWinner::None => {
                         // flip attacker
-                        game_log.append(game_log::Entry::flip_card(
-                            &attacking_card,
-                            next_move.cell,
-                            defending_player,
-                        ));
-                        placed_card_owner = *owner;
+                        log.append(Entry::flip_card(attacker, input.cell, defender.owner));
+                        attacker.owner = defender.owner;
                     }
                 }
             } else {
                 // card isn't defending so flip it
-                game_log.append(game_log::Entry::flip_card(
-                    attacked_card,
-                    idx,
-                    game_state.turn,
-                ));
-                *owner = game_state.turn;
+                log.append(Entry::flip_card(*defender, idx, attacker.owner));
+                defender.owner = attacker.owner;
             }
         }
     }
 
     // move card onto the board
-    game_state.board[next_move.cell] = Cell::Card {
-        owner: placed_card_owner,
-        card: attacking_card,
-    };
+    state.board[input.cell] = Cell::Card(attacker);
 
     // next turn
-    game_state.turn = game_state.turn.opposite();
-    game_log.append(game_log::Entry::next_turn(game_state.turn));
+    state.turn = state.turn.opposite();
+    log.append(Entry::next_turn(state.turn));
 
     Ok(())
 }
@@ -138,12 +104,12 @@ fn get_attack_stat(rng: &fastrand::Rng, attacker: &Card) -> BattleStat {
     let (digit, value) = if let CardType::Assault = attacker.card_type {
         // use the highest stat
         let att = attacker.attack;
-        let pdef = attacker.physical_defense;
-        let mdef = attacker.magical_defense;
-        if mdef > att && mdef > pdef {
-            (3, mdef)
-        } else if pdef > att {
-            (2, pdef)
+        let phy = attacker.physical_defense;
+        let mag = attacker.magical_defense;
+        if mag > att && mag > phy {
+            (3, mag)
+        } else if phy > att {
+            (2, phy)
         } else {
             (0, att)
         }
@@ -172,14 +138,14 @@ fn get_defense_stat(rng: &fastrand::Rng, attacker: &Card, defender: &Card) -> Ba
         CardType::Assault => {
             // use the lowest stat
             let att = defender.attack;
-            let pdef = defender.physical_defense;
-            let mdef = defender.magical_defense;
-            if att < pdef && att < mdef {
+            let phy = defender.physical_defense;
+            let mag = defender.magical_defense;
+            if att < phy && att < mag {
                 (0, att)
-            } else if pdef < mdef {
-                (2, pdef)
+            } else if phy < mag {
+                (2, phy)
             } else {
-                (3, mdef)
+                (3, mag)
             }
         }
     };
@@ -332,7 +298,7 @@ fn get_neighbours(cell: usize) -> &'static [(usize, Arrow)] {
 #[cfg(test)]
 mod test {
     use super::*;
-    use crate::{game_log, Arrows, CardType};
+    use crate::Arrows;
 
     fn rng() -> fastrand::Rng {
         fastrand::Rng::new()
@@ -418,63 +384,82 @@ mod test {
         }
     }
 
+    impl OwnedCard {
+        fn p1(card: Card) -> Self {
+            let owner = Player::P1;
+            OwnedCard { owner, card }
+        }
+
+        fn p2(card: Card) -> Self {
+            let owner = Player::P2;
+            OwnedCard { owner, card }
+        }
+    }
+
+    impl Cell {
+        fn p1_card(card: Card) -> Self {
+            Cell::Card(OwnedCard::p1(card))
+        }
+
+        fn p2_card(card: Card) -> Self {
+            Cell::Card(OwnedCard::p2(card))
+        }
+    }
+
     #[test]
     fn turn_should_change_after_playing_a_move() {
-        let mut game_state = GameState {
+        let mut state = GameState {
             turn: Player::P1,
             p1_hand: [Some(Card::basic()), None, None, None, None],
             ..GameState::empty()
         };
-        let mut game_log = GameLog::new(game_state.turn);
+        let mut log = GameLog::new(state.turn);
 
-        next(&mut game_state, &mut game_log, Move { card: 0, cell: 0 }).unwrap();
+        next(&mut state, &mut log, Move { card: 0, cell: 0 }).unwrap();
 
-        assert_eq!(game_state.turn, Player::P2);
+        assert_eq!(state.turn, Player::P2);
     }
 
     #[test]
     fn reject_move_if_the_card_has_already_been_played() {
-        let mut game_state = GameState {
+        let mut state = GameState {
             turn: Player::P1,
             p1_hand: [None, None, None, None, None],
             ..GameState::empty()
         };
-        let mut game_log = GameLog::new(game_state.turn);
+        let mut log = GameLog::new(state.turn);
 
-        let res = next(&mut game_state, &mut game_log, Move { card: 2, cell: 0 });
+        let res = next(&mut state, &mut log, Move { card: 2, cell: 0 });
 
         assert_eq!(res, Err("Card 2 has already been played".into()));
     }
 
     #[test]
     fn reject_move_if_the_cell_played_on_is_blocked() {
-        let mut game_state = GameState {
+        let mut state = GameState {
             turn: Player::P1,
             p1_hand: [Some(Card::basic()), None, None, None, None],
             ..GameState::empty()
         };
-        let mut game_log = GameLog::new(game_state.turn);
-        game_state.board[0xB] = Cell::Blocked;
+        let mut log = GameLog::new(state.turn);
+        state.board[0xB] = Cell::Blocked;
 
-        let res = next(&mut game_state, &mut game_log, Move { card: 0, cell: 0xB });
+        let res = next(&mut state, &mut log, Move { card: 0, cell: 0xB });
 
         assert_eq!(res, Err("Cell B is not empty".into()));
     }
 
     #[test]
     fn reject_move_if_the_cell_played_on_already_has_a_card_placed() {
-        let mut game_state = GameState {
+        let mut state = GameState {
             turn: Player::P1,
             p1_hand: [Some(Card::basic()), None, None, None, None],
             ..GameState::empty()
         };
-        let mut game_log = GameLog::new(game_state.turn);
-        game_state.board[3] = Cell::Card {
-            owner: Player::P1,
-            card: Card::basic(),
-        };
+        let mut log = GameLog::new(state.turn);
+        state.board[3] = Cell::p1_card(Card::basic());
 
-        let res = next(&mut game_state, &mut game_log, Move { card: 0, cell: 3 });
+        let res = next(&mut state, &mut log, Move { card: 0, cell: 3 });
 
         assert_eq!(res, Err("Cell 3 is not empty".into()));
     }
@@ -482,44 +467,38 @@ mod test {
     #[test]
     fn move_card_from_hand_to_board_if_move_is_valid() {
         let card = Card::basic();
-        let mut game_state = GameState {
+        let mut state = GameState {
             turn: Player::P1,
-            p1_hand: [Some(card.clone()), None, None, None, None],
+            p1_hand: [Some(card), None, None, None, None],
             ..GameState::empty()
         };
-        let mut game_log = GameLog::new(game_state.turn);
+        let mut log = GameLog::new(state.turn);
 
-        next(&mut game_state, &mut game_log, Move { card: 0, cell: 7 }).unwrap();
+        next(&mut state, &mut log, Move { card: 0, cell: 7 }).unwrap();
 
-        assert_eq!(game_state.p1_hand[0], None);
-        assert_eq!(
-            game_state.board[0x7],
-            Cell::Card {
-                owner: Player::P1,
-                card
-            }
-        );
+        assert_eq!(state.p1_hand[0], None);
+        assert_eq!(state.board[0x7], Cell::p1_card(card));
     }
 
     #[test]
     fn update_game_log_on_placing_card() {
         let card = Card::basic();
-        let mut game_state = GameState {
+        let mut state = GameState {
             turn: Player::P1,
-            p1_hand: [Some(card.clone()), None, None, None, None],
+            p1_hand: [Some(card), None, None, None, None],
             ..GameState::empty()
         };
-        let mut game_log = GameLog::new(game_state.turn);
+        let mut log = GameLog::new(state.turn);
 
-        next(&mut game_state, &mut game_log, Move { card: 0, cell: 7 }).unwrap();
+        next(&mut state, &mut log, Move { card: 0, cell: 7 }).unwrap();
 
-        let log: Vec<_> = game_log.iter().collect();
+        let log: Vec<_> = log.iter().collect();
         assert_eq!(
             log,
             vec![
-                &game_log::Entry::next_turn(Player::P1),
-                &game_log::Entry::place_card(&card, 7, Player::P1),
-                &game_log::Entry::next_turn(Player::P2),
+                &Entry::next_turn(Player::P1),
+                &Entry::place_card(OwnedCard::p1(card), 7),
+                &Entry::next_turn(Player::P2),
             ]
         );
     }
@@ -538,51 +517,24 @@ mod test {
             },
             ..Card::basic()
         };
-        let mut game_state = GameState {
+        let mut state = GameState {
             turn: Player::P1,
             p1_hand: [Some(card_points_up_and_right), None, None, None, None],
             ..GameState::empty()
         };
-        let mut game_log = GameLog::new(game_state.turn);
+        let mut log = GameLog::new(state.turn);
         // should flip, is pointed to, belongs to opponent
-        game_state.board[0] = Cell::Card {
-            owner: Player::P2,
-            card: card_no_arrows.clone(),
-        };
+        state.board[0] = Cell::p2_card(card_no_arrows);
         // shouldn't flip, doesn't belongs to opponent
-        game_state.board[5] = Cell::Card {
-            owner: Player::P1,
-            card: card_no_arrows.clone(),
-        };
+        state.board[5] = Cell::p1_card(card_no_arrows);
         // shouldn't flip, isn't pointed to
-        game_state.board[8] = Cell::Card {
-            owner: Player::P2,
-            card: card_no_arrows.clone(),
-        };
+        state.board[8] = Cell::p2_card(card_no_arrows);
 
-        next(&mut game_state, &mut game_log, Move { card: 0, cell: 4 }).unwrap();
+        next(&mut state, &mut log, Move { card: 0, cell: 4 }).unwrap();
 
-        assert_eq!(
-            game_state.board[0],
-            Cell::Card {
-                owner: Player::P1,
-                card: card_no_arrows.clone()
-            }
-        );
-        assert_eq!(
-            game_state.board[5],
-            Cell::Card {
-                owner: Player::P1,
-                card: card_no_arrows.clone()
-            }
-        );
-        assert_eq!(
-            game_state.board[8],
-            Cell::Card {
-                owner: Player::P2,
-                card: card_no_arrows
-            }
-        );
+        assert_eq!(state.board[0], Cell::p1_card(card_no_arrows));
+        assert_eq!(state.board[5], Cell::p1_card(card_no_arrows));
+        assert_eq!(state.board[8], Cell::p2_card(card_no_arrows));
     }
 
     #[test]
@@ -599,27 +551,24 @@ mod test {
             },
             ..Card::basic()
         };
-        let mut game_state = GameState {
+        let mut state = GameState {
             turn: Player::P1,
-            p1_hand: [Some(card_points_up.clone()), None, None, None, None],
+            p1_hand: [Some(card_points_up), None, None, None, None],
             ..GameState::empty()
         };
-        let mut game_log = GameLog::new(game_state.turn);
-        game_state.board[0] = Cell::Card {
-            owner: Player::P2,
-            card: card_no_arrows.clone(),
-        };
+        let mut log = GameLog::new(state.turn);
+        state.board[0] = Cell::p2_card(card_no_arrows);
 
-        next(&mut game_state, &mut game_log, Move { card: 0, cell: 4 }).unwrap();
+        next(&mut state, &mut log, Move { card: 0, cell: 4 }).unwrap();
 
-        let log: Vec<_> = game_log.iter().collect();
+        let log: Vec<_> = log.iter().collect();
         assert_eq!(
             log,
             vec![
-                &game_log::Entry::next_turn(Player::P1),
-                &game_log::Entry::place_card(&card_points_up, 4, Player::P1),
-                &game_log::Entry::flip_card(&card_no_arrows, 0, Player::P1),
-                &game_log::Entry::next_turn(Player::P2),
+                &Entry::next_turn(Player::P1),
+                &Entry::place_card(OwnedCard::p1(card_points_up), 4,),
+                &Entry::flip_card(OwnedCard::p2(card_no_arrows), 0, Player::P1),
+                &Entry::next_turn(Player::P2),
             ]
         );
     }
@@ -640,89 +589,50 @@ mod test {
                 ..Arrows::none()
             },
         );
-        let mut game_state = GameState {
+        let mut state = GameState {
             turn: Player::P1,
-            p1_hand: [Some(card_points_up.clone()), None, None, None, None],
+            p1_hand: [Some(card_points_up), None, None, None, None],
             ..GameState::empty()
         };
-        game_state.board[0] = Cell::Card {
-            owner: Player::P2,
-            card: card_points_down.clone(),
-        };
+        state.board[0] = Cell::p2_card(card_points_down);
 
         {
             // rng is set to make the attacker win
-            let mut game_state = GameState {
+            let mut state = GameState {
                 rng: with_seed(0),
-                ..game_state.clone()
+                ..state
             };
-            let mut game_log = GameLog::new(game_state.turn);
-            next(&mut game_state, &mut game_log, Move { card: 0, cell: 4 }).unwrap();
+            let mut log = GameLog::new(state.turn);
+            next(&mut state, &mut log, Move { card: 0, cell: 4 }).unwrap();
 
-            assert_eq!(
-                game_state.board[0],
-                Cell::Card {
-                    owner: Player::P1,
-                    card: card_points_down.clone()
-                }
-            );
-            assert_eq!(
-                game_state.board[4],
-                Cell::Card {
-                    owner: Player::P1,
-                    card: card_points_up.clone()
-                }
-            );
+            assert_eq!(state.board[0], Cell::p1_card(card_points_down));
+            assert_eq!(state.board[4], Cell::p1_card(card_points_up));
         }
 
         {
             // rng is set to make the defender win
-            let mut game_state = GameState {
+            let mut state = GameState {
                 rng: with_seed(1),
-                ..game_state.clone()
+                ..state
             };
-            let mut game_log = GameLog::new(game_state.turn);
-            next(&mut game_state, &mut game_log, Move { card: 0, cell: 4 }).unwrap();
+            let mut log = GameLog::new(state.turn);
+            next(&mut state, &mut log, Move { card: 0, cell: 4 }).unwrap();
 
-            assert_eq!(
-                game_state.board[0],
-                Cell::Card {
-                    owner: Player::P2,
-                    card: card_points_down.clone()
-                }
-            );
-            assert_eq!(
-                game_state.board[4],
-                Cell::Card {
-                    owner: Player::P2,
-                    card: card_points_up.clone()
-                }
-            );
+            assert_eq!(state.board[0], Cell::p2_card(card_points_down));
+            assert_eq!(state.board[4], Cell::p2_card(card_points_up));
         }
 
         {
             // rng is set to make the battle draw and default as a defender win
-            let mut game_state = GameState {
+            let mut state = GameState {
                 rng: with_seed(5),
-                ..game_state
+                ..state
             };
-            let mut game_log = GameLog::new(game_state.turn);
-            next(&mut game_state, &mut game_log, Move { card: 0, cell: 4 }).unwrap();
+            let mut log = GameLog::new(state.turn);
+            next(&mut state, &mut log, Move { card: 0, cell: 4 }).unwrap();
 
-            assert_eq!(
-                game_state.board[0],
-                Cell::Card {
-                    owner: Player::P2,
-                    card: card_points_down
-                }
-            );
-            assert_eq!(
-                game_state.board[4],
-                Cell::Card {
-                    owner: Player::P2,
-                    card: card_points_up
-                }
-            );
+            assert_eq!(state.board[0], Cell::p2_card(card_points_down));
+            assert_eq!(state.board[4], Cell::p2_card(card_points_up));
         }
     }
 
@@ -742,35 +652,32 @@ mod test {
                 ..Arrows::none()
             },
         );
-        let mut game_state = GameState {
+        let mut state = GameState {
             turn: Player::P1,
-            p1_hand: [Some(card_points_up.clone()), None, None, None, None],
+            p1_hand: [Some(card_points_up), None, None, None, None],
             ..GameState::empty()
         };
-        game_state.board[0] = Cell::Card {
-            owner: Player::P2,
-            card: card_points_down.clone(),
-        };
+        state.board[0] = Cell::p2_card(card_points_down);
 
         {
             // rng is set to make the attacker win
-            let mut game_state = GameState {
+            let mut state = GameState {
                 rng: with_seed(0),
-                ..game_state.clone()
+                ..state
             };
-            let mut game_log = GameLog::new(game_state.turn);
-            next(&mut game_state, &mut game_log, Move { card: 0, cell: 4 }).unwrap();
+            let mut log = GameLog::new(state.turn);
+            next(&mut state, &mut log, Move { card: 0, cell: 4 }).unwrap();
 
-            let log: Vec<_> = game_log.iter().collect();
+            let log: Vec<_> = log.iter().collect();
             assert_eq!(
                 log,
                 vec![
-                    &game_log::Entry::next_turn(Player::P1),
-                    &game_log::Entry::place_card(&card_points_up, 4, Player::P1),
-                    &game_log::Entry::battle(
-                        (Player::P1, &card_points_up),
-                        (Player::P2, &card_points_down),
-                        &BattleResult {
+                    &Entry::next_turn(Player::P1),
+                    &Entry::place_card(OwnedCard::p1(card_points_up), 4),
+                    &Entry::battle(
+                        OwnedCard::p1(card_points_up),
+                        OwnedCard::p2(card_points_down),
+                        BattleResult {
                             winner: BattleWinner::Attacker,
                             attack_stat: BattleStat {
                                 digit: 0,
@@ -784,31 +691,31 @@ mod test {
                             },
                         }
                     ),
-                    &game_log::Entry::flip_card(&card_points_down, 0, Player::P1),
-                    &game_log::Entry::next_turn(Player::P2),
+                    &Entry::flip_card(OwnedCard::p2(card_points_down), 0, Player::P1),
+                    &Entry::next_turn(Player::P2),
                 ]
             );
         }
 
         {
             // rng is set to make the defender win
-            let mut game_state = GameState {
+            let mut state = GameState {
                 rng: with_seed(1),
-                ..game_state.clone()
+                ..state
             };
-            let mut game_log = GameLog::new(game_state.turn);
-            next(&mut game_state, &mut game_log, Move { card: 0, cell: 4 }).unwrap();
+            let mut log = GameLog::new(state.turn);
+            next(&mut state, &mut log, Move { card: 0, cell: 4 }).unwrap();
 
-            let log: Vec<_> = game_log.iter().collect();
+            let log: Vec<_> = log.iter().collect();
             assert_eq!(
                 log,
                 vec![
-                    &game_log::Entry::next_turn(Player::P1),
-                    &game_log::Entry::place_card(&card_points_up, 4, Player::P1),
-                    &game_log::Entry::battle(
-                        (Player::P1, &card_points_up),
-                        (Player::P2, &card_points_down),
-                        &BattleResult {
+                    &Entry::next_turn(Player::P1),
+                    &Entry::place_card(OwnedCard::p1(card_points_up), 4),
+                    &Entry::battle(
+                        OwnedCard::p1(card_points_up),
+                        OwnedCard::p2(card_points_down),
+                        BattleResult {
                             winner: BattleWinner::Defender,
                             attack_stat: BattleStat {
                                 digit: 0,
@@ -822,31 +729,31 @@ mod test {
                             },
                         }
                     ),
-                    &game_log::Entry::flip_card(&card_points_up, 4, Player::P2),
-                    &game_log::Entry::next_turn(Player::P2),
+                    &Entry::flip_card(OwnedCard::p1(card_points_up), 4, Player::P2),
+                    &Entry::next_turn(Player::P2),
                 ]
             );
         }
 
         {
             // rng is set to make the battle draw and default as a defender win
-            let mut game_state = GameState {
+            let mut state = GameState {
                 rng: with_seed(5),
-                ..game_state
+                ..state
             };
-            let mut game_log = GameLog::new(game_state.turn);
-            next(&mut game_state, &mut game_log, Move { card: 0, cell: 4 }).unwrap();
+            let mut log = GameLog::new(state.turn);
+            next(&mut state, &mut log, Move { card: 0, cell: 4 }).unwrap();
 
-            let log: Vec<_> = game_log.iter().collect();
+            let log: Vec<_> = log.iter().collect();
             assert_eq!(
                 log,
                 vec![
-                    &game_log::Entry::next_turn(Player::P1),
-                    &game_log::Entry::place_card(&card_points_up, 4, Player::P1),
-                    &game_log::Entry::battle(
-                        (Player::P1, &card_points_up),
-                        (Player::P2, &card_points_down),
-                        &BattleResult {
+                    &Entry::next_turn(Player::P1),
+                    &Entry::place_card(OwnedCard::p1(card_points_up), 4),
+                    &Entry::battle(
+                        OwnedCard::p1(card_points_up),
+                        OwnedCard::p2(card_points_down,),
+                        BattleResult {
                             winner: BattleWinner::None,
                             attack_stat: BattleStat {
                                 digit: 0,
@@ -860,8 +767,8 @@ mod test {
                             },
                         }
                     ),
-                    &game_log::Entry::flip_card(&card_points_up, 4, Player::P2),
-                    &game_log::Entry::next_turn(Player::P2),
+                    &Entry::flip_card(OwnedCard::p1(card_points_up), 4, Player::P2),
+                    &Entry::next_turn(Player::P2),
                 ]
             );
         }

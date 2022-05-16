@@ -1,7 +1,4 @@
-use crate::{
-    game_log::{self, GameLog},
-    BattleWinner, Card, CardType, Cell, GameState, Player,
-};
+use crate::{BattleWinner, Card, CardType, Cell, Entry, GameLog, GameState, OwnedCard, Player};
 
 const RED: &str = "\x1b[0;31m";
 const RED_BOLD: &str = "\x1b[1;31m";
@@ -111,7 +108,7 @@ fn push_board(out: &mut String, state: &GameState) {
         out.push_str("   │");
         for j in row {
             match &state.board[j] {
-                Cell::Card { owner, card } => {
+                Cell::Card(OwnedCard { owner, card }) => {
                     out.push_str(owner.to_color());
                     out.push(' ');
                     out.push(if card.arrows.top_left { '⇖' } else { ' ' });
@@ -147,7 +144,7 @@ fn push_board(out: &mut String, state: &GameState) {
 
         for j in row {
             match &state.board[j] {
-                Cell::Card { owner, card } => {
+                Cell::Card(OwnedCard { owner, card }) => {
                     out.push_str(owner.to_color());
                     out.push(' ');
                     out.push(if card.arrows.left { '⇐' } else { ' ' });
@@ -187,7 +184,7 @@ fn push_board(out: &mut String, state: &GameState) {
 
         for j in row {
             match &state.board[j] {
-                Cell::Card { owner, card } => {
+                Cell::Card(OwnedCard { owner, card }) => {
                     out.push_str(owner.to_color());
                     out.push(' ');
                     out.push(if card.arrows.bottom_left { '⇙' } else { ' ' });
@@ -225,7 +222,7 @@ fn push_game_log(out: &mut String, log: &GameLog) {
     let mut curr_turn = Player::P1; // note: initial value will be overwritten immediately
     let mut print_prefix = true;
     for entry in log.iter() {
-        if let game_log::Entry::NextTurn { turn } = entry {
+        if let Entry::NextTurn { turn } = entry {
             curr_turn_number += 1;
             curr_turn = *turn;
             print_prefix = true;
@@ -246,19 +243,19 @@ fn push_game_log(out: &mut String, log: &GameLog) {
         out.push_str("│ ");
 
         match entry {
-            game_log::Entry::PlaceCard { card, cell, owner } => {
+            Entry::PlaceCard { card, cell } => {
                 out.push_str("Placed  ");
-                out.push_str(owner.to_color());
-                push_card_stats(out, card);
+                out.push_str(card.owner.to_color());
+                push_card_stats(out, &card.card);
                 out.push_str(RESET);
                 out.push_str(" on cell ");
                 out.push(to_hex_digit(*cell as u8));
             }
 
-            game_log::Entry::FlipCard { card, cell, to } => {
+            Entry::FlipCard { card, cell, to } => {
                 out.push_str("Flipped ");
                 out.push_str(to.opposite().to_color());
-                push_card_stats(out, card);
+                push_card_stats(out, &card.card);
                 out.push_str(RESET);
                 out.push_str(" on cell ");
                 out.push(to_hex_digit(*cell as u8));
@@ -268,7 +265,7 @@ fn push_game_log(out: &mut String, log: &GameLog) {
                 out.push_str(RESET);
             }
 
-            game_log::Entry::Battle {
+            Entry::Battle {
                 attacker,
                 defender,
                 result,
@@ -278,21 +275,21 @@ fn push_game_log(out: &mut String, log: &GameLog) {
                 out.push_str("Battle  ");
                 push_card_stats_with_highlight(
                     out,
-                    &attacker.1,
-                    attacker.0,
+                    &attacker.card,
+                    attacker.owner,
                     result.attack_stat.digit,
                 );
                 out.push_str(" vs ");
-                out.push_str(defender.0.to_color());
+                out.push_str(defender.owner.to_color());
                 push_card_stats_with_highlight(
                     out,
-                    &defender.1,
-                    defender.0,
+                    &defender.card,
+                    defender.owner,
                     result.defense_stat.digit,
                 );
                 out.push_str(RESET);
                 out.push_str("\n         │         ");
-                out.push_str(attacker.0.to_color());
+                out.push_str(attacker.owner.to_color());
                 out.push_str("Attacker");
                 out.push_str(RESET);
                 out.push_str(" (");
@@ -300,7 +297,7 @@ fn push_game_log(out: &mut String, log: &GameLog) {
                 out.push_str(") rolled ");
                 write!(out, "{}", result.attack_stat.roll).unwrap();
                 out.push_str(", ");
-                out.push_str(defender.0.to_color());
+                out.push_str(defender.owner.to_color());
                 out.push_str("Defender");
                 out.push_str(RESET);
                 out.push_str(" (");
@@ -310,7 +307,7 @@ fn push_game_log(out: &mut String, log: &GameLog) {
                 match result.winner {
                     BattleWinner::Attacker => {
                         out.push_str("\n         │         ");
-                        out.push_str(attacker.0.to_color());
+                        out.push_str(attacker.owner.to_color());
                         out.push_str("Attacker wins");
                         out.push_str(RESET);
                         out.push_str(" (");
@@ -321,7 +318,7 @@ fn push_game_log(out: &mut String, log: &GameLog) {
                     }
                     BattleWinner::Defender => {
                         out.push_str("\n         │         ");
-                        out.push_str(defender.0.to_color());
+                        out.push_str(defender.owner.to_color());
                         out.push_str("Defender wins");
                         out.push_str(RESET);
                         out.push_str(" (");
@@ -332,7 +329,7 @@ fn push_game_log(out: &mut String, log: &GameLog) {
                     }
                     BattleWinner::None => {
                         out.push_str("\n         │         Draw, ");
-                        out.push_str(defender.0.to_color());
+                        out.push_str(defender.owner.to_color());
                         out.push_str("defender wins");
                         out.push_str(RESET);
                         out.push_str(" by default (");
@@ -344,7 +341,7 @@ fn push_game_log(out: &mut String, log: &GameLog) {
                 }
             }
 
-            game_log::Entry::NextTurn { .. } => unreachable!(),
+            Entry::NextTurn { .. } => unreachable!(),
         }
         out.push('\n');
     }
@@ -424,12 +421,11 @@ impl Player {
 
 impl CardType {
     fn to_char(self) -> char {
-        use CardType::*;
         match self {
-            Physical => 'P',
-            Magical => 'M',
-            Exploit => 'X',
-            Assault => 'A',
+            CardType::Physical => 'P',
+            CardType::Magical => 'M',
+            CardType::Exploit => 'X',
+            CardType::Assault => 'A',
         }
     }
 }

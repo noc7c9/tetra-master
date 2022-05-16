@@ -3,6 +3,8 @@ mod input;
 mod logic;
 mod render;
 
+pub(crate) use game_log::{Entry, GameLog};
+
 #[derive(Debug, Clone, Copy, PartialEq)]
 enum Player {
     P1,
@@ -10,7 +12,7 @@ enum Player {
 }
 
 impl Player {
-    fn opposite(&self) -> Self {
+    fn opposite(self) -> Self {
         match self {
             Player::P1 => Player::P2,
             Player::P2 => Player::P1,
@@ -26,7 +28,7 @@ enum CardType {
     Assault,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 struct Arrows {
     top_left: bool,
     top: bool,
@@ -38,7 +40,7 @@ struct Arrows {
     bottom_right: bool,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 struct Card {
     card_type: CardType,
     attack: u8,
@@ -93,17 +95,17 @@ impl Card {
     }
 }
 
-#[derive(Debug, Clone, PartialEq)]
-enum Cell {
-    Blocked,
-    Card { owner: Player, card: Card },
-    Empty,
+#[derive(Debug, Clone, Copy, PartialEq)]
+struct OwnedCard {
+    owner: Player,
+    card: Card,
 }
 
-impl Cell {
-    fn is_empty(&self) -> bool {
-        matches!(self, Cell::Empty)
-    }
+#[derive(Debug, Clone, Copy, PartialEq)]
+enum Cell {
+    Blocked,
+    Card(OwnedCard),
+    Empty,
 }
 
 impl Default for Cell {
@@ -119,7 +121,7 @@ enum BattleWinner {
     None,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 struct BattleStat {
     digit: u8,
     value: u8,
@@ -127,12 +129,12 @@ struct BattleStat {
 }
 
 impl BattleStat {
-    fn resolve(&self) -> u8 {
+    fn resolve(self) -> u8 {
         self.value - self.roll
     }
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 struct BattleResult {
     winner: BattleWinner,
     attack_stat: BattleStat,
@@ -184,14 +186,15 @@ impl GameState {
     }
 }
 
+#[derive(Debug, Clone, Copy)]
 struct Move {
     card: usize,
     cell: usize,
 }
 
 fn main() {
-    let mut game_state = GameState::with_seed(fastrand::u64(..));
-    let mut game_log = game_log::GameLog::new(game_state.turn);
+    let mut state = GameState::with_seed(fastrand::u64(..));
+    let mut log = GameLog::new(state.turn);
 
     let stdout = std::io::stdout();
     let mut out = stdout.lock();
@@ -204,7 +207,7 @@ fn main() {
 
         buf.clear();
         render::clear(&mut buf);
-        render::screen(&game_log, &game_state, &mut buf);
+        render::screen(&log, &state, &mut buf);
         out.write_all(buf.as_bytes()).unwrap();
         out.flush().unwrap();
 
@@ -214,9 +217,7 @@ fn main() {
 
             buf.clear();
             in_.read_line(&mut buf).unwrap();
-            match input::parse(&buf)
-                .and_then(|input| logic::next(&mut game_state, &mut game_log, input))
-            {
+            match input::parse(&buf).and_then(|input| logic::next(&mut state, &mut log, input)) {
                 Ok(_) => {
                     break;
                 }
