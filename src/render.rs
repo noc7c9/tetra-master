@@ -1,4 +1,6 @@
-use crate::{BattleWinner, Card, CardType, Cell, Entry, GameLog, GameState, OwnedCard, Player};
+use crate::{
+    BattleWinner, Card, CardType, Cell, Entry, GameLog, GameState, GameStatus, OwnedCard, Player,
+};
 
 const RED: &str = "\x1b[0;31m";
 const RED_BOLD: &str = "\x1b[1;31m";
@@ -25,7 +27,7 @@ pub(crate) fn screen(log: &GameLog, state: &GameState, out: &mut String) {
     push_game_log(out, log);
     out.push('\n');
 
-    push_prompt(out, state.turn);
+    push_prompt(out, state);
 }
 
 fn push_hand(out: &mut String, owner: Player, hand: &[Option<Card>; 5]) {
@@ -347,18 +349,41 @@ fn push_game_log(out: &mut String, log: &GameLog) {
     }
 }
 
-fn push_prompt(out: &mut String, turn: Player) {
+fn push_prompt(out: &mut String, state: &GameState) {
     out.push_str("Turn: ");
-    out.push_str(turn.to_color());
-    if turn == Player::P1 {
+    out.push_str(state.turn.to_color());
+    if state.turn == Player::P1 {
         out.push_str("Player 1");
     } else {
         out.push_str("Player 2");
     }
-
-    out.push_str(GRAY);
-    out.push_str(" [ format: {CARD#} {COORD} ]\n");
     out.push_str(RESET);
+    out.push_str(" │ ");
+
+    match &state.status {
+        GameStatus::WaitingPlace => {
+            out.push_str("Where to place which card?");
+            out.push_str(GRAY);
+            out.push_str(" ( format: {CARD#} {COORD} )\n");
+            out.push_str(RESET);
+        }
+        GameStatus::WaitingBattle { choices, .. } => {
+            out.push_str(RESET);
+            out.push_str("Which card to battle?");
+            out.push_str(GRAY);
+            out.push_str(" ( format: {COORD} )\n");
+            out.push_str(RESET);
+            for &(cell, card) in choices {
+                out.push_str("  ");
+                out.push(to_hex_digit(cell as u8));
+                out.push_str(" ( ");
+                out.push_str(state.turn.opposite().to_color());
+                push_card_stats(out, card);
+                out.push_str(RESET);
+                out.push_str(" )\n");
+            }
+        }
+    }
 }
 
 fn push_card_stats(out: &mut String, card: Card) {

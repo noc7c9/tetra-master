@@ -190,8 +190,18 @@ struct BattleResult {
     defense_stat: BattleStat,
 }
 
+#[derive(Debug, Clone, PartialEq)]
+enum GameStatus {
+    WaitingPlace,
+    WaitingBattle {
+        attacker_cell: usize,
+        choices: Vec<(usize, Card)>,
+    },
+}
+
 #[derive(Debug, Clone)]
 struct GameState {
+    status: GameStatus,
     rng: fastrand::Rng,
     turn: Player,
     board: [Cell; 4 * 4],
@@ -201,6 +211,7 @@ struct GameState {
 
 impl GameState {
     fn with_seed(seed: u64) -> Self {
+        let status = GameStatus::WaitingPlace;
         let rng = fastrand::Rng::with_seed(seed);
         let turn = if rng.bool() { Player::P1 } else { Player::P2 };
         let mut board: [Cell; 4 * 4] = Default::default();
@@ -226,6 +237,7 @@ impl GameState {
         }
 
         GameState {
+            status,
             rng,
             turn,
             board,
@@ -233,12 +245,21 @@ impl GameState {
             p2_hand,
         }
     }
+
+    // take out card from the given cell
+    // panics if there is no card in the given cell
+    fn take_card(&mut self, cell: usize) -> OwnedCard {
+        match std::mem::take(&mut self.board[cell]) {
+            Cell::Card(card) => card,
+            _ => panic!("Cell didn't have a card"),
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy)]
-struct Move {
-    card: usize,
-    cell: usize,
+enum Input {
+    Place { card: usize, cell: usize },
+    Battle { cell: usize },
 }
 
 fn main() {
@@ -266,7 +287,9 @@ fn main() {
 
             buf.clear();
             in_.read_line(&mut buf).unwrap();
-            match input::parse(&buf).and_then(|input| logic::next(&mut state, &mut log, input)) {
+            match input::parse(&state, &buf)
+                .and_then(|input| logic::next(&mut state, &mut log, input))
+            {
                 Ok(_) => {
                     break;
                 }
