@@ -1,26 +1,25 @@
 use crate::{
     Arrows, BattleResult, BattleStat, BattleWinner, Card, CardType, Cell, Entry, GameLog,
-    GameState, GameStatus, Input, OwnedCard, Player,
+    GameState, GameStatus, Input, InputBattle, InputPlace, OwnedCard, Player,
 };
 
 pub(crate) fn next(state: &mut GameState, log: &mut GameLog, input: Input) -> Result<(), String> {
-    match state.status {
-        GameStatus::WaitingPlace => handle_waiting_place(state, log, input),
-        GameStatus::WaitingBattle { attacker_cell, .. } => {
-            handle_waiting_battle(state, log, attacker_cell, input)
+    match (&state.status, input) {
+        (GameStatus::WaitingPlace, Input::Place(input)) => handle_waiting_place(state, log, input),
+        (GameStatus::WaitingBattle { .. }, Input::Battle(input)) => {
+            handle_waiting_battle(state, log, input)
         }
+        _ => unreachable!("next called with invalid status/input pair"),
     }
 }
 
 fn handle_waiting_place(
     state: &mut GameState,
     log: &mut GameLog,
-    input: Input,
+    input: InputPlace,
 ) -> Result<(), String> {
-    let (hand_index, attacker_cell) = match input {
-        Input::Place { card, cell } => (card, cell),
-        _ => unreachable!("expected Input::Place {{ .. }}, got: {input:?}"),
-    };
+    let hand_index = input.card;
+    let attacker_cell = input.cell;
 
     let hand = match state.turn {
         Player::P1 => &mut state.p1_hand,
@@ -55,19 +54,19 @@ fn handle_waiting_place(
 fn handle_waiting_battle(
     state: &mut GameState,
     log: &mut GameLog,
-    attacker_cell: usize,
-    input: Input,
+    input: InputBattle,
 ) -> Result<(), String> {
-    let defender_cell = match input {
-        Input::Battle { cell } => cell,
-        _ => unreachable!("expected Input::Battle {{ .. }}, got: {input:?}"),
+    let defender_cell = input.cell;
+
+    let (attacker_cell, choices) = match &state.status {
+        GameStatus::WaitingBattle {
+            attacker_cell,
+            choices,
+        } => (*attacker_cell, choices),
+        _ => unreachable!(),
     };
 
     // ensure input cell is a valid choice
-    let choices = match &state.status {
-        GameStatus::WaitingBattle { choices, .. } => choices,
-        _ => unreachable!(),
-    };
     if choices.iter().all(|&(cell, _)| cell != defender_cell) {
         return Err(format!("Cell {:X} is not a valid choice", attacker_cell));
     }
@@ -325,7 +324,6 @@ fn get_neighbours(cell: usize) -> &'static [(usize, Arrows)] {
 #[cfg(test)]
 mod test {
     use super::*;
-    use crate::Arrows;
 
     fn rng() -> fastrand::Rng {
         fastrand::Rng::new()
@@ -419,6 +417,16 @@ mod test {
         }
     }
 
+    impl Input {
+        fn place(card: usize, cell: usize) -> Self {
+            Input::Place(InputPlace { card, cell })
+        }
+
+        fn battle(cell: usize) -> Self {
+            Input::Battle(InputBattle { cell })
+        }
+    }
+
     #[test]
     fn turn_should_change_after_a_valid_play() {
         let mut state = GameState {
@@ -428,7 +436,7 @@ mod test {
         };
         let mut log = GameLog::new(state.turn);
 
-        next(&mut state, &mut log, Input::Place { card: 0, cell: 0 }).unwrap();
+        next(&mut state, &mut log, Input::place(0, 0)).unwrap();
 
         assert_eq!(state.turn, Player::P2);
     }
@@ -442,7 +450,7 @@ mod test {
         };
         let mut log = GameLog::new(state.turn);
 
-        let res = next(&mut state, &mut log, Input::Place { card: 2, cell: 0 });
+        let res = next(&mut state, &mut log, Input::place(2, 0));
 
         assert_eq!(res, Err("Card 2 has already been played".into()));
     }
@@ -457,7 +465,7 @@ mod test {
         let mut log = GameLog::new(state.turn);
         state.board[0xB] = Cell::Blocked;
 
-        let res = next(&mut state, &mut log, Input::Place { card: 0, cell: 0xB });
+        let res = next(&mut state, &mut log, Input::place(0, 0xB));
 
         assert_eq!(res, Err("Cell B is not empty".into()));
     }
@@ -472,7 +480,7 @@ mod test {
         let mut log = GameLog::new(state.turn);
         state.board[3] = Cell::p1_card(Card::basic());
 
-        let res = next(&mut state, &mut log, Input::Place { card: 0, cell: 3 });
+        let res = next(&mut state, &mut log, Input::place(0, 3));
 
         assert_eq!(res, Err("Cell 3 is not empty".into()));
     }
@@ -487,7 +495,7 @@ mod test {
         };
         let mut log = GameLog::new(state.turn);
 
-        next(&mut state, &mut log, Input::Place { card: 0, cell: 7 }).unwrap();
+        next(&mut state, &mut log, Input::place(0, 7)).unwrap();
 
         assert_eq!(state.p1_hand[0], None);
         assert_eq!(state.board[0x7], Cell::p1_card(card));
@@ -503,7 +511,7 @@ mod test {
         };
         let mut log = GameLog::new(state.turn);
 
-        next(&mut state, &mut log, Input::Place { card: 0, cell: 7 }).unwrap();
+        next(&mut state, &mut log, Input::place(0, 7)).unwrap();
 
         let log: Vec<_> = log.iter().collect();
         assert_eq!(
@@ -539,7 +547,7 @@ mod test {
         // shouldn't flip, isn't pointed to
         state.board[8] = Cell::p2_card(card_no_arrows);
 
-        next(&mut state, &mut log, Input::Place { card: 0, cell: 4 }).unwrap();
+        next(&mut state, &mut log, Input::place(0, 4)).unwrap();
 
         assert_eq!(state.board[0], Cell::p1_card(card_no_arrows));
         assert_eq!(state.board[5], Cell::p1_card(card_no_arrows));
@@ -564,7 +572,7 @@ mod test {
         let mut log = GameLog::new(state.turn);
         state.board[0] = Cell::p2_card(card_no_arrows);
 
-        next(&mut state, &mut log, Input::Place { card: 0, cell: 4 }).unwrap();
+        next(&mut state, &mut log, Input::place(0, 4)).unwrap();
 
         let log: Vec<_> = log.iter().collect();
         assert_eq!(
@@ -596,7 +604,7 @@ mod test {
                 ..state.clone()
             };
             let mut log = GameLog::new(state.turn);
-            next(&mut state, &mut log, Input::Place { card: 0, cell: 4 }).unwrap();
+            next(&mut state, &mut log, Input::place(0, 4)).unwrap();
 
             assert_eq!(state.board[0], Cell::p1_card(card_points_down));
             assert_eq!(state.board[4], Cell::p1_card(card_points_up));
@@ -609,7 +617,7 @@ mod test {
                 ..state.clone()
             };
             let mut log = GameLog::new(state.turn);
-            next(&mut state, &mut log, Input::Place { card: 0, cell: 4 }).unwrap();
+            next(&mut state, &mut log, Input::place(0, 4)).unwrap();
 
             assert_eq!(state.board[0], Cell::p2_card(card_points_down));
             assert_eq!(state.board[4], Cell::p2_card(card_points_up));
@@ -622,7 +630,7 @@ mod test {
                 ..state
             };
             let mut log = GameLog::new(state.turn);
-            next(&mut state, &mut log, Input::Place { card: 0, cell: 4 }).unwrap();
+            next(&mut state, &mut log, Input::place(0, 4)).unwrap();
 
             assert_eq!(state.board[0], Cell::p2_card(card_points_down));
             assert_eq!(state.board[4], Cell::p2_card(card_points_up));
@@ -647,7 +655,7 @@ mod test {
                 ..state.clone()
             };
             let mut log = GameLog::new(state.turn);
-            next(&mut state, &mut log, Input::Place { card: 0, cell: 4 }).unwrap();
+            next(&mut state, &mut log, Input::place(0, 4)).unwrap();
 
             let log: Vec<_> = log.iter().collect();
             assert_eq!(
@@ -685,7 +693,7 @@ mod test {
                 ..state.clone()
             };
             let mut log = GameLog::new(state.turn);
-            next(&mut state, &mut log, Input::Place { card: 0, cell: 4 }).unwrap();
+            next(&mut state, &mut log, Input::place(0, 4)).unwrap();
 
             let log: Vec<_> = log.iter().collect();
             assert_eq!(
@@ -723,7 +731,7 @@ mod test {
                 ..state
             };
             let mut log = GameLog::new(state.turn);
-            next(&mut state, &mut log, Input::Place { card: 0, cell: 4 }).unwrap();
+            next(&mut state, &mut log, Input::place(0, 4)).unwrap();
 
             let log: Vec<_> = log.iter().collect();
             assert_eq!(
@@ -770,7 +778,7 @@ mod test {
         state.board[8] = Cell::p2_card(card_points_up);
 
         let mut log = GameLog::new(state.turn);
-        next(&mut state, &mut log, Input::Place { card: 0, cell: 4 }).unwrap();
+        next(&mut state, &mut log, Input::place(0, 4)).unwrap();
 
         assert_eq!(
             state.status,
@@ -796,7 +804,7 @@ mod test {
         state.board[8] = Cell::p2_card(card_points_up);
 
         let mut log = GameLog::new(state.turn);
-        next(&mut state, &mut log, Input::Place { card: 0, cell: 4 }).unwrap();
+        next(&mut state, &mut log, Input::place(0, 4)).unwrap();
 
         let log: Vec<_> = log.iter().collect();
         assert_eq!(
@@ -825,8 +833,8 @@ mod test {
         state.board[8] = Cell::p2_card(card_points_up);
 
         let mut log = GameLog::new(state.turn);
-        next(&mut state, &mut log, Input::Place { card: 0, cell: 4 }).unwrap();
-        next(&mut state, &mut log, Input::Battle { cell: 8 }).unwrap();
+        next(&mut state, &mut log, Input::place(0, 4)).unwrap();
+        next(&mut state, &mut log, Input::battle(8)).unwrap();
 
         assert_eq!(state.board[0], Cell::p1_card(card_points_down));
         assert_eq!(state.board[4], Cell::p1_card(card_points_vert));
@@ -894,8 +902,8 @@ mod test {
         state.board[8] = Cell::p2_card(card_points_up);
 
         let mut log = GameLog::new(state.turn);
-        next(&mut state, &mut log, Input::Place { card: 0, cell: 4 }).unwrap();
-        let res = next(&mut state, &mut log, Input::Battle { cell: 4 });
+        next(&mut state, &mut log, Input::place(0, 4)).unwrap();
+        let res = next(&mut state, &mut log, Input::battle(4));
 
         assert_eq!(res, Err("Cell 4 is not a valid choice".into()));
     }

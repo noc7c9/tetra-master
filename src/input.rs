@@ -1,13 +1,13 @@
-use crate::{GameState, GameStatus, Input};
+use crate::{GameState, GameStatus, Input, InputBattle, InputPlace};
 
 pub(crate) fn parse(state: &GameState, input: &str) -> Result<Input, String> {
-    match &state.status {
-        GameStatus::WaitingPlace => parse_place(input),
-        GameStatus::WaitingBattle { .. } => parse_battle(input),
-    }
+    Ok(match &state.status {
+        GameStatus::WaitingPlace => Input::Place(parse_place(input)?),
+        GameStatus::WaitingBattle { .. } => Input::Battle(parse_battle(input)?),
+    })
 }
 
-fn parse_place(input: &str) -> Result<Input, String> {
+fn parse_place(input: &str) -> Result<InputPlace, String> {
     enum State {
         ReadingCard,
         ReadingCell { card: usize },
@@ -30,7 +30,7 @@ fn parse_place(input: &str) -> Result<Input, String> {
                 _ => return Err(format!("Invalid Cell {}", ch)),
             },
             State::WaitingForEOL { card, cell } => match ch {
-                '\n' => return Ok(Input::Place { card, cell }),
+                '\n' => return Ok(InputPlace { card, cell }),
                 _ => return Err(format!("Unexpected Character {}", ch)),
             },
         }
@@ -39,7 +39,7 @@ fn parse_place(input: &str) -> Result<Input, String> {
     unreachable!()
 }
 
-fn parse_battle(input: &str) -> Result<Input, String> {
+fn parse_battle(input: &str) -> Result<InputBattle, String> {
     enum State {
         ReadingCell,
         WaitingForEOL { cell: usize },
@@ -57,7 +57,7 @@ fn parse_battle(input: &str) -> Result<Input, String> {
                 _ => return Err(format!("Invalid Cell {}", ch)),
             },
             State::WaitingForEOL { cell } => match ch {
-                '\n' => return Ok(Input::Battle { cell }),
+                '\n' => return Ok(InputBattle { cell }),
                 _ => return Err(format!("Unexpected Character {}", ch)),
             },
         }

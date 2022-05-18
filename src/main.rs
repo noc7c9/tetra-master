@@ -258,8 +258,19 @@ impl GameState {
 
 #[derive(Debug, Clone, Copy)]
 enum Input {
-    Place { card: usize, cell: usize },
-    Battle { cell: usize },
+    Place(InputPlace),
+    Battle(InputBattle),
+}
+
+#[derive(Debug, Clone, Copy)]
+struct InputPlace {
+    card: usize,
+    cell: usize,
+}
+
+#[derive(Debug, Clone, Copy)]
+struct InputBattle {
+    cell: usize,
 }
 
 fn main() {
