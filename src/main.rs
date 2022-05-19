@@ -32,8 +32,11 @@ enum CardType {
 struct Arrows(u8);
 
 impl Arrows {
-    #[allow(dead_code)]
+    #[cfg(test)]
     const NONE: Arrows = Arrows(0b0000_0000);
+
+    #[cfg(test)]
+    const ALL: Arrows = Arrows(0b1111_1111);
 
     // clockwise from the top
     const UP: Arrows = Arrows(0b1000_0000);
@@ -45,8 +48,9 @@ impl Arrows {
     const LEFT: Arrows = Arrows(0b0000_0010);
     const UP_LEFT: Arrows = Arrows(0b0000_0001);
 
-    fn flip(self) -> Self {
-        // rotating by 4 bits and wrapping
+    // returns an arrow that points in the opposite direction
+    fn reverse(self) -> Self {
+        // wrapping shift by 4 bits and wrapping
         Arrows(self.0 >> 4 | self.0 << 4)
     }
 

@@ -254,8 +254,17 @@ fn push_game_log(out: &mut String, log: &GameLog) {
                 out.push(to_hex_digit(*cell as u8));
             }
 
-            Entry::FlipCard { card, cell, to } => {
-                out.push_str("Flipped ");
+            Entry::FlipCard {
+                card,
+                cell,
+                to,
+                via_combo,
+            } => {
+                if *via_combo {
+                    out.push_str("Combo'd ");
+                } else {
+                    out.push_str("Flipped ");
+                }
                 out.push_str(to.opposite().to_color());
                 push_card_stats(out, card.card);
                 out.push_str(RESET);

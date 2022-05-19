@@ -13,6 +13,7 @@ pub(crate) enum Entry {
         card: OwnedCard,
         cell: usize,
         to: Player,
+        via_combo: bool,
     },
     Battle {
         attacker: OwnedCard,
@@ -30,8 +31,13 @@ impl Entry {
         Entry::PlaceCard { card, cell }
     }
 
-    pub(crate) fn flip_card(card: OwnedCard, cell: usize, to: Player) -> Self {
-        Entry::FlipCard { card, cell, to }
+    pub(crate) fn flip_card(card: OwnedCard, cell: usize, to: Player, via_combo: bool) -> Self {
+        Entry::FlipCard {
+            card,
+            cell,
+            to,
+            via_combo,
+        }
     }
 
     pub(crate) fn battle(attacker: OwnedCard, defender: OwnedCard, result: BattleResult) -> Self {

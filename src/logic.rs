@@ -88,23 +88,17 @@ fn resolve_rest_of_turn(state: &mut GameState, log: &mut GameLog, attacker_cell:
 
     let mut defenders = vec![];
     let mut non_defenders = vec![];
-    for &(defender_cell, arrow) in get_neighbours(attacker_cell).iter() {
+    for &(defender_cell, arrow) in get_possible_neighbours(attacker_cell) {
         let defender = match state.board[defender_cell] {
             Cell::Card(card) => card,
             _ => continue,
         };
 
-        // skip over cards belong to the attacking player
-        if defender.owner == attacker.owner {
+        if !does_interact(attacker, defender, arrow) {
             continue;
         }
 
-        // skip if the attacking card doesn't have an arrow in this direction
-        if !is_attacking(attacker.card, arrow) {
-            continue;
-        }
-
-        if is_defending(defender.card, arrow) {
+        if defender.card.arrows.has(arrow.reverse()) {
             defenders.push((defender_cell, defender.card));
         } else {
             non_defenders.push(defender_cell);
@@ -131,8 +125,7 @@ fn resolve_rest_of_turn(state: &mut GameState, log: &mut GameLog, attacker_cell:
             Cell::Card(card) => card,
             _ => unreachable!(),
         };
-
-        flip(log, defender, cell);
+        flip(log, defender, cell, false);
     }
 
     // next turn
@@ -150,13 +143,27 @@ fn battle(state: &mut GameState, log: &mut GameLog, attacker_cell: usize, defend
     let result = calculate_battle_result(&state.rng, attacker.card, defender.card);
     log.append(Entry::battle(attacker, defender, result));
     match result.winner {
-        BattleWinner::Attacker => {
-            // flip defender
-            flip(log, &mut defender, defender_cell);
-        }
         BattleWinner::Defender | BattleWinner::None => {
             // flip attacker
-            flip(log, &mut attacker, attacker_cell);
+            flip(log, &mut attacker, attacker_cell, false);
+        }
+        BattleWinner::Attacker => {
+            // flip defender
+            flip(log, &mut defender, defender_cell, false);
+
+            // combo flip any cards defender points at
+            for &(comboed_cell, arrow) in get_possible_neighbours(defender_cell) {
+                let comboed = match &mut state.board[comboed_cell] {
+                    Cell::Card(card) => card,
+                    _ => continue,
+                };
+
+                if !does_interact(defender, *comboed, arrow) {
+                    continue;
+                }
+
+                flip(log, comboed, comboed_cell, true);
+            }
         }
     }
 
@@ -165,18 +172,10 @@ fn battle(state: &mut GameState, log: &mut GameLog, attacker_cell: usize, defend
     state.board[defender_cell] = Cell::Card(defender);
 }
 
-fn flip(log: &mut GameLog, card: &mut OwnedCard, cell: usize) {
+fn flip(log: &mut GameLog, card: &mut OwnedCard, cell: usize, via_combo: bool) {
     let to = card.owner.opposite();
-    log.append(Entry::flip_card(*card, cell, to));
+    log.append(Entry::flip_card(*card, cell, to, via_combo));
     card.owner = to;
-}
-
-fn is_attacking(card: Card, attack_direction: Arrows) -> bool {
-    card.arrows.has(attack_direction)
-}
-
-fn is_defending(card: Card, attack_direction: Arrows) -> bool {
-    card.arrows.flip().has(attack_direction)
 }
 
 fn get_attack_stat(rng: &fastrand::Rng, attacker: Card) -> BattleStat {
@@ -254,8 +253,18 @@ fn calculate_battle_result(rng: &fastrand::Rng, attacker: Card, defender: Card) 
     }
 }
 
-// returns index of neighbour cells along with the arrow that points at the neighbour
-fn get_neighbours(cell: usize) -> &'static [(usize, Arrows)] {
+fn does_interact(attacker: OwnedCard, defender: OwnedCard, arrow_to_defender: Arrows) -> bool {
+    // they don't interact if both cards belong to the same player
+    if defender.owner == attacker.owner {
+        return false;
+    }
+
+    // they interact if the attacking card has an arrow in the direction of the defender
+    attacker.card.arrows.has(arrow_to_defender)
+}
+
+// returns neighbouring cells along with the arrow that points at them
+fn get_possible_neighbours(cell: usize) -> &'static [(usize, Arrows)] {
     const U: Arrows = Arrows::UP;
     const UR: Arrows = Arrows::UP_RIGHT;
     const R: Arrows = Arrows::RIGHT;
@@ -580,7 +589,7 @@ mod test {
             vec![
                 &Entry::next_turn(Player::P1),
                 &Entry::place_card(OwnedCard::p1(card_points_up), 4,),
-                &Entry::flip_card(OwnedCard::p2(card_no_arrows), 0, Player::P1),
+                &Entry::flip_card(OwnedCard::p2(card_no_arrows), 0, Player::P1, false),
                 &Entry::next_turn(Player::P2),
             ]
         );
@@ -680,7 +689,7 @@ mod test {
                             },
                         }
                     ),
-                    &Entry::flip_card(OwnedCard::p2(card_points_down), 0, Player::P1),
+                    &Entry::flip_card(OwnedCard::p2(card_points_down), 0, Player::P1, false),
                     &Entry::next_turn(Player::P2),
                 ]
             );
@@ -718,7 +727,7 @@ mod test {
                             },
                         }
                     ),
-                    &Entry::flip_card(OwnedCard::p1(card_points_up), 4, Player::P2),
+                    &Entry::flip_card(OwnedCard::p1(card_points_up), 4, Player::P2, false),
                     &Entry::next_turn(Player::P2),
                 ]
             );
@@ -756,7 +765,7 @@ mod test {
                             },
                         }
                     ),
-                    &Entry::flip_card(OwnedCard::p1(card_points_up), 4, Player::P2),
+                    &Entry::flip_card(OwnedCard::p1(card_points_up), 4, Player::P2, false),
                     &Entry::next_turn(Player::P2),
                 ]
             );
@@ -863,7 +872,7 @@ mod test {
                         },
                     }
                 ),
-                &Entry::flip_card(OwnedCard::p2(card_points_up), 8, Player::P1),
+                &Entry::flip_card(OwnedCard::p2(card_points_up), 8, Player::P1, false),
                 &Entry::battle(
                     OwnedCard::p1(card_points_vert),
                     OwnedCard::p2(card_points_down),
@@ -881,7 +890,7 @@ mod test {
                         },
                     }
                 ),
-                &Entry::flip_card(OwnedCard::p2(card_points_down), 0, Player::P1),
+                &Entry::flip_card(OwnedCard::p2(card_points_down), 0, Player::P1, false),
                 &Entry::next_turn(Player::P2),
             ]
         );
@@ -906,6 +915,61 @@ mod test {
         let res = next(&mut state, &mut log, Input::battle(4));
 
         assert_eq!(res, Err("Cell 4 is not a valid choice".into()));
+    }
+
+    #[test]
+    fn combo_flip_cards_that_belong_to_opponent_are_pointed_to_by_card_that_loses_battles() {
+        let card_points_all = Card::from_str("0P00", Arrows::ALL);
+        let card_points_up = Card::from_str("FP00", Arrows::UP);
+        let card_points_none = Card::from_str("0P00", Arrows::NONE);
+        let mut state = GameState {
+            turn: Player::P1,
+            p1_hand: [Some(card_points_up), None, None, None, None],
+            ..GameState::empty()
+        };
+        state.board[5] = Cell::p2_card(card_points_all);
+        state.board[1] = Cell::p2_card(card_points_none);
+        state.board[4] = Cell::p2_card(card_points_none);
+        state.board[6] = Cell::p2_card(card_points_none);
+
+        let mut log = GameLog::new(state.turn);
+        next(&mut state, &mut log, Input::place(0, 9)).unwrap();
+
+        assert_eq!(state.board[5], Cell::p1_card(card_points_all));
+        assert_eq!(state.board[1], Cell::p1_card(card_points_none));
+        assert_eq!(state.board[4], Cell::p1_card(card_points_none));
+        assert_eq!(state.board[6], Cell::p1_card(card_points_none));
+
+        let log: Vec<_> = log.iter().collect();
+        assert_eq!(
+            log,
+            vec![
+                &Entry::next_turn(Player::P1),
+                &Entry::place_card(OwnedCard::p1(card_points_up), 9),
+                &Entry::battle(
+                    OwnedCard::p1(card_points_up),
+                    OwnedCard::p2(card_points_all),
+                    BattleResult {
+                        winner: BattleWinner::Attacker,
+                        attack_stat: BattleStat {
+                            digit: 0,
+                            value: 0xFF,
+                            roll: 142
+                        },
+                        defense_stat: BattleStat {
+                            digit: 2,
+                            value: 0x0F,
+                            roll: 15
+                        },
+                    }
+                ),
+                &Entry::flip_card(OwnedCard::p2(card_points_all), 5, Player::P1, false),
+                &Entry::flip_card(OwnedCard::p2(card_points_none), 1, Player::P1, true),
+                &Entry::flip_card(OwnedCard::p2(card_points_none), 6, Player::P1, true),
+                &Entry::flip_card(OwnedCard::p2(card_points_none), 4, Player::P1, true),
+                &Entry::next_turn(Player::P2),
+            ]
+        );
     }
 
     #[cfg(test)]
