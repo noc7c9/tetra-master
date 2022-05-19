@@ -132,7 +132,31 @@ fn resolve_rest_of_turn(state: &mut GameState, log: &mut GameLog, attacker_cell:
     state.turn = state.turn.opposite();
     log.append(Entry::next_turn(state.turn));
 
-    state.status = GameStatus::WaitingPlace;
+    // check if the game is over
+    if state.p1_hand.iter().all(Option::is_none) && state.p2_hand.iter().all(Option::is_none) {
+        let mut p1_cards = 0;
+        let mut p2_cards = 0;
+
+        for cell in &state.board {
+            if let Cell::Card(OwnedCard { owner, .. }) = cell {
+                match owner {
+                    Player::P1 => p1_cards += 1,
+                    Player::P2 => p2_cards += 1,
+                }
+            }
+        }
+
+        use std::cmp::Ordering;
+        let winner = match p1_cards.cmp(&p2_cards) {
+            Ordering::Greater => Some(Player::P1),
+            Ordering::Less => Some(Player::P2),
+            Ordering::Equal => None,
+        };
+
+        state.status = GameStatus::GameOver { winner };
+    } else {
+        state.status = GameStatus::WaitingPlace;
+    }
 }
 
 fn battle(state: &mut GameState, log: &mut GameLog, attacker_cell: usize, defender_cell: usize) {
@@ -970,6 +994,71 @@ mod test {
                 &Entry::next_turn(Player::P2),
             ]
         );
+    }
+
+    #[test]
+    fn game_should_be_over_once_all_cards_have_been_played() {
+        let card = Card::from_str("0P00", Arrows::NONE);
+
+        {
+            // player 1 wins
+            let mut state = GameState {
+                turn: Player::P1,
+                p1_hand: [Some(card), Some(card), None, None, None],
+                p2_hand: [Some(card), None, None, None, None],
+                ..GameState::empty()
+            };
+            let mut log = GameLog::new(state.turn);
+
+            next(&mut state, &mut log, Input::place(0, 0)).unwrap();
+            next(&mut state, &mut log, Input::place(0, 1)).unwrap();
+            next(&mut state, &mut log, Input::place(1, 2)).unwrap();
+
+            assert_eq!(
+                state.status,
+                GameStatus::GameOver {
+                    winner: Some(Player::P1)
+                }
+            );
+        }
+
+        {
+            // player 2 wins
+            let mut state = GameState {
+                turn: Player::P2,
+                p1_hand: [Some(card), None, None, None, None],
+                p2_hand: [Some(card), Some(card), None, None, None],
+                ..GameState::empty()
+            };
+            let mut log = GameLog::new(state.turn);
+
+            next(&mut state, &mut log, Input::place(0, 0)).unwrap();
+            next(&mut state, &mut log, Input::place(0, 1)).unwrap();
+            next(&mut state, &mut log, Input::place(1, 2)).unwrap();
+
+            assert_eq!(
+                state.status,
+                GameStatus::GameOver {
+                    winner: Some(Player::P2)
+                }
+            );
+        }
+
+        {
+            // draw
+            let mut state = GameState {
+                turn: Player::P2,
+                p1_hand: [Some(card), None, None, None, None],
+                p2_hand: [Some(card), None, None, None, None],
+                ..GameState::empty()
+            };
+            let mut log = GameLog::new(state.turn);
+
+            next(&mut state, &mut log, Input::place(0, 0)).unwrap();
+            next(&mut state, &mut log, Input::place(0, 1)).unwrap();
+
+            assert_eq!(state.status, GameStatus::GameOver { winner: None });
+        }
     }
 
     #[cfg(test)]

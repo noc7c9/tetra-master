@@ -201,6 +201,9 @@ enum GameStatus {
         attacker_cell: usize,
         choices: Vec<(usize, Card)>,
     },
+    GameOver {
+        winner: Option<Player>,
+    },
 }
 
 #[derive(Debug, Clone)]
@@ -295,6 +298,10 @@ fn main() {
         render::screen(&log, &state, &mut buf);
         out.write_all(buf.as_bytes()).unwrap();
         out.flush().unwrap();
+
+        if let GameStatus::GameOver { .. } = state.status {
+            break;
+        }
 
         loop {
             out.write_all(b"> ").unwrap();

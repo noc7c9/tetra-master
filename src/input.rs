@@ -4,6 +4,7 @@ pub(crate) fn parse(state: &GameState, input: &str) -> Result<Input, String> {
     Ok(match &state.status {
         GameStatus::WaitingPlace => Input::Place(parse_place(input)?),
         GameStatus::WaitingBattle { .. } => Input::Battle(parse_battle(input)?),
+        GameStatus::GameOver { .. } => panic!("parse shouldn't be called once game is over"),
     })
 }
 

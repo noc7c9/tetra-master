@@ -8,6 +8,7 @@ const BLUE: &str = "\x1b[0;34m";
 const BLUE_BOLD: &str = "\x1b[1;34m";
 const GRAY: &str = "\x1b[0;30m";
 const GRAY_BOLD: &str = "\x1b[1;30m";
+const WHITE_BOLD: &str = "\x1b[1;37m";
 const RESET: &str = "\x1b[0m";
 
 pub(crate) fn clear(out: &mut String) {
@@ -25,9 +26,12 @@ pub(crate) fn screen(log: &GameLog, state: &GameState, out: &mut String) {
     out.push('\n');
 
     push_game_log(out, log);
-    out.push('\n');
 
-    push_prompt(out, state);
+    if let GameStatus::GameOver { winner } = state.status {
+        push_game_over(out, winner);
+    } else {
+        push_prompt(out, state);
+    }
 }
 
 fn push_hand(out: &mut String, owner: Player, hand: &[Option<Card>; 5]) {
@@ -233,12 +237,12 @@ fn push_game_log(out: &mut String, log: &GameLog) {
 
         out.push_str(curr_turn.to_color());
         if !print_prefix {
-            out.push_str("         ");
+            out.push_str("           ");
         } else if curr_turn_number < 10 {
             use std::fmt::Write;
-            write!(out, "  Turn {curr_turn_number} ").unwrap();
+            write!(out, "    Turn {curr_turn_number} ").unwrap();
         } else {
-            out.push_str(" Turn 10 ");
+            out.push_str("   Turn 10 ");
         }
         print_prefix = false;
         out.push_str(RESET);
@@ -299,7 +303,7 @@ fn push_game_log(out: &mut String, log: &GameLog) {
                     result.defense_stat.digit,
                 );
                 out.push_str(RESET);
-                out.push_str("\n         │         ");
+                out.push_str("\n           │         ");
                 out.push_str(attacker.owner.to_color());
                 out.push_str("Attacker");
                 out.push_str(RESET);
@@ -317,7 +321,7 @@ fn push_game_log(out: &mut String, log: &GameLog) {
                 write!(out, "{}", result.defense_stat.roll).unwrap();
                 match result.winner {
                     BattleWinner::Attacker => {
-                        out.push_str("\n         │         ");
+                        out.push_str("\n           │         ");
                         out.push_str(attacker.owner.to_color());
                         out.push_str("Attacker wins");
                         out.push_str(RESET);
@@ -328,7 +332,7 @@ fn push_game_log(out: &mut String, log: &GameLog) {
                         out.push(')');
                     }
                     BattleWinner::Defender => {
-                        out.push_str("\n         │         ");
+                        out.push_str("\n           │         ");
                         out.push_str(defender.owner.to_color());
                         out.push_str("Defender wins");
                         out.push_str(RESET);
@@ -339,7 +343,7 @@ fn push_game_log(out: &mut String, log: &GameLog) {
                         out.push(')');
                     }
                     BattleWinner::None => {
-                        out.push_str("\n         │         Draw, ");
+                        out.push_str("\n           │         Draw, ");
                         out.push_str(defender.owner.to_color());
                         out.push_str("defender wins");
                         out.push_str(RESET);
@@ -359,13 +363,12 @@ fn push_game_log(out: &mut String, log: &GameLog) {
 }
 
 fn push_prompt(out: &mut String, state: &GameState) {
-    out.push_str("Turn: ");
-    out.push_str(state.turn.to_color());
-    if state.turn == Player::P1 {
-        out.push_str("Player 1");
-    } else {
-        out.push_str("Player 2");
+    match state.turn {
+        Player::P1 => out.push_str("Next: "),
+        Player::P2 => out.push_str(" Next: "),
     }
+    out.push_str(state.turn.to_color());
+    out.push_str(state.turn.to_color_name());
     out.push_str(RESET);
     out.push_str(" │ ");
 
@@ -391,6 +394,26 @@ fn push_prompt(out: &mut String, state: &GameState) {
                 out.push_str(RESET);
                 out.push_str(" )\n");
             }
+        }
+        GameStatus::GameOver { .. } => unreachable!(),
+    }
+}
+
+fn push_game_over(out: &mut String, winner: Option<Player>) {
+    out.push(' ');
+    out.push_str(WHITE_BOLD);
+    out.push_str("Game Over");
+    out.push_str(RESET);
+    out.push_str(" │ ");
+    match winner {
+        Some(winner) => {
+            out.push_str(winner.to_color());
+            out.push_str(winner.to_color_name());
+            out.push_str(RESET);
+            out.push_str(" Wins\n");
+        }
+        None => {
+            out.push_str("It was a draw!\n");
         }
     }
 }
@@ -447,8 +470,8 @@ impl Player {
 
     fn to_color_name(self) -> &'static str {
         match self {
-            Player::P1 => "blue",
-            Player::P2 => "red",
+            Player::P1 => "Blue",
+            Player::P2 => "Red",
         }
     }
 }
