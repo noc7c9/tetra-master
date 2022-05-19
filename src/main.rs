@@ -295,7 +295,7 @@ fn main() {
 
         buf.clear();
         render::clear(&mut buf);
-        render::screen(&log, &state, &mut buf);
+        render::screen(&log, &state, &mut buf).unwrap();
         out.write_all(buf.as_bytes()).unwrap();
         out.flush().unwrap();
 
