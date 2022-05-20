@@ -836,6 +836,56 @@ fn combo_flip_cards_that_are_pointed_to_by_attacker_if_they_lose() {
 }
 
 #[test]
+fn dont_flip_back_undefended_cards_if_they_are_flipped_due_to_combos() {
+    let mut state = GameState::empty();
+    let mut log = GameLog::new(state.turn);
+
+    let card_points_all_att = Card::from_str("FP00", Arrows::ALL);
+    let card_points_all_def = Card::from_str("0P00", Arrows::ALL);
+    let card_points_none = Card::from_str("0P00", Arrows::NONE);
+    state.p1_hand[0] = Some(card_points_all_att);
+    state.board[0] = Cell::p2_card(card_points_all_def);
+    state.board[4] = Cell::p2_card(card_points_none);
+
+    // placed card points to both other cards, attacker wins, and card on 4 get's combo flipped
+    next(&mut state, &mut log, Input::place(0, 5)).unwrap();
+
+    // all cards should be owned by player 1
+    assert_eq!(state.board[5], Cell::p1_card(card_points_all_att));
+    assert_eq!(state.board[0], Cell::p1_card(card_points_all_def));
+    assert_eq!(state.board[4], Cell::p1_card(card_points_none));
+
+    let log: Vec<_> = log.iter().collect();
+    assert_eq!(
+        log,
+        vec![
+            &Entry::next_turn(Player::P1),
+            &Entry::place_card(OwnedCard::p1(card_points_all_att), 5),
+            &Entry::battle(
+                OwnedCard::p1(card_points_all_att),
+                OwnedCard::p2(card_points_all_def),
+                BattleResult {
+                    winner: BattleWinner::Attacker,
+                    attack_stat: BattleStat {
+                        digit: 0,
+                        value: 0xFF,
+                        roll: 142
+                    },
+                    defense_stat: BattleStat {
+                        digit: 2,
+                        value: 0x0F,
+                        roll: 15
+                    },
+                }
+            ),
+            &Entry::flip_card(OwnedCard::p2(card_points_all_def), 0, Player::P1, false),
+            &Entry::flip_card(OwnedCard::p2(card_points_none), 4, Player::P1, true),
+            &Entry::next_turn(Player::P2),
+        ]
+    );
+}
+
+#[test]
 fn game_should_be_over_once_all_cards_have_been_played() {
     let card = Card::from_str("0P00", Arrows::NONE);
 

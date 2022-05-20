@@ -132,7 +132,10 @@ fn resolve_interactions(state: &mut GameState, log: &mut GameLog, attacker_cell:
                 Cell::Card(card) => card,
                 _ => unreachable!(),
             };
-            flip(log, defender, cell, false);
+            // skip card if it's already been flipped by a battle
+            if defender.owner != attacker.owner {
+                flip(log, defender, cell, false);
+            }
         }
     }
 
