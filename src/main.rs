@@ -3,6 +3,10 @@ mod input;
 mod logic;
 mod render;
 
+const HAND_SIZE: usize = 5;
+const BOARD_SIZE: usize = 4 * 4;
+const MAX_NUMBER_OF_BLOCKS: u8 = 6;
+
 pub(crate) use game_log::{Entry, GameLog};
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -28,6 +32,7 @@ enum CardType {
     Assault,
 }
 
+// use a bitset to make the type smaller
 #[derive(Debug, Clone, Copy, PartialEq)]
 struct Arrows(u8);
 
@@ -48,9 +53,10 @@ impl Arrows {
     const LEFT: Arrows = Arrows(0b0000_0010);
     const UP_LEFT: Arrows = Arrows(0b0000_0001);
 
-    // returns an arrow that points in the opposite direction
+    // returns an Arrows with all of the arrows pointing in the opposite direction
     fn reverse(self) -> Self {
-        // wrapping shift by 4 bits and wrapping
+        // wrapping shift by 4 bits
+        // this is effectively rotating the arrows by 180 degrees
         Arrows(self.0 >> 4 | self.0 << 4)
     }
 
@@ -118,11 +124,11 @@ impl Card {
 
         fn random_stat(rng: &fastrand::Rng) -> u8 {
             let base_stat = *match rng.f32() {
-                n if n < 0.05 => randpick(rng, &[0, 1]),
-                n if n < 0.35 => randpick(rng, &[2, 3, 4, 5]),
-                n if n < 0.8 => randpick(rng, &[6, 7, 8, 9, 10]),
-                n if n < 0.95 => randpick(rng, &[11, 12, 13]),
-                _ => randpick(rng, &[14, 15]),
+                n if n < 0.05 => randpick(rng, &[0, 1]),          // 5%
+                n if n < 0.35 => randpick(rng, &[2, 3, 4, 5]),    // 30%
+                n if n < 0.8 => randpick(rng, &[6, 7, 8, 9, 10]), // 45%
+                n if n < 0.95 => randpick(rng, &[11, 12, 13]),    // 15%
+                _ => randpick(rng, &[14, 15]),                    // 5%
             };
             // base stats range from 0x0 to 0xF
             // real stats range from 0x0 to 0xFF
@@ -211,9 +217,9 @@ struct GameState {
     status: GameStatus,
     rng: fastrand::Rng,
     turn: Player,
-    board: [Cell; 4 * 4],
-    p1_hand: [Option<Card>; 5],
-    p2_hand: [Option<Card>; 5],
+    board: [Cell; BOARD_SIZE],
+    p1_hand: [Option<Card>; HAND_SIZE],
+    p2_hand: [Option<Card>; HAND_SIZE],
 }
 
 impl GameState {
@@ -221,15 +227,15 @@ impl GameState {
         let status = GameStatus::WaitingPlace;
         let rng = fastrand::Rng::with_seed(seed);
         let turn = if rng.bool() { Player::P1 } else { Player::P2 };
-        let mut board: [Cell; 4 * 4] = Default::default();
-        let p1_hand: [Option<Card>; 5] = [
+        let mut board: [Cell; BOARD_SIZE] = Default::default();
+        let p1_hand: [Option<Card>; HAND_SIZE] = [
             Some(Card::random(&rng)),
             Some(Card::random(&rng)),
             Some(Card::random(&rng)),
             Some(Card::random(&rng)),
             Some(Card::random(&rng)),
         ];
-        let p2_hand: [Option<Card>; 5] = [
+        let p2_hand: [Option<Card>; HAND_SIZE] = [
             Some(Card::random(&rng)),
             Some(Card::random(&rng)),
             Some(Card::random(&rng)),
@@ -237,9 +243,9 @@ impl GameState {
             Some(Card::random(&rng)),
         ];
 
-        // block 0-6 cells
-        for _ in 0..rng.u8(..=6) {
-            let idx = rng.usize(..(4 * 4));
+        // block cells
+        for _ in 0..rng.u8(..=MAX_NUMBER_OF_BLOCKS) {
+            let idx = rng.usize(..(HAND_SIZE));
             board[idx] = Cell::Blocked;
         }
 
@@ -290,6 +296,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut in_ = stdin.lock();
 
     let mut buf = String::new();
+    // game loop
     loop {
         use std::io::{BufRead, Write};
 
@@ -303,6 +310,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             break;
         }
 
+        // input loop
         loop {
             out.write_all(b"> ")?;
             out.flush()?;

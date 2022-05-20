@@ -251,9 +251,8 @@ fn get_defense_stat(rng: &fastrand::Rng, attacker: Card, defender: Card) -> Batt
     let (digit, value) = match attacker.card_type {
         CardType::Physical => (2, defender.physical_defense),
         CardType::Magical => (3, defender.magical_defense),
-        CardType::Exploit =>
-        // use the lowest defense stat
-        {
+        CardType::Exploit => {
+            // use the lowest defense stat
             if defender.physical_defense < defender.magical_defense {
                 (2, defender.physical_defense)
             } else {
