@@ -280,7 +280,7 @@ struct InputBattle {
     cell: usize,
 }
 
-fn main() {
+fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut state = GameState::with_seed(fastrand::u64(..));
     let mut log = GameLog::new(state.turn);
 
@@ -295,20 +295,20 @@ fn main() {
 
         buf.clear();
         render::clear(&mut buf);
-        render::screen(&log, &state, &mut buf).unwrap();
-        out.write_all(buf.as_bytes()).unwrap();
-        out.flush().unwrap();
+        render::screen(&log, &state, &mut buf)?;
+        out.write_all(buf.as_bytes())?;
+        out.flush()?;
 
         if let GameStatus::GameOver { .. } = state.status {
             break;
         }
 
         loop {
-            out.write_all(b"> ").unwrap();
-            out.flush().unwrap();
+            out.write_all(b"> ")?;
+            out.flush()?;
 
             buf.clear();
-            in_.read_line(&mut buf).unwrap();
+            in_.read_line(&mut buf)?;
             match input::parse(&state, &buf)
                 .and_then(|input| logic::next(&mut state, &mut log, input))
             {
@@ -321,4 +321,6 @@ fn main() {
             }
         }
     }
+
+    Ok(())
 }
