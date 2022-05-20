@@ -238,7 +238,7 @@ impl GameState {
         ];
 
         // block 0-6 cells
-        for _ in 0..=rng.u8(..=6) {
+        for _ in 0..rng.u8(..=6) {
             let idx = rng.usize(..(4 * 4));
             board[idx] = Cell::Blocked;
         }
