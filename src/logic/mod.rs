@@ -182,29 +182,31 @@ fn battle(
 
     let result = calculate_battle_result(&state.rng, attacker.card, defender.card);
     log.append(Entry::battle(attacker, defender, result));
-    match result.winner {
+    let (loser_cell, loser) = match result.winner {
         BattleWinner::Defender | BattleWinner::None => {
             // flip attacker
             flip(log, &mut attacker, attacker_cell, false);
+            (attacker_cell, attacker)
         }
         BattleWinner::Attacker => {
             // flip defender
             flip(log, &mut defender, defender_cell, false);
-
-            // combo flip any cards defender points at
-            for &(comboed_cell, arrow) in get_possible_neighbours(defender_cell) {
-                let comboed = match &mut state.board[comboed_cell] {
-                    Cell::Card(card) => card,
-                    _ => continue,
-                };
-
-                if !does_interact(defender, *comboed, arrow) {
-                    continue;
-                }
-
-                flip(log, comboed, comboed_cell, true);
-            }
+            (defender_cell, defender)
         }
+    };
+
+    // combo flip any cards the losing card points at
+    for &(comboed_cell, arrow) in get_possible_neighbours(loser_cell) {
+        let comboed = match &mut state.board[comboed_cell] {
+            Cell::Card(card) => card,
+            _ => continue,
+        };
+
+        if !does_interact(loser, *comboed, arrow) {
+            continue;
+        }
+
+        flip(log, comboed, comboed_cell, true);
     }
 
     // place both cards back into the board

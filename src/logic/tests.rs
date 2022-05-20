@@ -715,7 +715,7 @@ fn handle_game_over_when_attacker_loses_battle_after_battle_choice() {
 }
 
 #[test]
-fn combo_flip_cards_that_belong_to_opponent_are_pointed_to_by_card_that_loses_battles() {
+fn combo_flip_cards_that_are_pointed_to_by_defender_if_they_lose() {
     let mut state = GameState::empty();
     let mut log = GameLog::new(state.turn);
 
@@ -762,6 +762,59 @@ fn combo_flip_cards_that_belong_to_opponent_are_pointed_to_by_card_that_loses_ba
             &Entry::flip_card(OwnedCard::p2(card_points_none), 1, Player::P1, true),
             &Entry::flip_card(OwnedCard::p2(card_points_none), 6, Player::P1, true),
             &Entry::flip_card(OwnedCard::p2(card_points_none), 4, Player::P1, true),
+            &Entry::next_turn(Player::P2),
+        ]
+    );
+}
+
+#[test]
+fn combo_flip_cards_that_are_pointed_to_by_attacker_if_they_lose() {
+    let mut state = GameState::empty();
+    let mut log = GameLog::new(state.turn);
+
+    let card_points_all = Card::from_str("0P00", Arrows::ALL);
+    let card_points_up = Card::from_str("0PF0", Arrows::UP);
+    let card_points_none = Card::from_str("0P00", Arrows::NONE);
+    state.p1_hand[0] = Some(card_points_all);
+    state.board[1] = Cell::p1_card(card_points_none);
+    state.board[4] = Cell::p1_card(card_points_none);
+    state.board[6] = Cell::p1_card(card_points_none);
+    state.board[9] = Cell::p2_card(card_points_up);
+
+    next(&mut state, &mut log, Input::place(0, 5)).unwrap();
+
+    assert_eq!(state.board[5], Cell::p2_card(card_points_all));
+    assert_eq!(state.board[1], Cell::p2_card(card_points_none));
+    assert_eq!(state.board[4], Cell::p2_card(card_points_none));
+    assert_eq!(state.board[6], Cell::p2_card(card_points_none));
+
+    let log: Vec<_> = log.iter().collect();
+    assert_eq!(
+        log,
+        vec![
+            &Entry::next_turn(Player::P1),
+            &Entry::place_card(OwnedCard::p1(card_points_all), 5),
+            &Entry::battle(
+                OwnedCard::p1(card_points_all),
+                OwnedCard::p2(card_points_up),
+                BattleResult {
+                    winner: BattleWinner::Defender,
+                    attack_stat: BattleStat {
+                        digit: 0,
+                        value: 0x0F,
+                        roll: 8
+                    },
+                    defense_stat: BattleStat {
+                        digit: 2,
+                        value: 0xFF,
+                        roll: 109
+                    },
+                }
+            ),
+            &Entry::flip_card(OwnedCard::p1(card_points_all), 5, Player::P2, false),
+            &Entry::flip_card(OwnedCard::p1(card_points_none), 1, Player::P2, true),
+            &Entry::flip_card(OwnedCard::p1(card_points_none), 6, Player::P2, true),
+            &Entry::flip_card(OwnedCard::p1(card_points_none), 4, Player::P2, true),
             &Entry::next_turn(Player::P2),
         ]
     );
