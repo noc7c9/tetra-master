@@ -1,6 +1,16 @@
 use super::*;
 use pretty_assertions::assert_eq;
 
+// board cells references
+//
+//  0 | 1 | 2 | 3
+// ---+---+---+---
+//  4 | 5 | 6 | 7
+// ---+---+---+---
+//  8 | 9 | A | B
+// ---+---+---+---
+//  C | D | E | F
+
 fn rng() -> fastrand::Rng {
     fastrand::Rng::new()
 }
@@ -25,7 +35,6 @@ impl GameState {
 
 impl Card {
     fn from_str(stats: &str, arrows: Arrows) -> Self {
-        let attack = 0xF + 0x10 * u8::from_str_radix(&stats[0..1], 16).unwrap();
         let card_type = match &stats[1..2] {
             "P" => CardType::Physical,
             "M" => CardType::Magical,
@@ -33,6 +42,7 @@ impl Card {
             "A" => CardType::Assault,
             _ => unreachable!(),
         };
+        let attack = 0xF + 0x10 * u8::from_str_radix(&stats[0..1], 16).unwrap();
         let physical_defense = 0xF + 0x10 * u8::from_str_radix(&stats[2..3], 16).unwrap();
         let magical_defense = 0xF + 0x10 * u8::from_str_radix(&stats[3..4], 16).unwrap();
         Card {
@@ -412,6 +422,7 @@ fn flip_other_undefended_cards_after_attacker_wins_battle() {
     state.board[5] = Cell::p2_card(card_points_none);
     state.board[9] = Cell::p2_card(card_points_none);
 
+    // placed card attacks card above (0), wins and flips the other cards (1, 5, 9, 4)
     next(&mut state, &mut log, Input::place(0, 4)).unwrap();
 
     assert_eq!(state.board[0], Cell::p1_card(card_points_down));
@@ -466,6 +477,7 @@ fn dont_flip_other_undefended_cards_after_attacker_loses_battle() {
     state.board[5] = Cell::p2_card(card_points_none);
     state.board[9] = Cell::p2_card(card_points_none);
 
+    // placed card attacks card above (0), loses so other cards aren't flipped
     next(&mut state, &mut log, Input::place(0, 4)).unwrap();
 
     assert_eq!(state.board[0], Cell::p2_card(card_points_down));
@@ -510,7 +522,7 @@ fn change_status_to_chose_battle_when_multiple_battles_are_available() {
 
     let card_points_down = Card::from_str("0P10", Arrows::DOWN);
     let card_points_up = Card::from_str("0P10", Arrows::UP);
-    let card_points_vert = Card::from_str("1P00", Arrows::UP | Arrows::UP | Arrows::DOWN);
+    let card_points_vert = Card::from_str("1P00", Arrows::UP | Arrows::DOWN);
     state.p1_hand[0] = Some(card_points_vert);
     state.board[0] = Cell::p2_card(card_points_down);
     state.board[8] = Cell::p2_card(card_points_up);
@@ -533,7 +545,7 @@ fn update_game_log_with_place_entry_when_multiple_battles_are_available() {
 
     let card_points_down = Card::from_str("0P10", Arrows::DOWN);
     let card_points_up = Card::from_str("0P10", Arrows::UP);
-    let card_points_vert = Card::from_str("1P00", Arrows::UP | Arrows::UP | Arrows::DOWN);
+    let card_points_vert = Card::from_str("1P00", Arrows::UP | Arrows::DOWN);
     state.p1_hand[0] = Some(card_points_vert);
     state.board[0] = Cell::p2_card(card_points_down);
     state.board[8] = Cell::p2_card(card_points_up);
@@ -557,14 +569,17 @@ fn continue_after_battle_choice_is_given() {
 
     let card_points_down = Card::from_str("0P10", Arrows::DOWN);
     let card_points_up = Card::from_str("0P10", Arrows::UP);
-    let card_points_vert = Card::from_str("1P00", Arrows::UP | Arrows::UP | Arrows::DOWN);
+    let card_points_vert = Card::from_str("1P00", Arrows::UP | Arrows::DOWN);
     state.p1_hand[0] = Some(card_points_vert);
     state.board[0] = Cell::p2_card(card_points_down);
     state.board[8] = Cell::p2_card(card_points_up);
 
+    // placed card attacks both 0 and 8
     next(&mut state, &mut log, Input::place(0, 4)).unwrap();
+    // attack card 8
     next(&mut state, &mut log, Input::battle(8)).unwrap();
 
+    // all attacked cards will be flipped
     assert_eq!(state.board[0], Cell::p1_card(card_points_down));
     assert_eq!(state.board[4], Cell::p1_card(card_points_vert));
     assert_eq!(state.board[8], Cell::p1_card(card_points_up));
@@ -623,7 +638,7 @@ fn reject_input_if_the_choice_isnt_valid() {
 
     let card_points_down = Card::from_str("0P10", Arrows::DOWN);
     let card_points_up = Card::from_str("0P10", Arrows::UP);
-    let card_points_vert = Card::from_str("1P00", Arrows::UP | Arrows::UP | Arrows::DOWN);
+    let card_points_vert = Card::from_str("1P00", Arrows::UP | Arrows::DOWN);
     state.p1_hand[0] = Some(card_points_vert);
     state.board[0] = Cell::p2_card(card_points_down);
     state.board[8] = Cell::p2_card(card_points_up);
