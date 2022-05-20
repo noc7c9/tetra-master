@@ -71,10 +71,15 @@ fn handle_waiting_battle(
         return Err(format!("Cell {:X} is not a valid choice", attacker_cell));
     }
 
-    battle(state, log, attacker_cell, defender_cell);
+    let winner = battle(state, log, attacker_cell, defender_cell);
 
-    // check for further interactions
-    resolve_rest_of_turn(state, log, attacker_cell);
+    // if the attacker won
+    // resolve further interactions
+    if winner == BattleWinner::Attacker {
+        resolve_rest_of_turn(state, log, attacker_cell);
+    } else {
+        state.status = GameStatus::WaitingPlace;
+    }
 
     Ok(())
 }
@@ -115,17 +120,20 @@ fn resolve_rest_of_turn(state: &mut GameState, log: &mut GameLog, attacker_cell:
     }
 
     // handle battles
-    for (defender_cell, _) in defenders {
-        battle(state, log, attacker_cell, defender_cell);
-    }
+    let winner = defenders
+        .first()
+        .map(|(defender_cell, _)| battle(state, log, attacker_cell, *defender_cell));
 
+    // if the attacker won or if there was no battle
     // handle free flips
-    for cell in non_defenders {
-        let defender = match &mut state.board[cell] {
-            Cell::Card(card) => card,
-            _ => unreachable!(),
-        };
-        flip(log, defender, cell, false);
+    if winner == Some(BattleWinner::Attacker) || winner == None {
+        for cell in non_defenders {
+            let defender = match &mut state.board[cell] {
+                Cell::Card(card) => card,
+                _ => unreachable!(),
+            };
+            flip(log, defender, cell, false);
+        }
     }
 
     // next turn
@@ -159,7 +167,12 @@ fn resolve_rest_of_turn(state: &mut GameState, log: &mut GameLog, attacker_cell:
     }
 }
 
-fn battle(state: &mut GameState, log: &mut GameLog, attacker_cell: usize, defender_cell: usize) {
+fn battle(
+    state: &mut GameState,
+    log: &mut GameLog,
+    attacker_cell: usize,
+    defender_cell: usize,
+) -> BattleWinner {
     // temporarily take out both cards from the board to allow 2 mut references
     let mut attacker = state.take_card(attacker_cell);
     let mut defender = state.take_card(defender_cell);
@@ -194,6 +207,8 @@ fn battle(state: &mut GameState, log: &mut GameLog, attacker_cell: usize, defend
     // place both cards back into the board
     state.board[attacker_cell] = Cell::Card(attacker);
     state.board[defender_cell] = Cell::Card(defender);
+
+    result.winner
 }
 
 fn flip(log: &mut GameLog, card: &mut OwnedCard, cell: usize, via_combo: bool) {
@@ -798,6 +813,115 @@ mod test {
     }
 
     #[test]
+    fn flip_other_undefended_cards_after_attacker_wins_battle() {
+        let card_points_none = Card::from_str("0P00", Arrows::NONE);
+        let card_points_down = Card::from_str("0P00", Arrows::DOWN);
+        let card_points_all = Card::from_str("FP00", Arrows::ALL);
+        let mut state = GameState {
+            turn: Player::P1,
+            p1_hand: [Some(card_points_all), None, None, None, None],
+            ..GameState::empty()
+        };
+        state.board[0] = Cell::p2_card(card_points_down);
+        state.board[1] = Cell::p2_card(card_points_none);
+        state.board[5] = Cell::p2_card(card_points_none);
+        state.board[9] = Cell::p2_card(card_points_none);
+
+        let mut log = GameLog::new(state.turn);
+        next(&mut state, &mut log, Input::place(0, 4)).unwrap();
+
+        assert_eq!(state.board[0], Cell::p1_card(card_points_down));
+        assert_eq!(state.board[1], Cell::p1_card(card_points_none));
+        assert_eq!(state.board[5], Cell::p1_card(card_points_none));
+        assert_eq!(state.board[9], Cell::p1_card(card_points_none));
+        assert_eq!(state.board[4], Cell::p1_card(card_points_all));
+
+        let log: Vec<_> = log.iter().collect();
+        assert_eq!(
+            log,
+            vec![
+                &Entry::next_turn(Player::P1),
+                &Entry::place_card(OwnedCard::p1(card_points_all), 4),
+                &Entry::battle(
+                    OwnedCard::p1(card_points_all),
+                    OwnedCard::p2(card_points_down,),
+                    BattleResult {
+                        winner: BattleWinner::Attacker,
+                        attack_stat: BattleStat {
+                            digit: 0,
+                            value: 0xFF,
+                            roll: 142
+                        },
+                        defense_stat: BattleStat {
+                            digit: 2,
+                            value: 0x0F,
+                            roll: 15
+                        },
+                    }
+                ),
+                &Entry::flip_card(OwnedCard::p2(card_points_down), 0, Player::P1, false),
+                &Entry::flip_card(OwnedCard::p2(card_points_none), 1, Player::P1, false),
+                &Entry::flip_card(OwnedCard::p2(card_points_none), 5, Player::P1, false),
+                &Entry::flip_card(OwnedCard::p2(card_points_none), 9, Player::P1, false),
+                &Entry::next_turn(Player::P2),
+            ]
+        );
+    }
+
+    #[test]
+    fn dont_flip_other_undefended_cards_after_attacker_loses_battle() {
+        let card_points_none = Card::from_str("0P00", Arrows::NONE);
+        let card_points_down = Card::from_str("0PF0", Arrows::DOWN);
+        let card_points_all = Card::from_str("0P00", Arrows::ALL);
+        let mut state = GameState {
+            turn: Player::P1,
+            p1_hand: [Some(card_points_all), None, None, None, None],
+            ..GameState::empty()
+        };
+        state.board[0] = Cell::p2_card(card_points_down);
+        state.board[1] = Cell::p2_card(card_points_none);
+        state.board[5] = Cell::p2_card(card_points_none);
+        state.board[9] = Cell::p2_card(card_points_none);
+
+        let mut log = GameLog::new(state.turn);
+        next(&mut state, &mut log, Input::place(0, 4)).unwrap();
+
+        assert_eq!(state.board[0], Cell::p2_card(card_points_down));
+        assert_eq!(state.board[1], Cell::p2_card(card_points_none));
+        assert_eq!(state.board[5], Cell::p2_card(card_points_none));
+        assert_eq!(state.board[9], Cell::p2_card(card_points_none));
+        assert_eq!(state.board[4], Cell::p2_card(card_points_all));
+
+        let log: Vec<_> = log.iter().collect();
+        assert_eq!(
+            log,
+            vec![
+                &Entry::next_turn(Player::P1),
+                &Entry::place_card(OwnedCard::p1(card_points_all), 4),
+                &Entry::battle(
+                    OwnedCard::p1(card_points_all),
+                    OwnedCard::p2(card_points_down,),
+                    BattleResult {
+                        winner: BattleWinner::Defender,
+                        attack_stat: BattleStat {
+                            digit: 0,
+                            value: 0x0F,
+                            roll: 8
+                        },
+                        defense_stat: BattleStat {
+                            digit: 2,
+                            value: 0xFF,
+                            roll: 109
+                        },
+                    }
+                ),
+                &Entry::flip_card(OwnedCard::p1(card_points_all), 4, Player::P2, false),
+                &Entry::next_turn(Player::P2),
+            ]
+        );
+    }
+
+    #[test]
     fn change_status_to_chose_battle_when_multiple_battles_are_available() {
         let card_points_down = Card::from_str("0P10", Arrows::DOWN);
         let card_points_up = Card::from_str("0P10", Arrows::UP);
@@ -940,6 +1064,62 @@ mod test {
         let res = next(&mut state, &mut log, Input::battle(4));
 
         assert_eq!(res, Err("Cell 4 is not a valid choice".into()));
+    }
+
+    #[test]
+    fn continue_offering_choices_when_multiple_battles_are_still_available() {
+        let card_points_down = Card::from_str("0P00", Arrows::DOWN);
+        let card_points_left = Card::from_str("0P00", Arrows::LEFT);
+        let card_points_up = Card::from_str("0P00", Arrows::UP);
+        let card_points_all = Card::from_str("FP00", Arrows::ALL);
+
+        let mut state = GameState {
+            turn: Player::P1,
+            p1_hand: [Some(card_points_all), None, None, None, None],
+            ..GameState::empty()
+        };
+        state.board[0] = Cell::p2_card(card_points_down);
+        state.board[5] = Cell::p2_card(card_points_left);
+        state.board[8] = Cell::p2_card(card_points_up);
+
+        let mut log = GameLog::new(state.turn);
+        next(&mut state, &mut log, Input::place(0, 4)).unwrap();
+        next(&mut state, &mut log, Input::battle(0)).unwrap();
+
+        assert_eq!(
+            state.status,
+            GameStatus::WaitingBattle {
+                attacker_cell: 4,
+                choices: vec![(5, card_points_left), (8, card_points_up)]
+            }
+        );
+    }
+
+    #[test]
+    fn dont_continue_offering_choices_if_attacker_loses_battle() {
+        let card_points_down = Card::from_str("0PF0", Arrows::DOWN);
+        let card_points_left = Card::from_str("0P00", Arrows::LEFT);
+        let card_points_up = Card::from_str("0P00", Arrows::UP);
+        let card_points_all = Card::from_str("0P00", Arrows::ALL);
+
+        let mut state = GameState {
+            turn: Player::P1,
+            p1_hand: [Some(card_points_all), None, None, None, None],
+            ..GameState::empty()
+        };
+        state.board[0] = Cell::p2_card(card_points_down);
+        state.board[5] = Cell::p2_card(card_points_left);
+        state.board[8] = Cell::p2_card(card_points_up);
+
+        let mut log = GameLog::new(state.turn);
+        next(&mut state, &mut log, Input::place(0, 4)).unwrap();
+        next(&mut state, &mut log, Input::battle(0)).unwrap();
+
+        assert_eq!(state.status, GameStatus::WaitingPlace);
+        assert_eq!(state.board[0], Cell::p2_card(card_points_down));
+        assert_eq!(state.board[5], Cell::p2_card(card_points_left));
+        assert_eq!(state.board[8], Cell::p2_card(card_points_up));
+        assert_eq!(state.board[4], Cell::p2_card(card_points_all));
     }
 
     #[test]
