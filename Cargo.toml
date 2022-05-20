@@ -5,3 +5,6 @@ edition = "2021"
 
 [dependencies]
 fastrand = "1.7.0"
+
+[dev-dependencies]
+pretty_assertions = "1.2.1"

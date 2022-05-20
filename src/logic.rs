@@ -357,6 +357,7 @@ fn get_possible_neighbours(cell: usize) -> &'static [(usize, Arrows)] {
 #[cfg(test)]
 mod test {
     use super::*;
+    use pretty_assertions::assert_eq;
 
     fn rng() -> fastrand::Rng {
         fastrand::Rng::new()
@@ -1064,6 +1065,7 @@ mod test {
     #[cfg(test)]
     mod test_get_attack_stat {
         use super::*;
+        use pretty_assertions::assert_eq;
 
         fn card(stats: &str) -> Card {
             Card::from_str(stats, Arrows::NONE)
@@ -1120,6 +1122,7 @@ mod test {
     #[cfg(test)]
     mod test_get_defense_stat {
         use super::*;
+        use pretty_assertions::assert_eq;
 
         fn card(stats: &str) -> Card {
             Card::from_str(stats, Arrows::NONE)
