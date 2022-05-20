@@ -269,7 +269,7 @@ fn push_game_log(o: &mut String, log: &GameLog) -> Result {
                     }
                     BattleWinner::Defender => {
                         write!(o, "           │         {}Defender wins{RESET} ", def_color)?;
-                        write!(o, "({} < {})", def_resolve, def_resolve)?;
+                        write!(o, "({} < {})", att_resolve, def_resolve)?;
                     }
                     BattleWinner::None => {
                         write!(o, "           │         Draw, ")?;
