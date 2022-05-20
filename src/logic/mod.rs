@@ -46,7 +46,7 @@ fn handle_waiting_place(
     log.append(Entry::place_card(attacker, attacker_cell));
     state.board[attacker_cell] = Cell::Card(attacker);
 
-    resolve_rest_of_turn(state, log, attacker_cell);
+    resolve_interactions(state, log, attacker_cell);
 
     Ok(())
 }
@@ -76,19 +76,19 @@ fn handle_waiting_battle(
     // if the attacker won
     // resolve further interactions
     if winner == BattleWinner::Attacker {
-        resolve_rest_of_turn(state, log, attacker_cell);
+        resolve_interactions(state, log, attacker_cell);
     } else {
-        state.status = GameStatus::WaitingPlace;
+        check_for_game_over(state);
     }
 
     Ok(())
 }
 
 // common logic for both handle_waiting_place and handle_waiting_battle
-fn resolve_rest_of_turn(state: &mut GameState, log: &mut GameLog, attacker_cell: usize) {
+fn resolve_interactions(state: &mut GameState, log: &mut GameLog, attacker_cell: usize) {
     let attacker = match state.board[attacker_cell] {
         Cell::Card(card) => card,
-        _ => unreachable!("resolve_rest_of_turn can't be called with an invalid attacker_cell"),
+        _ => unreachable!("resolve_interactions can't be called with an invalid attacker_cell"),
     };
 
     let mut defenders = vec![];
@@ -140,7 +140,10 @@ fn resolve_rest_of_turn(state: &mut GameState, log: &mut GameLog, attacker_cell:
     state.turn = state.turn.opposite();
     log.append(Entry::next_turn(state.turn));
 
-    // check if the game is over
+    check_for_game_over(state);
+}
+
+fn check_for_game_over(state: &mut GameState) {
     if state.p1_hand.iter().all(Option::is_none) && state.p2_hand.iter().all(Option::is_none) {
         let mut p1_cards = 0;
         let mut p2_cards = 0;

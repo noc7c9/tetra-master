@@ -685,6 +685,36 @@ fn dont_continue_offering_choices_if_attacker_loses_battle() {
 }
 
 #[test]
+fn handle_game_over_when_attacker_loses_battle_after_battle_choice() {
+    let mut state = GameState::empty();
+    let mut log = GameLog::new(state.turn);
+
+    let card_points_down = Card::from_str("0PF0", Arrows::DOWN);
+    let card_points_left = Card::from_str("0P00", Arrows::LEFT);
+    let card_points_up = Card::from_str("0P00", Arrows::UP);
+    let card_points_all = Card::from_str("0P00", Arrows::ALL);
+    state.p1_hand = [Some(card_points_all), None, None, None, None];
+    state.p2_hand = [None, None, None, None, None];
+    state.board[0] = Cell::p2_card(card_points_down);
+    state.board[5] = Cell::p2_card(card_points_left);
+    state.board[8] = Cell::p2_card(card_points_up);
+
+    next(&mut state, &mut log, Input::place(0, 4)).unwrap();
+    next(&mut state, &mut log, Input::battle(0)).unwrap();
+
+    assert_eq!(
+        state.status,
+        GameStatus::GameOver {
+            winner: Some(Player::P2)
+        }
+    );
+    assert_eq!(state.board[0], Cell::p2_card(card_points_down));
+    assert_eq!(state.board[5], Cell::p2_card(card_points_left));
+    assert_eq!(state.board[8], Cell::p2_card(card_points_up));
+    assert_eq!(state.board[4], Cell::p2_card(card_points_all));
+}
+
+#[test]
 fn combo_flip_cards_that_belong_to_opponent_are_pointed_to_by_card_that_loses_battles() {
     let mut state = GameState::empty();
     let mut log = GameLog::new(state.turn);
