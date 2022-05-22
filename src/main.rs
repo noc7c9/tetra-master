@@ -275,13 +275,13 @@ enum Input {
     Battle(InputBattle),
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 struct InputPlace {
     card: usize,
     cell: usize,
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 struct InputBattle {
     cell: usize,
 }
@@ -315,17 +315,23 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             out.write_all(b"> ")?;
             out.flush()?;
 
+            // read and parse input
             buf.clear();
             in_.read_line(&mut buf)?;
-            match input::parse(&state, &buf)
-                .and_then(|input| logic::next(&mut state, &mut log, input))
-            {
-                Ok(_) => {
-                    break;
-                }
+            let input = match input::parse(&state, &buf) {
+                Err(input::Error::EmptyInput) => continue,
                 Err(err) => {
                     println!("ERR: {}", err);
+                    continue;
                 }
+                Ok(input) => input,
+            };
+
+            if let Err(err) = logic::next(&mut state, &mut log, input) {
+                println!("ERR: {}", err);
+            } else {
+                // input was correctly evaluated, break input loop
+                break;
             }
         }
     }
