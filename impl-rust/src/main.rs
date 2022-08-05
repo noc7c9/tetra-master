@@ -212,14 +212,17 @@ enum GameStatus {
     },
 }
 
+type Hand = [Option<Card>; HAND_SIZE];
+type Board = [Cell; BOARD_SIZE];
+
 #[derive(Debug, Clone)]
 struct GameState {
     status: GameStatus,
     rng: fastrand::Rng,
     turn: Player,
-    board: [Cell; BOARD_SIZE],
-    p1_hand: [Option<Card>; HAND_SIZE],
-    p2_hand: [Option<Card>; HAND_SIZE],
+    board: Board,
+    p1_hand: Hand,
+    p2_hand: Hand,
 }
 
 impl GameState {
@@ -227,15 +230,15 @@ impl GameState {
         let status = GameStatus::WaitingPlace;
         let rng = fastrand::Rng::with_seed(seed);
         let turn = Player::P1;
-        let mut board: [Cell; BOARD_SIZE] = Default::default();
-        let p1_hand: [Option<Card>; HAND_SIZE] = [
+        let mut board = Board::default();
+        let p1_hand: Hand = [
             Some(Card::random(&rng)),
             Some(Card::random(&rng)),
             Some(Card::random(&rng)),
             Some(Card::random(&rng)),
             Some(Card::random(&rng)),
         ];
-        let p2_hand: [Option<Card>; HAND_SIZE] = [
+        let p2_hand: Hand = [
             Some(Card::random(&rng)),
             Some(Card::random(&rng)),
             Some(Card::random(&rng)),
@@ -266,6 +269,13 @@ impl GameState {
             Cell::Card(card) => card,
             _ => panic!("Cell didn't have a card"),
         }
+    }
+
+    fn is_game_over(&self) -> bool {
+        if let GameStatus::GameOver { .. } = self.status {
+            return true;
+        }
+        false
     }
 }
 
@@ -301,12 +311,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         use std::io::{BufRead, Write};
 
         buf.clear();
-        render::clear(&mut buf);
         render::screen(&log, &state, &mut buf)?;
         out.write_all(buf.as_bytes())?;
         out.flush()?;
 
-        if let GameStatus::GameOver { .. } = state.status {
+        if state.is_game_over() {
             break;
         }
 

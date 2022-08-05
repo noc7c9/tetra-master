@@ -14,11 +14,9 @@ const RESET: &str = "\x1b[0m";
 
 type Result = std::result::Result<(), std::fmt::Error>;
 
-pub(crate) fn clear(o: &mut String) {
-    o.push_str("\x1b]50;ClearScrollback\x07");
-}
-
 pub(crate) fn screen(log: &GameLog, state: &GameState, o: &mut String) -> Result {
+    write!(o, "\x1b]50;ClearScrollback\x07")?;
+
     push_hand(o, Player::P1, &state.p1_hand)?;
     writeln!(o)?;
 
