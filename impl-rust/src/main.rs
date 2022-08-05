@@ -226,7 +226,7 @@ impl GameState {
     fn with_seed(seed: u64) -> Self {
         let status = GameStatus::WaitingPlace;
         let rng = fastrand::Rng::with_seed(seed);
-        let turn = if rng.bool() { Player::P1 } else { Player::P2 };
+        let turn = Player::P1;
         let mut board: [Cell; BOARD_SIZE] = Default::default();
         let p1_hand: [Option<Card>; HAND_SIZE] = [
             Some(Card::random(&rng)),
@@ -288,7 +288,7 @@ struct InputBattle {
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut state = GameState::with_seed(fastrand::u64(..));
-    let mut log = GameLog::new(state.turn);
+    let mut log = GameLog::new();
 
     let stdout = std::io::stdout();
     let mut out = stdout.lock();

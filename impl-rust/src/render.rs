@@ -196,8 +196,8 @@ fn push_board(o: &mut String, state: &GameState) -> Result {
 fn push_game_log(o: &mut String, log: &GameLog) -> Result {
     writeln!(o, "                   {GRAY_BOLD} ══ GAMELOG ══ {RESET}")?;
 
-    let mut curr_turn_number = 0;
-    let mut curr_turn = Player::P1; // note: initial value will be overwritten immediately
+    let mut curr_turn_number = 1;
+    let mut curr_turn = Player::P1;
     let mut print_prefix = true;
     for entry in log.iter() {
         if let Entry::NextTurn { turn } = entry {

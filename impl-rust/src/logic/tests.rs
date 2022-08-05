@@ -101,7 +101,7 @@ impl Input {
 #[test]
 fn turn_should_change_after_a_valid_play() {
     let mut state = GameState::empty();
-    let mut log = GameLog::new(state.turn);
+    let mut log = GameLog::new();
 
     state.turn = Player::P1;
     state.p1_hand[0] = Some(Card::basic());
@@ -114,7 +114,7 @@ fn turn_should_change_after_a_valid_play() {
 #[test]
 fn reject_input_if_the_card_has_already_been_played() {
     let mut state = GameState::empty();
-    let mut log = GameLog::new(state.turn);
+    let mut log = GameLog::new();
 
     state.p1_hand[2] = None;
 
@@ -126,7 +126,7 @@ fn reject_input_if_the_card_has_already_been_played() {
 #[test]
 fn reject_input_if_the_cell_played_on_is_blocked() {
     let mut state = GameState::empty();
-    let mut log = GameLog::new(state.turn);
+    let mut log = GameLog::new();
 
     state.p1_hand[0] = Some(Card::basic());
     state.board[0xB] = Cell::Blocked;
@@ -139,7 +139,7 @@ fn reject_input_if_the_cell_played_on_is_blocked() {
 #[test]
 fn reject_input_if_the_cell_played_on_already_has_a_card_placed() {
     let mut state = GameState::empty();
-    let mut log = GameLog::new(state.turn);
+    let mut log = GameLog::new();
 
     state.p1_hand[0] = Some(Card::basic());
     state.board[3] = Cell::p1_card(Card::basic());
@@ -152,7 +152,7 @@ fn reject_input_if_the_cell_played_on_already_has_a_card_placed() {
 #[test]
 fn move_card_from_hand_to_board_if_input_is_valid() {
     let mut state = GameState::empty();
-    let mut log = GameLog::new(state.turn);
+    let mut log = GameLog::new();
 
     let card = Card::basic();
     state.p1_hand[0] = Some(card);
@@ -166,7 +166,7 @@ fn move_card_from_hand_to_board_if_input_is_valid() {
 #[test]
 fn update_game_log_on_placing_card() {
     let mut state = GameState::empty();
-    let mut log = GameLog::new(state.turn);
+    let mut log = GameLog::new();
 
     let card = Card::basic();
     state.p1_hand[0] = Some(card);
@@ -177,7 +177,6 @@ fn update_game_log_on_placing_card() {
     assert_eq!(
         log,
         vec![
-            &Entry::next_turn(Player::P1),
             &Entry::place_card(OwnedCard::p1(card), 7),
             &Entry::next_turn(Player::P2),
         ]
@@ -187,7 +186,7 @@ fn update_game_log_on_placing_card() {
 #[test]
 fn flip_cards_that_belong_to_opponent_are_pointed_to_and_dont_point_back() {
     let mut state = GameState::empty();
-    let mut log = GameLog::new(state.turn);
+    let mut log = GameLog::new();
 
     let card_no_arrows = Card::basic_with(Arrows::NONE);
     state.p1_hand[0] = Some(Card::basic_with(Arrows::UP | Arrows::RIGHT));
@@ -208,7 +207,7 @@ fn flip_cards_that_belong_to_opponent_are_pointed_to_and_dont_point_back() {
 #[test]
 fn update_game_log_on_flipping_cards() {
     let mut state = GameState::empty();
-    let mut log = GameLog::new(state.turn);
+    let mut log = GameLog::new();
 
     let card_no_arrows = Card::basic_with(Arrows::NONE);
     let card_points_up = Card::basic_with(Arrows::UP | Arrows::RIGHT);
@@ -221,7 +220,6 @@ fn update_game_log_on_flipping_cards() {
     assert_eq!(
         log,
         vec![
-            &Entry::next_turn(Player::P1),
             &Entry::place_card(OwnedCard::p1(card_points_up), 4),
             &Entry::flip_card(OwnedCard::p2(card_no_arrows), 0, Player::P1, false),
             &Entry::next_turn(Player::P2),
@@ -244,7 +242,7 @@ fn battle_cards_that_belong_to_opponent_are_pointed_to_and_point_back() {
             rng: with_seed(0),
             ..state.clone()
         };
-        let mut log = GameLog::new(state.turn);
+        let mut log = GameLog::new();
 
         next(&mut state, &mut log, Input::place(0, 4)).unwrap();
 
@@ -258,7 +256,7 @@ fn battle_cards_that_belong_to_opponent_are_pointed_to_and_point_back() {
             rng: with_seed(1),
             ..state.clone()
         };
-        let mut log = GameLog::new(state.turn);
+        let mut log = GameLog::new();
 
         next(&mut state, &mut log, Input::place(0, 4)).unwrap();
 
@@ -272,7 +270,7 @@ fn battle_cards_that_belong_to_opponent_are_pointed_to_and_point_back() {
             rng: with_seed(94),
             ..state
         };
-        let mut log = GameLog::new(state.turn);
+        let mut log = GameLog::new();
 
         next(&mut state, &mut log, Input::place(0, 4)).unwrap();
 
@@ -296,7 +294,7 @@ fn update_game_log_on_battles() {
             rng: with_seed(0),
             ..state.clone()
         };
-        let mut log = GameLog::new(state.turn);
+        let mut log = GameLog::new();
 
         next(&mut state, &mut log, Input::place(0, 4)).unwrap();
 
@@ -304,7 +302,6 @@ fn update_game_log_on_battles() {
         assert_eq!(
             log,
             vec![
-                &Entry::next_turn(Player::P1),
                 &Entry::place_card(OwnedCard::p1(card_points_up), 4),
                 &Entry::battle(
                     OwnedCard::p1(card_points_up),
@@ -335,7 +332,7 @@ fn update_game_log_on_battles() {
             rng: with_seed(1),
             ..state.clone()
         };
-        let mut log = GameLog::new(state.turn);
+        let mut log = GameLog::new();
 
         next(&mut state, &mut log, Input::place(0, 4)).unwrap();
 
@@ -343,7 +340,6 @@ fn update_game_log_on_battles() {
         assert_eq!(
             log,
             vec![
-                &Entry::next_turn(Player::P1),
                 &Entry::place_card(OwnedCard::p1(card_points_up), 4),
                 &Entry::battle(
                     OwnedCard::p1(card_points_up),
@@ -374,7 +370,7 @@ fn update_game_log_on_battles() {
             rng: with_seed(94),
             ..state
         };
-        let mut log = GameLog::new(state.turn);
+        let mut log = GameLog::new();
 
         next(&mut state, &mut log, Input::place(0, 4)).unwrap();
 
@@ -382,7 +378,6 @@ fn update_game_log_on_battles() {
         assert_eq!(
             log,
             vec![
-                &Entry::next_turn(Player::P1),
                 &Entry::place_card(OwnedCard::p1(card_points_up), 4),
                 &Entry::battle(
                     OwnedCard::p1(card_points_up),
@@ -411,7 +406,7 @@ fn update_game_log_on_battles() {
 #[test]
 fn flip_other_undefended_cards_after_attacker_wins_battle() {
     let mut state = GameState::empty();
-    let mut log = GameLog::new(state.turn);
+    let mut log = GameLog::new();
 
     let card_points_none = Card::from_str("0P00", Arrows::NONE);
     let card_points_down = Card::from_str("0P00", Arrows::DOWN);
@@ -435,7 +430,6 @@ fn flip_other_undefended_cards_after_attacker_wins_battle() {
     assert_eq!(
         log,
         vec![
-            &Entry::next_turn(Player::P1),
             &Entry::place_card(OwnedCard::p1(card_points_all), 4),
             &Entry::battle(
                 OwnedCard::p1(card_points_all),
@@ -466,7 +460,7 @@ fn flip_other_undefended_cards_after_attacker_wins_battle() {
 #[test]
 fn dont_flip_other_undefended_cards_after_attacker_loses_battle() {
     let mut state = GameState::empty();
-    let mut log = GameLog::new(state.turn);
+    let mut log = GameLog::new();
 
     let card_points_none = Card::from_str("0P00", Arrows::NONE);
     let card_points_down = Card::from_str("0PF0", Arrows::DOWN);
@@ -490,7 +484,6 @@ fn dont_flip_other_undefended_cards_after_attacker_loses_battle() {
     assert_eq!(
         log,
         vec![
-            &Entry::next_turn(Player::P1),
             &Entry::place_card(OwnedCard::p1(card_points_all), 4),
             &Entry::battle(
                 OwnedCard::p1(card_points_all),
@@ -518,7 +511,7 @@ fn dont_flip_other_undefended_cards_after_attacker_loses_battle() {
 #[test]
 fn change_status_to_chose_battle_when_multiple_battles_are_available() {
     let mut state = GameState::empty();
-    let mut log = GameLog::new(state.turn);
+    let mut log = GameLog::new();
 
     let card_points_down = Card::from_str("0P10", Arrows::DOWN);
     let card_points_up = Card::from_str("0P10", Arrows::UP);
@@ -541,7 +534,7 @@ fn change_status_to_chose_battle_when_multiple_battles_are_available() {
 #[test]
 fn update_game_log_with_place_entry_when_multiple_battles_are_available() {
     let mut state = GameState::empty();
-    let mut log = GameLog::new(state.turn);
+    let mut log = GameLog::new();
 
     let card_points_down = Card::from_str("0P10", Arrows::DOWN);
     let card_points_up = Card::from_str("0P10", Arrows::UP);
@@ -555,17 +548,14 @@ fn update_game_log_with_place_entry_when_multiple_battles_are_available() {
     let log: Vec<_> = log.iter().collect();
     assert_eq!(
         log,
-        vec![
-            &Entry::next_turn(Player::P1),
-            &Entry::place_card(OwnedCard::p1(card_points_vert), 4),
-        ]
+        vec![&Entry::place_card(OwnedCard::p1(card_points_vert), 4),]
     );
 }
 
 #[test]
 fn continue_after_battle_choice_is_given() {
     let mut state = GameState::empty();
-    let mut log = GameLog::new(state.turn);
+    let mut log = GameLog::new();
 
     let card_points_down = Card::from_str("0P10", Arrows::DOWN);
     let card_points_up = Card::from_str("0P10", Arrows::UP);
@@ -588,7 +578,6 @@ fn continue_after_battle_choice_is_given() {
     assert_eq!(
         log,
         vec![
-            &Entry::next_turn(Player::P1),
             &Entry::place_card(OwnedCard::p1(card_points_vert), 4),
             &Entry::battle(
                 OwnedCard::p1(card_points_vert),
@@ -634,7 +623,7 @@ fn continue_after_battle_choice_is_given() {
 #[test]
 fn reject_input_if_the_choice_isnt_valid() {
     let mut state = GameState::empty();
-    let mut log = GameLog::new(state.turn);
+    let mut log = GameLog::new();
 
     let card_points_down = Card::from_str("0P10", Arrows::DOWN);
     let card_points_up = Card::from_str("0P10", Arrows::UP);
@@ -652,7 +641,7 @@ fn reject_input_if_the_choice_isnt_valid() {
 #[test]
 fn continue_offering_choices_when_multiple_battles_are_still_available() {
     let mut state = GameState::empty();
-    let mut log = GameLog::new(state.turn);
+    let mut log = GameLog::new();
 
     let card_points_down = Card::from_str("0P00", Arrows::DOWN);
     let card_points_left = Card::from_str("0P00", Arrows::LEFT);
@@ -678,7 +667,7 @@ fn continue_offering_choices_when_multiple_battles_are_still_available() {
 #[test]
 fn dont_continue_offering_choices_if_attacker_loses_battle() {
     let mut state = GameState::empty();
-    let mut log = GameLog::new(state.turn);
+    let mut log = GameLog::new();
 
     let card_points_down = Card::from_str("0PF0", Arrows::DOWN);
     let card_points_left = Card::from_str("0P00", Arrows::LEFT);
@@ -702,7 +691,7 @@ fn dont_continue_offering_choices_if_attacker_loses_battle() {
 #[test]
 fn handle_game_over_when_attacker_loses_battle_after_battle_choice() {
     let mut state = GameState::empty();
-    let mut log = GameLog::new(state.turn);
+    let mut log = GameLog::new();
 
     let card_points_down = Card::from_str("0PF0", Arrows::DOWN);
     let card_points_left = Card::from_str("0P00", Arrows::LEFT);
@@ -732,7 +721,7 @@ fn handle_game_over_when_attacker_loses_battle_after_battle_choice() {
 #[test]
 fn combo_flip_cards_that_are_pointed_to_by_defender_if_they_lose() {
     let mut state = GameState::empty();
-    let mut log = GameLog::new(state.turn);
+    let mut log = GameLog::new();
 
     let card_points_all = Card::from_str("0P00", Arrows::ALL);
     let card_points_up = Card::from_str("FP00", Arrows::UP);
@@ -754,7 +743,6 @@ fn combo_flip_cards_that_are_pointed_to_by_defender_if_they_lose() {
     assert_eq!(
         log,
         vec![
-            &Entry::next_turn(Player::P1),
             &Entry::place_card(OwnedCard::p1(card_points_up), 9),
             &Entry::battle(
                 OwnedCard::p1(card_points_up),
@@ -785,7 +773,7 @@ fn combo_flip_cards_that_are_pointed_to_by_defender_if_they_lose() {
 #[test]
 fn combo_flip_cards_that_are_pointed_to_by_attacker_if_they_lose() {
     let mut state = GameState::empty();
-    let mut log = GameLog::new(state.turn);
+    let mut log = GameLog::new();
 
     let card_points_all = Card::from_str("0P00", Arrows::ALL);
     let card_points_up = Card::from_str("0PF0", Arrows::UP);
@@ -807,7 +795,6 @@ fn combo_flip_cards_that_are_pointed_to_by_attacker_if_they_lose() {
     assert_eq!(
         log,
         vec![
-            &Entry::next_turn(Player::P1),
             &Entry::place_card(OwnedCard::p1(card_points_all), 5),
             &Entry::battle(
                 OwnedCard::p1(card_points_all),
@@ -838,7 +825,7 @@ fn combo_flip_cards_that_are_pointed_to_by_attacker_if_they_lose() {
 #[test]
 fn dont_flip_back_undefended_cards_if_they_are_flipped_due_to_combos() {
     let mut state = GameState::empty();
-    let mut log = GameLog::new(state.turn);
+    let mut log = GameLog::new();
 
     let card_points_all_att = Card::from_str("FP00", Arrows::ALL);
     let card_points_all_def = Card::from_str("0P00", Arrows::ALL);
@@ -859,7 +846,6 @@ fn dont_flip_back_undefended_cards_if_they_are_flipped_due_to_combos() {
     assert_eq!(
         log,
         vec![
-            &Entry::next_turn(Player::P1),
             &Entry::place_card(OwnedCard::p1(card_points_all_att), 5),
             &Entry::battle(
                 OwnedCard::p1(card_points_all_att),
@@ -897,7 +883,7 @@ fn game_should_be_over_once_all_cards_have_been_played() {
             p2_hand: [Some(card), None, None, None, None],
             ..GameState::empty()
         };
-        let mut log = GameLog::new(state.turn);
+        let mut log = GameLog::new();
 
         state.p1_hand[0] = Some(card);
         state.p1_hand[1] = Some(card);
@@ -923,7 +909,7 @@ fn game_should_be_over_once_all_cards_have_been_played() {
             p2_hand: [Some(card), Some(card), None, None, None],
             ..GameState::empty()
         };
-        let mut log = GameLog::new(state.turn);
+        let mut log = GameLog::new();
 
         next(&mut state, &mut log, Input::place(0, 0)).unwrap();
         next(&mut state, &mut log, Input::place(0, 1)).unwrap();
@@ -944,7 +930,7 @@ fn game_should_be_over_once_all_cards_have_been_played() {
             p2_hand: [Some(card), None, None, None, None],
             ..GameState::empty()
         };
-        let mut log = GameLog::new(state.turn);
+        let mut log = GameLog::new();
 
         next(&mut state, &mut log, Input::place(0, 0)).unwrap();
         next(&mut state, &mut log, Input::place(0, 1)).unwrap();

@@ -54,9 +54,8 @@ pub(crate) struct GameLog {
 }
 
 impl GameLog {
-    pub(crate) fn new(turn: Player) -> Self {
-        let entries = vec![Entry::next_turn(turn)];
-        GameLog { entries }
+    pub(crate) fn new() -> Self {
+        GameLog { entries: vec![] }
     }
 
     pub(crate) fn append(&mut self, entry: Entry) {
