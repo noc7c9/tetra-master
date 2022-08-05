@@ -1,12 +1,41 @@
 use crate::{
-    Arrows, BattleResult, BattleStat, BattleWinner, Card, CardType, Cell, Entry, GameLog,
-    GameState, GameStatus, Input, InputBattle, InputPlace, OwnedCard, Player,
+    Arrows, BattleResult, BattleStat, BattleWinner, Card, CardType, Cell, Entry, GameInput,
+    GameInputBattle, GameInputPlace, GameLog, GameState, GameStatus, OwnedCard, Player,
+    PreGameInput, PreGameState, PreGameStatus, Rng,
 };
 
-pub(crate) fn next(state: &mut GameState, log: &mut GameLog, input: Input) -> Result<(), String> {
+pub(crate) fn pre_game_next(state: &mut PreGameState, input: PreGameInput) -> Result<(), String> {
+    match state.status {
+        PreGameStatus::P1Picking => {
+            state.status = PreGameStatus::P2Picking {
+                p1_pick: input.pick,
+            };
+        }
+        PreGameStatus::P2Picking { p1_pick } => {
+            if input.pick == p1_pick {
+                return Err(format!("Hand {p1_pick} has already been picked"));
+            }
+            state.status = PreGameStatus::Complete {
+                p1_pick,
+                p2_pick: input.pick,
+            };
+        }
+        _ => unreachable!("next called after pre-game is complete"),
+    }
+
+    Ok(())
+}
+
+pub(crate) fn game_next(
+    state: &mut GameState,
+    log: &mut GameLog,
+    input: GameInput,
+) -> Result<(), String> {
     match (&state.status, input) {
-        (GameStatus::WaitingPlace, Input::Place(input)) => handle_waiting_place(state, log, input),
-        (GameStatus::WaitingBattle { .. }, Input::Battle(input)) => {
+        (GameStatus::WaitingPlace, GameInput::Place(input)) => {
+            handle_waiting_place(state, log, input)
+        }
+        (GameStatus::WaitingBattle { .. }, GameInput::Battle(input)) => {
             handle_waiting_battle(state, log, input)
         }
         _ => unreachable!("next called with invalid status/input pair"),
@@ -16,7 +45,7 @@ pub(crate) fn next(state: &mut GameState, log: &mut GameLog, input: Input) -> Re
 fn handle_waiting_place(
     state: &mut GameState,
     log: &mut GameLog,
-    input: InputPlace,
+    input: GameInputPlace,
 ) -> Result<(), String> {
     let hand_index = input.card;
     let attacker_cell = input.cell;
@@ -54,7 +83,7 @@ fn handle_waiting_place(
 fn handle_waiting_battle(
     state: &mut GameState,
     log: &mut GameLog,
-    input: InputBattle,
+    input: GameInputBattle,
 ) -> Result<(), String> {
     let defender_cell = input.cell;
 
@@ -225,7 +254,7 @@ fn flip(log: &mut GameLog, card: &mut OwnedCard, cell: usize, via_combo: bool) {
     card.owner = to;
 }
 
-fn get_attack_stat(rng: &fastrand::Rng, attacker: Card) -> BattleStat {
+fn get_attack_stat(rng: &Rng, attacker: Card) -> BattleStat {
     let (digit, value) = if let CardType::Assault = attacker.card_type {
         // use the highest stat
         let att = attacker.attack;
@@ -247,7 +276,7 @@ fn get_attack_stat(rng: &fastrand::Rng, attacker: Card) -> BattleStat {
     BattleStat { digit, value, roll }
 }
 
-fn get_defense_stat(rng: &fastrand::Rng, attacker: Card, defender: Card) -> BattleStat {
+fn get_defense_stat(rng: &Rng, attacker: Card, defender: Card) -> BattleStat {
     let (digit, value) = match attacker.card_type {
         CardType::Physical => (2, defender.physical_defense),
         CardType::Magical => (3, defender.magical_defense),
@@ -278,7 +307,7 @@ fn get_defense_stat(rng: &fastrand::Rng, attacker: Card, defender: Card) -> Batt
     BattleStat { digit, value, roll }
 }
 
-fn calculate_battle_result(rng: &fastrand::Rng, attacker: Card, defender: Card) -> BattleResult {
+fn calculate_battle_result(rng: &Rng, attacker: Card, defender: Card) -> BattleResult {
     let attack_stat = get_attack_stat(rng, attacker);
     let defense_stat = get_defense_stat(rng, attacker, defender);
 

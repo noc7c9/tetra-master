@@ -2,12 +2,14 @@ mod game_log;
 mod input;
 mod logic;
 mod render;
+mod rng;
 
+const HAND_CANDIDATES: usize = 3;
 const HAND_SIZE: usize = 5;
 const BOARD_SIZE: usize = 4 * 4;
-const MAX_NUMBER_OF_BLOCKS: u8 = 6;
 
 pub(crate) use game_log::{Entry, GameLog};
+pub(crate) use rng::Rng;
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 enum Player {
@@ -114,46 +116,6 @@ struct Card {
     arrows: Arrows,
 }
 
-impl Card {
-    fn random(rng: &fastrand::Rng) -> Self {
-        fn randpick<'a, T>(rng: &fastrand::Rng, values: &'a [T]) -> &'a T {
-            let len = values.len();
-            let idx = rng.usize(..len);
-            &values[idx]
-        }
-
-        fn random_stat(rng: &fastrand::Rng) -> u8 {
-            let base_stat = *match rng.f32() {
-                n if n < 0.05 => randpick(rng, &[0, 1]),          // 5%
-                n if n < 0.35 => randpick(rng, &[2, 3, 4, 5]),    // 30%
-                n if n < 0.8 => randpick(rng, &[6, 7, 8, 9, 10]), // 45%
-                n if n < 0.95 => randpick(rng, &[11, 12, 13]),    // 15%
-                _ => randpick(rng, &[14, 15]),                    // 5%
-            };
-            // base stats range from 0x0 to 0xF
-            // real stats range from 0x0 to 0xFF
-            0x10 * base_stat + rng.u8(..16)
-        }
-
-        let card_type = match rng.f32() {
-            n if n < 0.40 => CardType::Physical, // 40%
-            n if n < 0.80 => CardType::Magical,  // 40%
-            n if n < 0.95 => CardType::Exploit,  // 15%
-            _ => CardType::Assault,              // 5%
-        };
-
-        let arrows = Arrows(rng.u8(..));
-
-        Card {
-            card_type,
-            arrows,
-            attack: random_stat(rng),
-            physical_defense: random_stat(rng),
-            magical_defense: random_stat(rng),
-        }
-    }
-}
-
 #[derive(Debug, Clone, Copy, PartialEq)]
 struct OwnedCard {
     owner: Player,
@@ -200,6 +162,44 @@ struct BattleResult {
     defense_stat: BattleStat,
 }
 
+type Hand = [Option<Card>; HAND_SIZE];
+type Board = [Cell; BOARD_SIZE];
+
+#[derive(Debug, Clone, PartialEq)]
+enum PreGameStatus {
+    P1Picking,
+    P2Picking { p1_pick: usize },
+    Complete { p1_pick: usize, p2_pick: usize },
+}
+
+#[derive(Debug, Clone)]
+struct PreGameState {
+    status: PreGameStatus,
+    rng: Rng,
+    board: Board,
+    hand_candidates: [Hand; HAND_CANDIDATES],
+}
+
+impl PreGameState {
+    fn with_seed(seed: u64) -> Self {
+        let status = PreGameStatus::P1Picking;
+        let rng = Rng::with_seed(seed);
+        let board = rng::random_board(&rng);
+        let hand_candidates = rng::random_hand_candidates(&rng);
+
+        Self {
+            status,
+            rng,
+            board,
+            hand_candidates,
+        }
+    }
+
+    fn is_complete(&self) -> bool {
+        matches!(self.status, PreGameStatus::Complete { .. })
+    }
+}
+
 #[derive(Debug, Clone, PartialEq)]
 enum GameStatus {
     WaitingPlace,
@@ -212,13 +212,10 @@ enum GameStatus {
     },
 }
 
-type Hand = [Option<Card>; HAND_SIZE];
-type Board = [Cell; BOARD_SIZE];
-
 #[derive(Debug, Clone)]
 struct GameState {
     status: GameStatus,
-    rng: fastrand::Rng,
+    rng: Rng,
     turn: Player,
     board: Board,
     p1_hand: Hand,
@@ -226,33 +223,21 @@ struct GameState {
 }
 
 impl GameState {
-    fn with_seed(seed: u64) -> Self {
+    fn from_pre_game_state(pre_game_state: PreGameState) -> Self {
         let status = GameStatus::WaitingPlace;
-        let rng = fastrand::Rng::with_seed(seed);
         let turn = Player::P1;
-        let mut board = Board::default();
-        let p1_hand: Hand = [
-            Some(Card::random(&rng)),
-            Some(Card::random(&rng)),
-            Some(Card::random(&rng)),
-            Some(Card::random(&rng)),
-            Some(Card::random(&rng)),
-        ];
-        let p2_hand: Hand = [
-            Some(Card::random(&rng)),
-            Some(Card::random(&rng)),
-            Some(Card::random(&rng)),
-            Some(Card::random(&rng)),
-            Some(Card::random(&rng)),
-        ];
 
-        // block cells
-        for _ in 0..rng.u8(..=MAX_NUMBER_OF_BLOCKS) {
-            let idx = rng.usize(..(HAND_SIZE));
-            board[idx] = Cell::Blocked;
-        }
+        let rng = pre_game_state.rng;
+        let board = pre_game_state.board;
 
-        GameState {
+        let (p1_pick, p2_pick) = match pre_game_state.status {
+            PreGameStatus::Complete { p1_pick, p2_pick } => (p1_pick, p2_pick),
+            _ => panic!("GameState cannot be created from an incomplete PreGameState"),
+        };
+        let p1_hand = pre_game_state.hand_candidates[p1_pick];
+        let p2_hand = pre_game_state.hand_candidates[p2_pick];
+
+        Self {
             status,
             rng,
             turn,
@@ -272,33 +257,34 @@ impl GameState {
     }
 
     fn is_game_over(&self) -> bool {
-        if let GameStatus::GameOver { .. } = self.status {
-            return true;
-        }
-        false
+        matches!(self.status, GameStatus::GameOver { .. })
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq)]
+struct PreGameInput {
+    pick: usize,
+}
+
 #[derive(Debug, Clone, Copy)]
-enum Input {
-    Place(InputPlace),
-    Battle(InputBattle),
+enum GameInput {
+    Place(GameInputPlace),
+    Battle(GameInputBattle),
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
-struct InputPlace {
+struct GameInputPlace {
     card: usize,
     cell: usize,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
-struct InputBattle {
+struct GameInputBattle {
     cell: usize,
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let mut state = GameState::with_seed(fastrand::u64(..));
-    let mut log = GameLog::new();
+    use std::io::{BufRead, Write};
 
     let stdout = std::io::stdout();
     let mut out = stdout.lock();
@@ -306,12 +292,51 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut in_ = stdin.lock();
 
     let mut buf = String::new();
-    // game loop
-    loop {
-        use std::io::{BufRead, Write};
 
+    // pre-game loop
+    let mut state = PreGameState::with_seed(rng::random_seed());
+    loop {
         buf.clear();
-        render::screen(&log, &state, &mut buf)?;
+        render::pre_game_screen(&mut buf, &state)?;
+        out.write_all(buf.as_bytes())?;
+        out.flush()?;
+
+        if state.is_complete() {
+            break;
+        }
+
+        // input loop
+        loop {
+            out.write_all(b"> ")?;
+            out.flush()?;
+
+            // read and parse input
+            buf.clear();
+            in_.read_line(&mut buf)?;
+            let input = match input::parse_pre_game(&buf) {
+                Err(input::Error::EmptyInput) => continue,
+                Err(err) => {
+                    println!("ERR: {}", err);
+                    continue;
+                }
+                Ok(input) => input,
+            };
+
+            if let Err(err) = logic::pre_game_next(&mut state, input) {
+                println!("ERR: {}", err);
+            } else {
+                // input was correctly evaluated, break input loop
+                break;
+            }
+        }
+    }
+
+    // game loop
+    let mut state = GameState::from_pre_game_state(state);
+    let mut log = GameLog::new();
+    loop {
+        buf.clear();
+        render::game_screen(&mut buf, &log, &state)?;
         out.write_all(buf.as_bytes())?;
         out.flush()?;
 
@@ -327,7 +352,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             // read and parse input
             buf.clear();
             in_.read_line(&mut buf)?;
-            let input = match input::parse(&state, &buf) {
+            let input = match input::parse_game(&state, &buf) {
                 Err(input::Error::EmptyInput) => continue,
                 Err(err) => {
                     println!("ERR: {}", err);
@@ -336,7 +361,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 Ok(input) => input,
             };
 
-            if let Err(err) = logic::next(&mut state, &mut log, input) {
+            if let Err(err) = logic::game_next(&mut state, &mut log, input) {
                 println!("ERR: {}", err);
             } else {
                 // input was correctly evaluated, break input loop

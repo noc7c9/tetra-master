@@ -1,10 +1,11 @@
-use crate::{GameState, GameStatus, Input, InputBattle, InputPlace};
+use crate::{GameInput, GameInputBattle, GameInputPlace, GameState, GameStatus, PreGameInput};
 
 #[derive(Debug, PartialEq)]
 pub(crate) enum Error {
     EmptyInput,
     InvalidCard { ch: char },
     InvalidCell { ch: char },
+    InvalidPick { ch: char },
     MissingCell,
     UnexpectedCharacter { ch: char },
 }
@@ -19,21 +20,40 @@ impl std::fmt::Display for Error {
             Error::InvalidCell { ch } => {
                 write!(f, "Invalid Cell {ch:?}, expected a hex number from 0 to F")
             }
+            Error::InvalidPick { ch } => {
+                write!(f, "Invalid Pick {ch:?}, expected a number from 0 to 2")
+            }
             Error::MissingCell => write!(f, "Missing Cell, expected a hex number from 0 to F"),
             Error::UnexpectedCharacter { ch } => write!(f, "Unexpected Character {ch:?}"),
         }
     }
 }
 
-pub(crate) fn parse(state: &GameState, input: &str) -> Result<Input, Error> {
+pub(crate) fn parse_pre_game(input: &str) -> Result<PreGameInput, Error> {
+    let mut chars = input.chars().filter(|ch| !ch.is_ascii_whitespace());
+
+    // read and parse the cell index
+    let pick = match chars.next() {
+        Some(cell) => char_to_pick(cell)?,
+        None => return Err(Error::EmptyInput),
+    };
+
+    if let Some(ch) = chars.next() {
+        return Err(Error::UnexpectedCharacter { ch });
+    }
+
+    Ok(PreGameInput { pick })
+}
+
+pub(crate) fn parse_game(state: &GameState, input: &str) -> Result<GameInput, Error> {
     Ok(match &state.status {
-        GameStatus::WaitingPlace => Input::Place(parse_place(input)?),
-        GameStatus::WaitingBattle { .. } => Input::Battle(parse_battle(input)?),
+        GameStatus::WaitingPlace => GameInput::Place(parse_place(input)?),
+        GameStatus::WaitingBattle { .. } => GameInput::Battle(parse_battle(input)?),
         GameStatus::GameOver { .. } => panic!("parse shouldn't be called once game is over"),
     })
 }
 
-fn parse_place(input: &str) -> Result<InputPlace, Error> {
+fn parse_place(input: &str) -> Result<GameInputPlace, Error> {
     let mut chars = input.chars().filter(|ch| !ch.is_ascii_whitespace());
 
     // read and parse the (hand) card index
@@ -52,10 +72,10 @@ fn parse_place(input: &str) -> Result<InputPlace, Error> {
         return Err(Error::UnexpectedCharacter { ch });
     }
 
-    Ok(InputPlace { card, cell })
+    Ok(GameInputPlace { card, cell })
 }
 
-fn parse_battle(input: &str) -> Result<InputBattle, Error> {
+fn parse_battle(input: &str) -> Result<GameInputBattle, Error> {
     let mut chars = input.chars().filter(|ch| !ch.is_ascii_whitespace());
 
     // read and parse the cell index
@@ -68,7 +88,7 @@ fn parse_battle(input: &str) -> Result<InputBattle, Error> {
         return Err(Error::UnexpectedCharacter { ch });
     }
 
-    Ok(InputBattle { cell })
+    Ok(GameInputBattle { cell })
 }
 
 fn char_to_card(ch: char) -> Result<usize, Error> {
@@ -104,6 +124,56 @@ fn char_to_cell(ch: char) -> Result<usize, Error> {
     })
 }
 
+fn char_to_pick(ch: char) -> Result<usize, Error> {
+    Ok(match ch {
+        '0' => 0,
+        '1' => 1,
+        '2' => 2,
+        _ => return Err(Error::InvalidPick { ch }),
+    })
+}
+
+#[cfg(test)]
+mod test_parse_pre_game {
+    use super::*;
+
+    #[test]
+    fn parse_minimal_input() {
+        let res = parse_pre_game("1");
+        assert_eq!(res, Ok(PreGameInput { pick: 1 }));
+    }
+
+    #[test]
+    fn ignore_leading_trailing_and_infix_whitespace() {
+        let res = parse_pre_game("   2  \t \n\t   ");
+        assert_eq!(res, Ok(PreGameInput { pick: 2 }));
+    }
+
+    #[test]
+    fn error_on_empty_input() {
+        let res = parse_pre_game("");
+        assert_eq!(res, Err(Error::EmptyInput));
+    }
+
+    #[test]
+    fn error_when_input_is_all_whitespace() {
+        let res = parse_pre_game("  \t     ");
+        assert_eq!(res, Err(Error::EmptyInput));
+    }
+
+    #[test]
+    fn error_when_pick_is_invalid() {
+        let res = parse_pre_game("4");
+        assert_eq!(res, Err(Error::InvalidPick { ch: '4' }));
+    }
+
+    #[test]
+    fn error_when_there_are_unexpected_characters() {
+        let res = parse_pre_game("1a");
+        assert_eq!(res, Err(Error::UnexpectedCharacter { ch: 'a' }));
+    }
+}
+
 #[cfg(test)]
 mod test_parse_place {
     use super::*;
@@ -113,7 +183,7 @@ mod test_parse_place {
         let res = parse_place("3b");
         assert_eq!(
             res,
-            Ok(InputPlace {
+            Ok(GameInputPlace {
                 card: 0x3,
                 cell: 0xb
             })
@@ -125,7 +195,7 @@ mod test_parse_place {
         let res = parse_place("   4 \t  8  \t \n\t   ");
         assert_eq!(
             res,
-            Ok(InputPlace {
+            Ok(GameInputPlace {
                 card: 0x4,
                 cell: 0x8
             })
@@ -176,13 +246,13 @@ mod test_parse_battle {
     #[test]
     fn parse_minimal_input() {
         let res = parse_battle("b");
-        assert_eq!(res, Ok(InputBattle { cell: 0xb }));
+        assert_eq!(res, Ok(GameInputBattle { cell: 0xb }));
     }
 
     #[test]
     fn ignore_leading_and_trailing_whitespace() {
         let res = parse_battle("   4\t \t   ");
-        assert_eq!(res, Ok(InputBattle { cell: 0x4 }));
+        assert_eq!(res, Ok(GameInputBattle { cell: 0x4 }));
     }
 
     #[test]

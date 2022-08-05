@@ -1,5 +1,6 @@
 use crate::{
-    BattleWinner, Card, CardType, Cell, Entry, GameLog, GameState, GameStatus, OwnedCard, Player,
+    BattleWinner, Board, Card, CardType, Cell, Entry, GameLog, GameState, GameStatus, OwnedCard,
+    Player, PreGameState, PreGameStatus,
 };
 use std::fmt::Write;
 
@@ -14,17 +15,63 @@ const RESET: &str = "\x1b[0m";
 
 type Result = std::result::Result<(), std::fmt::Error>;
 
-pub(crate) fn screen(log: &GameLog, state: &GameState, o: &mut String) -> Result {
+pub(crate) fn pre_game_screen(o: &mut String, state: &PreGameState) -> Result {
     write!(o, "\x1b]50;ClearScrollback\x07")?;
 
-    push_hand(o, Player::P1, &state.p1_hand)?;
-    writeln!(o)?;
+    fn render_hand_candidates(
+        o: &mut String,
+        state: &PreGameState,
+        p1_pick: Option<usize>,
+    ) -> Result {
+        for (idx, hand) in state.hand_candidates.iter().enumerate() {
+            if Some(idx) == p1_pick {
+                continue;
+            }
 
-    push_board(o, state)?;
-    writeln!(o)?;
+            writeln!(o, "Hand {}", idx)?;
+            push_hand(o, None, hand)?;
+        }
+        Ok(())
+    }
 
-    push_hand(o, Player::P2, &state.p2_hand)?;
-    writeln!(o)?;
+    match state.status {
+        PreGameStatus::P1Picking => {
+            push_board(o, &state.board)?;
+
+            render_hand_candidates(o, state, None)?;
+
+            write!(o, "Player 1 pick a hand ")?;
+            writeln!(o, "{GRAY}(Player 2 will pick next){RESET}")?;
+        }
+        PreGameStatus::P2Picking { p1_pick } => {
+            push_hand(o, Some(Player::P1), &state.hand_candidates[p1_pick])?;
+
+            push_board(o, &state.board)?;
+
+            render_hand_candidates(o, state, Some(p1_pick))?;
+
+            writeln!(o, "Player 2 pick a hand?")?;
+        }
+        PreGameStatus::Complete { p1_pick, p2_pick } => {
+            push_hand(o, Some(Player::P1), &state.hand_candidates[p1_pick])?;
+
+            push_board(o, &state.board)?;
+
+            push_hand(o, Some(Player::P2), &state.hand_candidates[p2_pick])?;
+        }
+    }
+
+    Ok(())
+}
+
+pub(crate) fn game_screen(o: &mut String, log: &GameLog, state: &GameState) -> Result {
+    write!(o, "\x1b]50;ClearScrollback\x07")?;
+
+    push_hand(o, Some(Player::P1), &state.p1_hand)?;
+
+    push_board(o, &state.board)?;
+
+    push_hand(o, Some(Player::P2), &state.p2_hand)?;
 
     push_game_log(o, log)?;
 
@@ -35,7 +82,7 @@ pub(crate) fn screen(log: &GameLog, state: &GameState, o: &mut String) -> Result
     }
 }
 
-fn push_hand(o: &mut String, owner: Player, hand: &[Option<Card>; 5]) -> Result {
+fn push_hand(o: &mut String, owner: Option<Player>, hand: &[Option<Card>; 5]) -> Result {
     write!(o, "{}", owner.to_color())?;
 
     // line 1
@@ -95,10 +142,11 @@ fn push_hand(o: &mut String, owner: Player, hand: &[Option<Card>; 5]) -> Result 
             write!(o, "           ")?;
         }
     }
-    writeln!(o, "{RESET}")
+    writeln!(o, "{RESET}")?;
+    writeln!(o)
 }
 
-fn push_board(o: &mut String, state: &GameState) -> Result {
+fn push_board(o: &mut String, board: &Board) -> Result {
     writeln!(o, "   ┌───────────┬───────────┬───────────┬───────────┐")?;
 
     for (idx, &row) in [[0, 1, 2, 3], [4, 5, 6, 7], [8, 9, 10, 11], [12, 13, 14, 15]]
@@ -108,7 +156,7 @@ fn push_board(o: &mut String, state: &GameState) -> Result {
         // line 1 in row
         write!(o, "   │")?;
         for j in row {
-            match &state.board[j] {
+            match &board[j] {
                 Cell::Card(OwnedCard { owner, card }) => {
                     let ul = if card.arrows.up_left() { '⇖' } else { ' ' };
                     let u = if card.arrows.up() { '⇑' } else { ' ' };
@@ -126,7 +174,7 @@ fn push_board(o: &mut String, state: &GameState) -> Result {
         // line 2 in row
         write!(o, "\n   │")?;
         for j in row {
-            if let Cell::Blocked = &state.board[j] {
+            if let Cell::Blocked = &board[j] {
                 write!(o, "{GRAY_BOLD} ║       ║ {RESET}")?;
             } else {
                 write!(o, "           ")?;
@@ -137,7 +185,7 @@ fn push_board(o: &mut String, state: &GameState) -> Result {
 
         // line 3 in row
         for j in row {
-            match state.board[j] {
+            match board[j] {
                 Cell::Card(OwnedCard { owner, card }) => {
                     let l = if card.arrows.left() { '⇐' } else { ' ' };
                     let r = if card.arrows.right() { '⇒' } else { ' ' };
@@ -157,7 +205,7 @@ fn push_board(o: &mut String, state: &GameState) -> Result {
         // line 4 in row
         write!(o, "\n   │")?;
         for j in row {
-            if let Cell::Blocked = &state.board[j] {
+            if let Cell::Blocked = &board[j] {
                 write!(o, "{GRAY_BOLD} ║       ║ {RESET}")?;
             } else {
                 write!(o, "           ")?;
@@ -168,7 +216,7 @@ fn push_board(o: &mut String, state: &GameState) -> Result {
 
         // line 5 in row
         for j in row {
-            match &state.board[j] {
+            match &board[j] {
                 Cell::Card(OwnedCard { owner, card }) => {
                     let dl = if card.arrows.down_left() { '⇙' } else { ' ' };
                     let d = if card.arrows.down() { '⇓' } else { ' ' };
@@ -188,7 +236,8 @@ fn push_board(o: &mut String, state: &GameState) -> Result {
         }
     }
 
-    writeln!(o, "\n   └───────────┴───────────┴───────────┴───────────┘")
+    writeln!(o, "\n   └───────────┴───────────┴───────────┴───────────┘")?;
+    writeln!(o)
 }
 
 fn push_game_log(o: &mut String, log: &GameLog) -> Result {
@@ -337,6 +386,29 @@ impl Player {
         match self {
             Player::P1 => BLUE_BOLD,
             Player::P2 => RED_BOLD,
+        }
+    }
+}
+
+trait OptionPlayerExt {
+    fn to_color(self) -> &'static str;
+    fn to_color_bold(self) -> &'static str;
+}
+
+impl OptionPlayerExt for Option<Player> {
+    fn to_color(self) -> &'static str {
+        match self {
+            // box drawing characters turn invisible if set to GRAY for some reason
+            // so just use GRAY_BOLD
+            None => GRAY_BOLD,
+            Some(p) => p.to_color(),
+        }
+    }
+
+    fn to_color_bold(self) -> &'static str {
+        match self {
+            None => GRAY_BOLD,
+            Some(p) => p.to_color_bold(),
         }
     }
 }
