@@ -1,6 +1,6 @@
 use crate::{
-    Arrows, BattleResult, BattleStat, BattleWinner, Card, CardType, Cell, Entry, GameInput,
-    GameInputBattle, GameInputPlace, GameLog, GameState, GameStatus, OwnedCard, Player,
+    Arrows, BattleResult, BattleStat, BattleSystem, BattleWinner, Card, CardType, Cell, Entry,
+    GameInput, GameInputBattle, GameInputPlace, GameLog, GameState, GameStatus, OwnedCard, Player,
     PreGameInput, PreGameState, PreGameStatus, Rng,
 };
 
@@ -212,7 +212,7 @@ fn battle(
     let mut attacker = state.take_card(attacker_cell);
     let mut defender = state.take_card(defender_cell);
 
-    let result = calculate_battle_result(&state.rng, attacker.card, defender.card);
+    let result = calculate_battle_result(state, attacker.card, defender.card);
     log.append(Entry::battle(attacker, defender, result));
     let (loser_cell, loser) = match result.winner {
         BattleWinner::Defender | BattleWinner::None => {
@@ -254,7 +254,7 @@ fn flip(log: &mut GameLog, card: &mut OwnedCard, cell: usize, via_combo: bool) {
     card.owner = to;
 }
 
-fn get_attack_stat(rng: &Rng, attacker: Card) -> BattleStat {
+fn get_attack_stat(rng: &Rng, battle_system: BattleSystem, attacker: Card) -> BattleStat {
     let (digit, value) = if let CardType::Assault = attacker.card_type {
         // use the highest stat
         let att = attacker.attack;
@@ -272,11 +272,16 @@ fn get_attack_stat(rng: &Rng, attacker: Card) -> BattleStat {
         (0, attacker.attack)
     };
 
-    let roll = rng.u8(..=value);
+    let roll = battle_system.roll(rng, value);
     BattleStat { digit, value, roll }
 }
 
-fn get_defense_stat(rng: &Rng, attacker: Card, defender: Card) -> BattleStat {
+fn get_defense_stat(
+    rng: &Rng,
+    battle_system: BattleSystem,
+    attacker: Card,
+    defender: Card,
+) -> BattleStat {
     let (digit, value) = match attacker.card_type {
         CardType::Physical => (2, defender.physical_defense),
         CardType::Magical => (3, defender.magical_defense),
@@ -303,16 +308,18 @@ fn get_defense_stat(rng: &Rng, attacker: Card, defender: Card) -> BattleStat {
         }
     };
 
-    let roll = rng.u8(..=value);
+    let roll = battle_system.roll(rng, value);
     BattleStat { digit, value, roll }
 }
 
-fn calculate_battle_result(rng: &Rng, attacker: Card, defender: Card) -> BattleResult {
-    let attack_stat = get_attack_stat(rng, attacker);
-    let defense_stat = get_defense_stat(rng, attacker, defender);
+fn calculate_battle_result(state: &GameState, attacker: Card, defender: Card) -> BattleResult {
+    let battle_system = state.battle_system;
 
-    let att = attack_stat.resolve();
-    let def = defense_stat.resolve();
+    let attack_stat = get_attack_stat(&state.rng, battle_system, attacker);
+    let defense_stat = get_defense_stat(&state.rng, battle_system, attacker, defender);
+
+    let att = attack_stat.resolve(battle_system);
+    let def = defense_stat.resolve(battle_system);
 
     use std::cmp::Ordering;
     let winner = match att.cmp(&def) {

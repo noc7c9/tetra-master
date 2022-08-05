@@ -1,6 +1,6 @@
 use crate::{
-    BattleWinner, Board, Card, CardType, Cell, Entry, GameLog, GameState, GameStatus, OwnedCard,
-    Player, PreGameState, PreGameStatus,
+    BattleSystem, BattleWinner, Board, Card, CardType, Cell, Entry, GameLog, GameState, GameStatus,
+    OwnedCard, Player, PreGameState, PreGameStatus,
 };
 use std::fmt::Write;
 
@@ -73,7 +73,7 @@ pub(crate) fn game_screen(o: &mut String, log: &GameLog, state: &GameState) -> R
 
     push_hand(o, Some(Player::P2), &state.p2_hand)?;
 
-    push_game_log(o, log)?;
+    push_game_log(o, log, state.battle_system)?;
 
     if let GameStatus::GameOver { winner } = state.status {
         push_game_over(o, winner)
@@ -240,7 +240,7 @@ fn push_board(o: &mut String, board: &Board) -> Result {
     writeln!(o)
 }
 
-fn push_game_log(o: &mut String, log: &GameLog) -> Result {
+fn push_game_log(o: &mut String, log: &GameLog, battle_system: BattleSystem) -> Result {
     writeln!(o, "                   {GRAY_BOLD} ══ GAMELOG ══ {RESET}")?;
 
     let mut curr_turn_number = 1;
@@ -294,20 +294,31 @@ fn push_game_log(o: &mut String, log: &GameLog) -> Result {
                 let att_color = attacker.owner.to_color();
                 let att_value = result.attack_stat.value;
                 let att_roll = result.attack_stat.roll;
-                let att_resolve = result.attack_stat.resolve();
+                let att_resolve = result.attack_stat.resolve(battle_system);
 
                 let def_color = defender.owner.to_color();
                 let def_value = result.defense_stat.value;
                 let def_roll = result.defense_stat.roll;
-                let def_resolve = result.defense_stat.resolve();
+                let def_resolve = result.defense_stat.resolve(battle_system);
 
                 write!(o, "           {RESET}│         ")?;
 
-                write!(o, "{}Attacker{RESET} ", att_color)?;
-                write!(o, "({}) rolled {}, ", att_value, att_roll)?;
+                match battle_system {
+                    BattleSystem::Original => {
+                        write!(o, "{att_color}Attacker{RESET} ")?;
+                        write!(o, "({att_value}) rolled {att_roll}, ")?;
 
-                write!(o, "{}Defender{RESET} ", def_color)?;
-                writeln!(o, "({}) rolled {}", def_value, def_roll)?;
+                        write!(o, "{def_color}Defender{RESET} ",)?;
+                        writeln!(o, "({def_value}) rolled {def_roll}")?;
+                    }
+                    BattleSystem::Dice { sides } => {
+                        write!(o, "{att_color}Attacker{RESET} ",)?;
+                        write!(o, "({}d{sides}) rolled {att_roll}, ", att_value >> 4)?;
+
+                        write!(o, "{def_color}Defender{RESET} ",)?;
+                        writeln!(o, "({}d{sides}) rolled {def_roll}", def_value >> 4)?;
+                    }
+                }
 
                 match result.winner {
                     BattleWinner::Attacker => {

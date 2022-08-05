@@ -21,6 +21,7 @@ impl GameState {
             board: Default::default(),
             p1_hand: [card, card, card, card, card],
             p2_hand: [card, card, card, card, card],
+            battle_system: BattleSystem::Original,
         }
     }
 }
@@ -936,49 +937,51 @@ mod test_get_attack_stat {
     use super::*;
     use pretty_assertions::assert_eq;
 
+    const BS: BattleSystem = BattleSystem::Original;
+
     fn card(stats: &str) -> Card {
         Card::from_str(stats, Arrows::NONE)
     }
 
     #[test]
     fn physical_type_attacker_picks_attack_stat() {
-        let stat = get_attack_stat(&Rng::new(), card("APBC"));
+        let stat = get_attack_stat(&Rng::new(), BS, card("APBC"));
         assert_eq!(stat.digit, 0);
         assert_eq!(stat.value, 0xAF);
     }
 
     #[test]
     fn magical_type_attacker_picks_attack_stat() {
-        let stat = get_attack_stat(&Rng::new(), card("AMBC"));
+        let stat = get_attack_stat(&Rng::new(), BS, card("AMBC"));
         assert_eq!(stat.digit, 0);
         assert_eq!(stat.value, 0xAF);
     }
 
     #[test]
     fn exploit_type_attacker_picks_attack_stat() {
-        let stat = get_attack_stat(&Rng::new(), card("AXBC"));
+        let stat = get_attack_stat(&Rng::new(), BS, card("AXBC"));
         assert_eq!(stat.digit, 0);
         assert_eq!(stat.value, 0xAF);
     }
 
     #[test]
     fn assault_type_attacker_picks_highest_stat() {
-        let stat = get_attack_stat(&Rng::new(), card("FA12"));
+        let stat = get_attack_stat(&Rng::new(), BS, card("FA12"));
         assert_eq!(stat.digit, 0);
         assert_eq!(stat.value, 0xFF);
 
-        let stat = get_attack_stat(&Rng::new(), card("AAB2"));
+        let stat = get_attack_stat(&Rng::new(), BS, card("AAB2"));
         assert_eq!(stat.digit, 2);
         assert_eq!(stat.value, 0xBF);
 
-        let stat = get_attack_stat(&Rng::new(), card("AA1F"));
+        let stat = get_attack_stat(&Rng::new(), BS, card("AA1F"));
         assert_eq!(stat.digit, 3);
         assert_eq!(stat.value, 0xFF);
 
         // when there is a tie between the attack stat and a defense stat, prefer the attack
-        assert_eq!(get_attack_stat(&Rng::new(), card("FAF0")).digit, 0);
-        assert_eq!(get_attack_stat(&Rng::new(), card("FA0F")).digit, 0);
-        assert_eq!(get_attack_stat(&Rng::new(), card("FAFF")).digit, 0);
+        assert_eq!(get_attack_stat(&Rng::new(), BS, card("FAF0")).digit, 0);
+        assert_eq!(get_attack_stat(&Rng::new(), BS, card("FA0F")).digit, 0);
+        assert_eq!(get_attack_stat(&Rng::new(), BS, card("FAFF")).digit, 0);
     }
 }
 
@@ -986,6 +989,8 @@ mod test_get_attack_stat {
 mod test_get_defense_stat {
     use super::*;
     use pretty_assertions::assert_eq;
+
+    const BS: BattleSystem = BattleSystem::Original;
 
     fn card(stats: &str) -> Card {
         Card::from_str(stats, Arrows::NONE)
@@ -995,7 +1000,7 @@ mod test_get_defense_stat {
     fn physical_type_attacker_picks_physical_defense() {
         let attacker = card("0P00");
         let defender = card("APBC");
-        let stat = get_defense_stat(&Rng::new(), attacker, defender);
+        let stat = get_defense_stat(&Rng::new(), BS, attacker, defender);
         assert_eq!(stat.digit, 2);
         assert_eq!(stat.value, 0xBF);
     }
@@ -1004,7 +1009,7 @@ mod test_get_defense_stat {
     fn magical_type_attacker_picks_magical_defense() {
         let attacker = card("0M00");
         let defender = card("APBC");
-        let stat = get_defense_stat(&Rng::new(), attacker, defender);
+        let stat = get_defense_stat(&Rng::new(), BS, attacker, defender);
         assert_eq!(stat.digit, 3);
         assert_eq!(stat.value, 0xCF);
     }
@@ -1013,11 +1018,11 @@ mod test_get_defense_stat {
     fn exploit_type_attacker_picks_lowest_defense() {
         let attacker = card("0X00");
 
-        let stat = get_defense_stat(&Rng::new(), attacker, card("APBC"));
+        let stat = get_defense_stat(&Rng::new(), BS, attacker, card("APBC"));
         assert_eq!(stat.digit, 2);
         assert_eq!(stat.value, 0xBF);
 
-        let stat = get_defense_stat(&Rng::new(), attacker, card("APCB"));
+        let stat = get_defense_stat(&Rng::new(), BS, attacker, card("APCB"));
         assert_eq!(stat.digit, 3);
         assert_eq!(stat.value, 0xBF);
     }
@@ -1026,15 +1031,15 @@ mod test_get_defense_stat {
     fn assault_type_attacker_picks_lowest_stat() {
         let attacker = card("0A00");
 
-        let stat = get_defense_stat(&Rng::new(), attacker, card("APBC"));
+        let stat = get_defense_stat(&Rng::new(), BS, attacker, card("APBC"));
         assert_eq!(stat.digit, 0);
         assert_eq!(stat.value, 0xAF);
 
-        let stat = get_defense_stat(&Rng::new(), attacker, card("BPAC"));
+        let stat = get_defense_stat(&Rng::new(), BS, attacker, card("BPAC"));
         assert_eq!(stat.digit, 2);
         assert_eq!(stat.value, 0xAF);
 
-        let stat = get_defense_stat(&Rng::new(), attacker, card("CPBA"));
+        let stat = get_defense_stat(&Rng::new(), BS, attacker, card("CPBA"));
         assert_eq!(stat.digit, 3);
         assert_eq!(stat.value, 0xAF);
     }

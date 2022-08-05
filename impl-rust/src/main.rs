@@ -11,6 +11,26 @@ const BOARD_SIZE: usize = 4 * 4;
 pub(crate) use game_log::{Entry, GameLog};
 pub(crate) use rng::Rng;
 
+#[derive(Debug, Clone, Copy)]
+enum BattleSystem {
+    Original,
+    Dice { sides: u8 },
+}
+
+impl BattleSystem {
+    fn roll(self, rng: &Rng, value: u8) -> u8 {
+        match self {
+            BattleSystem::Original => rng.u8(..=value),
+            BattleSystem::Dice { sides } => {
+                // get the high hex digit (n has the range 0x0-0xF)
+                let n = value >> 4;
+                // roll n dice and return the sum
+                (0..n).map(|_| rng.u8(1..=sides)).sum()
+            }
+        }
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq)]
 enum Player {
     P1,
@@ -150,8 +170,11 @@ struct BattleStat {
 }
 
 impl BattleStat {
-    fn resolve(self) -> u8 {
-        self.value - self.roll
+    fn resolve(self, battle_system: BattleSystem) -> u8 {
+        match battle_system {
+            BattleSystem::Original => self.value - self.roll,
+            BattleSystem::Dice { .. } => self.roll,
+        }
     }
 }
 
@@ -220,10 +243,11 @@ struct GameState {
     board: Board,
     p1_hand: Hand,
     p2_hand: Hand,
+    battle_system: BattleSystem,
 }
 
 impl GameState {
-    fn from_pre_game_state(pre_game_state: PreGameState) -> Self {
+    fn from_pre_game_state(pre_game_state: PreGameState, battle_system: BattleSystem) -> Self {
         let status = GameStatus::WaitingPlace;
         let turn = Player::P1;
 
@@ -244,6 +268,7 @@ impl GameState {
             board,
             p1_hand,
             p2_hand,
+            battle_system,
         }
     }
 
@@ -283,8 +308,27 @@ struct GameInputBattle {
     cell: usize,
 }
 
+fn parse_args() -> Result<BattleSystem, String> {
+    let mut battle_system = BattleSystem::Original;
+    for arg in std::env::args() {
+        if let Some((_, sides)) = arg.split_once("--dice=") {
+            let sides = if let Ok(sides) = sides.parse() {
+                sides
+            } else {
+                return Err(format!("{sides} isn't a valid dice value"));
+            };
+            battle_system = BattleSystem::Dice { sides }
+        } else if arg == "--dice" {
+            battle_system = BattleSystem::Dice { sides: 6 }
+        }
+    }
+    Ok(battle_system)
+}
+
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     use std::io::{BufRead, Write};
+
+    let battle_system = parse_args()?;
 
     let stdout = std::io::stdout();
     let mut out = stdout.lock();
@@ -332,7 +376,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     // game loop
-    let mut state = GameState::from_pre_game_state(state);
+    let mut state = GameState::from_pre_game_state(state, battle_system);
     let mut log = GameLog::new();
     loop {
         buf.clear();
