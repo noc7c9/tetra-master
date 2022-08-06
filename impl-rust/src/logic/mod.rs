@@ -4,7 +4,11 @@ use crate::{
     PreGameInput, PreGameState, PreGameStatus, Rng,
 };
 
-pub(crate) fn pre_game_next(state: &mut PreGameState, input: PreGameInput) -> Result<(), String> {
+pub(crate) fn pre_game_next(
+    state: &mut PreGameState,
+    log: &mut GameLog,
+    input: PreGameInput,
+) -> Result<(), String> {
     match state.status {
         PreGameStatus::P1Picking => {
             state.status = PreGameStatus::P2Picking {
@@ -15,10 +19,14 @@ pub(crate) fn pre_game_next(state: &mut PreGameState, input: PreGameInput) -> Re
             if input.pick == p1_pick {
                 return Err(format!("Hand {p1_pick} has already been picked"));
             }
-            state.status = PreGameStatus::Complete {
-                p1_pick,
-                p2_pick: input.pick,
-            };
+            let p2_pick = input.pick;
+            state.status = PreGameStatus::Complete { p1_pick, p2_pick };
+
+            let seed = state.rng.initial_seed();
+            log.append(Entry::pre_game_setup(seed, p1_pick, p2_pick));
+
+            // append the first next turn log event to ensure the turn tracking works properly
+            log.append(Entry::next_turn(Player::P1));
         }
         _ => unreachable!("next called after pre-game is complete"),
     }

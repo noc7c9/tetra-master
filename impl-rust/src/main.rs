@@ -212,13 +212,6 @@ impl PreGameState {
     fn is_complete(&self) -> bool {
         matches!(self.status, PreGameStatus::Complete { .. })
     }
-
-    fn get_picks(&self) -> (usize, usize) {
-        match self.status {
-            PreGameStatus::Complete { p1_pick, p2_pick } => (p1_pick, p2_pick),
-            _ => panic!("Cannot get picks from an incomplete PreGameState"),
-        }
-    }
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -249,10 +242,13 @@ impl GameState {
         let status = GameStatus::WaitingPlace;
         let turn = Player::P1;
 
-        let (p1_pick, p2_pick) = pre_game_state.get_picks();
         let rng = pre_game_state.rng;
         let board = pre_game_state.board;
 
+        let (p1_pick, p2_pick) = match pre_game_state.status {
+            PreGameStatus::Complete { p1_pick, p2_pick } => (p1_pick, p2_pick),
+            _ => panic!("Cannot get picks from an incomplete PreGameState"),
+        };
         let p1_hand = pre_game_state.hand_candidates[p1_pick];
         let p2_hand = pre_game_state.hand_candidates[p2_pick];
 
@@ -389,7 +385,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 Ok(input) => input,
             };
 
-            if let Err(err) = logic::pre_game_next(&mut state, input) {
+            if let Err(err) = logic::pre_game_next(&mut state, &mut log, input) {
                 println!("ERR: {}", err);
             } else {
                 // input was correctly evaluated, break input loop
@@ -397,10 +393,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             }
         }
     }
-
-    let seed = state.rng.initial_seed();
-    let (p1_pick, p2_pick) = state.get_picks();
-    log.append(Entry::pre_game_setup(seed, p1_pick, p2_pick));
 
     // game loop
     let mut state = GameState::from_pre_game_state(state, args.battle_system);
