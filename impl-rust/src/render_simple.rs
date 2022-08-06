@@ -271,7 +271,13 @@ fn push_game_log(o: &mut String, log: &GameLog, battle_system: BattleSystem) -> 
                 p1_pick,
                 p2_pick,
             } => {
-                writeln!(o, "The RNG seed is {seed}")?;
+                match battle_system {
+                    BattleSystem::Original => writeln!(o, "Using the Original battle system")?,
+                    BattleSystem::Dice { sides } => {
+                        writeln!(o, "Using the Dice battle system with {sides} sided die")?
+                    }
+                }
+                writeln!(o, "           │ The RNG seed is {seed}")?;
                 write!(o, "           │ Player 1 picked hand {p1_pick}, ")?;
                 write!(o, "Player 2 picked hand {p2_pick}")?;
             }
