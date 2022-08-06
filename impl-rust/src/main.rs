@@ -205,9 +205,8 @@ struct PreGameState {
 }
 
 impl PreGameState {
-    fn new() -> Self {
+    fn with_rng(rng: Rng) -> Self {
         let status = PreGameStatus::P1Picking;
-        let rng = Rng::new();
         let board = rng::random_board(&rng);
         let hand_candidates = rng::random_hand_candidates(&rng);
 
@@ -316,27 +315,37 @@ struct GameInputBattle {
 struct Args {
     battle_system: BattleSystem,
     simple_ui: bool,
+    seed: Option<u64>,
 }
 
 fn parse_args() -> Result<Args, String> {
     let mut args = Args {
         battle_system: BattleSystem::Original,
         simple_ui: false,
+        seed: None,
     };
     for arg in std::env::args() {
+        // --dice
         if let Some((_, sides)) = arg.split_once("--dice=") {
-            let sides = if let Ok(sides) = sides.parse() {
-                sides
+            args.battle_system = if let Ok(sides) = sides.parse() {
+                BattleSystem::Dice { sides }
             } else {
                 return Err(format!("{sides} isn't a valid dice value"));
             };
-            args.battle_system = BattleSystem::Dice { sides }
         } else if arg == "--dice" {
             args.battle_system = BattleSystem::Dice { sides: 6 }
         }
-
-        if arg == "--simple-ui" {
+        // --simple-ui
+        else if arg == "--simple-ui" {
             args.simple_ui = true;
+        }
+        // --seed
+        else if let Some((_, seed)) = arg.split_once("--seed=") {
+            args.seed = if let Ok(seed) = seed.parse() {
+                Some(seed)
+            } else {
+                return Err(format!("{seed} isn't a valid seed value"));
+            };
         }
     }
     Ok(args)
@@ -357,7 +366,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut log = GameLog::new();
 
     // pre-game loop
-    let mut state = PreGameState::new();
+    let mut state = PreGameState::with_rng(args.seed.map_or_else(Rng::new, Rng::with_seed));
     loop {
         buf.clear();
         if args.simple_ui {
