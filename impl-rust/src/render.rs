@@ -28,20 +28,22 @@ pub(crate) fn pre_game_screen(o: &mut String, state: &PreGameState) -> Result {
                 continue;
             }
 
-            writeln!(o, "Hand {}", idx)?;
+            writeln!(o, "Hand {idx}")?;
             push_hand(o, None, hand)?;
         }
         Ok(())
     }
 
+    let p1 = DisplayPlayer(Player::P1);
+    let p2 = DisplayPlayer(Player::P2);
     match state.status {
         PreGameStatus::P1Picking => {
             push_board(o, &state.board)?;
 
             render_hand_candidates(o, state, None)?;
 
-            write!(o, "Player 1 pick a hand ")?;
-            writeln!(o, "{GRAY}(Player 2 will pick next){RESET}")?;
+            write!(o, "{p1} pick a hand ")?;
+            writeln!(o, "{GRAY}({p2} will pick next){RESET}")?;
         }
         PreGameStatus::P2Picking { p1_pick } => {
             push_hand(o, Some(Player::P1), &state.hand_candidates[p1_pick])?;
@@ -50,7 +52,7 @@ pub(crate) fn pre_game_screen(o: &mut String, state: &PreGameState) -> Result {
 
             render_hand_candidates(o, state, Some(p1_pick))?;
 
-            writeln!(o, "Player 2 pick a hand?")?;
+            writeln!(o, "{p2} pick a hand?")?;
         }
         PreGameStatus::Complete { p1_pick, p2_pick } => {
             push_hand(o, Some(Player::P1), &state.hand_candidates[p1_pick])?;
@@ -321,31 +323,31 @@ fn push_game_log(o: &mut String, log: &GameLog, battle_system: BattleSystem) -> 
                         write!(o, "{att_color}Attacker{RESET} ")?;
                         write!(o, "({att_value}) rolled {att_roll}, ")?;
 
-                        write!(o, "{def_color}Defender{RESET} ",)?;
+                        write!(o, "{def_color}Defender{RESET} ")?;
                         writeln!(o, "({def_value}) rolled {def_roll}")?;
                     }
                     BattleSystem::Dice { sides } => {
-                        write!(o, "{att_color}Attacker{RESET} ",)?;
+                        write!(o, "{att_color}Attacker{RESET} ")?;
                         write!(o, "({}d{sides}) rolled {att_roll}, ", att_value >> 4)?;
 
-                        write!(o, "{def_color}Defender{RESET} ",)?;
+                        write!(o, "{def_color}Defender{RESET} ")?;
                         writeln!(o, "({}d{sides}) rolled {def_roll}", def_value >> 4)?;
                     }
                 }
 
                 match result.winner {
                     BattleWinner::Attacker => {
-                        write!(o, "           │         {}Attacker wins{RESET} ", att_color)?;
-                        write!(o, "({} > {})", att_resolve, def_resolve)?;
+                        write!(o, "           │         {att_color}Attacker wins{RESET} ")?;
+                        write!(o, "({att_resolve} > {def_resolve})")?;
                     }
                     BattleWinner::Defender => {
-                        write!(o, "           │         {}Defender wins{RESET} ", def_color)?;
-                        write!(o, "({} < {})", att_resolve, def_resolve)?;
+                        write!(o, "           │         {def_color}Defender wins{RESET} ")?;
+                        write!(o, "({att_resolve} < {def_resolve})")?;
                     }
                     BattleWinner::None => {
                         write!(o, "           │         Draw, ")?;
-                        write!(o, "{}defender wins{RESET} ", def_color)?;
-                        write!(o, "by default ({} = {})", att_resolve, def_resolve)?;
+                        write!(o, "{def_color}defender wins{RESET} ")?;
+                        write!(o, "by default ({att_resolve} = {def_resolve})")?;
                     }
                 }
             }
