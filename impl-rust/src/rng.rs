@@ -1,6 +1,6 @@
 use crate::{Arrows, Board, Card, CardType, Cell, Hand, HAND_CANDIDATES, HAND_SIZE};
 
-type Seed = u64;
+pub(crate) type Seed = u64;
 
 /// Wrapper around fastrand::Rng that keeps track of the initial seed
 #[derive(Debug, Clone)]

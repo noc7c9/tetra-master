@@ -246,7 +246,7 @@ fn push_board(o: &mut String, board: &Board) -> Result {
 fn push_game_log(o: &mut String, log: &GameLog, battle_system: BattleSystem) -> Result {
     writeln!(o, "                    ══ GAMELOG ══ ")?;
 
-    let mut curr_turn_number = 1;
+    let mut curr_turn_number = 0;
     let mut print_prefix = true;
     for entry in log.iter() {
         if let Entry::NextTurn { .. } = entry {
@@ -266,6 +266,16 @@ fn push_game_log(o: &mut String, log: &GameLog, battle_system: BattleSystem) -> 
         write!(o, "│ ")?;
 
         match entry {
+            Entry::PreGameSetup {
+                seed,
+                p1_pick,
+                p2_pick,
+            } => {
+                writeln!(o, "The RNG seed is {seed}")?;
+                write!(o, "           │ Player 1 picked hand {p1_pick}, ")?;
+                write!(o, "Player 2 picked hand {p2_pick}")?;
+            }
+
             Entry::PlaceCard { card, cell } => {
                 let stats = Stats::from(card);
                 write!(o, "Placed  {stats} on cell {cell:X}")?;

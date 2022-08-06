@@ -1,7 +1,12 @@
-use crate::{BattleResult, OwnedCard, Player};
+use crate::{BattleResult, OwnedCard, Player, Seed};
 
 #[derive(Debug, PartialEq)]
 pub(crate) enum Entry {
+    PreGameSetup {
+        seed: Seed,
+        p1_pick: usize,
+        p2_pick: usize,
+    },
     NextTurn {
         turn: Player,
     },
@@ -23,6 +28,14 @@ pub(crate) enum Entry {
 }
 
 impl Entry {
+    pub(crate) fn pre_game_setup(seed: Seed, p1_pick: usize, p2_pick: usize) -> Self {
+        Entry::PreGameSetup {
+            seed,
+            p1_pick,
+            p2_pick,
+        }
+    }
+
     pub(crate) fn next_turn(turn: Player) -> Self {
         Entry::NextTurn { turn }
     }
