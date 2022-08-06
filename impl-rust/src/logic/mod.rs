@@ -141,6 +141,7 @@ fn resolve_interactions(state: &mut GameState, log: &mut GameLog, attacker_cell:
 
     // handle multiple possible battles
     if defenders.len() > 1 {
+        defenders.sort_unstable_by_key(|(cell, _)| *cell);
         state.status = GameStatus::WaitingBattle {
             attacker_cell,
             choices: defenders,
