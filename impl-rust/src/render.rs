@@ -365,6 +365,7 @@ fn push_game_log(o: &mut String, log: &GameLog, battle_system: BattleSystem) -> 
 }
 
 fn push_prompt(o: &mut String, state: &GameState) -> Result {
+    writeln!(o, "           │ ")?;
     let prefix = match state.turn {
         Player::P1 => "",
         Player::P2 => " ",
