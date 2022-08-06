@@ -279,6 +279,7 @@ fn push_game_log(o: &mut String, log: &GameLog, battle_system: BattleSystem) -> 
             } => {
                 let prefix = if *via_combo { "Combo'd " } else { "Flipped " };
                 let stats = Stats::from(card);
+                let to = DisplayPlayer(*to);
                 write!(o, "{prefix}{stats} on cell {cell:X} to {to}")?;
             }
 
@@ -350,7 +351,7 @@ fn push_prompt(o: &mut String, state: &GameState) -> Result {
         Player::P1 => "",
         Player::P2 => " ",
     };
-    write!(o, "{prefix}Next: {} │ ", state.turn)?;
+    write!(o, "{prefix}Next: {} │ ", DisplayPlayer(state.turn))?;
 
     match &state.status {
         GameStatus::WaitingPlace => {
@@ -375,7 +376,7 @@ fn push_game_over(o: &mut String, winner: Option<Player>) -> Result {
     write!(o, " {WHITE_BOLD}Game Over{RESET} │ ")?;
     match winner {
         Some(winner) => {
-            writeln!(o, "{winner} Wins")?;
+            writeln!(o, "{} Wins", DisplayPlayer(winner))?;
         }
         None => {
             writeln!(o, "It was a draw!")?;
@@ -424,13 +425,15 @@ impl OptionPlayerExt for Option<Player> {
     }
 }
 
-impl std::fmt::Display for Player {
+struct DisplayPlayer(Player);
+
+impl std::fmt::Display for DisplayPlayer {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let name = match self {
+        let name = match self.0 {
             Player::P1 => "Blue",
             Player::P2 => "Red",
         };
-        write!(f, "{}{name}{RESET}", self.to_color())
+        write!(f, "{}{name}{RESET}", self.0.to_color())
     }
 }
 

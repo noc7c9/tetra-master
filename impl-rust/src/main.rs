@@ -2,6 +2,7 @@ mod game_log;
 mod input;
 mod logic;
 mod render;
+mod render_simple;
 mod rng;
 
 const HAND_CANDIDATES: usize = 3;
@@ -308,8 +309,16 @@ struct GameInputBattle {
     cell: usize,
 }
 
-fn parse_args() -> Result<BattleSystem, String> {
-    let mut battle_system = BattleSystem::Original;
+struct Args {
+    battle_system: BattleSystem,
+    simple_ui: bool,
+}
+
+fn parse_args() -> Result<Args, String> {
+    let mut args = Args {
+        battle_system: BattleSystem::Original,
+        simple_ui: false,
+    };
     for arg in std::env::args() {
         if let Some((_, sides)) = arg.split_once("--dice=") {
             let sides = if let Ok(sides) = sides.parse() {
@@ -317,18 +326,22 @@ fn parse_args() -> Result<BattleSystem, String> {
             } else {
                 return Err(format!("{sides} isn't a valid dice value"));
             };
-            battle_system = BattleSystem::Dice { sides }
+            args.battle_system = BattleSystem::Dice { sides }
         } else if arg == "--dice" {
-            battle_system = BattleSystem::Dice { sides: 6 }
+            args.battle_system = BattleSystem::Dice { sides: 6 }
+        }
+
+        if arg == "--simple-ui" {
+            args.simple_ui = true;
         }
     }
-    Ok(battle_system)
+    Ok(args)
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     use std::io::{BufRead, Write};
 
-    let battle_system = parse_args()?;
+    let args = parse_args()?;
 
     let stdout = std::io::stdout();
     let mut out = stdout.lock();
@@ -341,7 +354,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut state = PreGameState::with_seed(rng::random_seed());
     loop {
         buf.clear();
-        render::pre_game_screen(&mut buf, &state)?;
+        if args.simple_ui {
+            render_simple::pre_game_screen(&mut buf, &state)?;
+        } else {
+            render::pre_game_screen(&mut buf, &state)?;
+        }
         out.write_all(buf.as_bytes())?;
         out.flush()?;
 
@@ -376,11 +393,15 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     // game loop
-    let mut state = GameState::from_pre_game_state(state, battle_system);
+    let mut state = GameState::from_pre_game_state(state, args.battle_system);
     let mut log = GameLog::new();
     loop {
         buf.clear();
-        render::game_screen(&mut buf, &log, &state)?;
+        if args.simple_ui {
+            render_simple::game_screen(&mut buf, &log, &state)?;
+        } else {
+            render::game_screen(&mut buf, &log, &state)?;
+        }
         out.write_all(buf.as_bytes())?;
         out.flush()?;
 
