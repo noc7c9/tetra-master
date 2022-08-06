@@ -304,12 +304,12 @@ fn update_game_log_on_battles() {
                         attack_stat: BattleStat {
                             digit: 0,
                             value: 0x1F,
-                            roll: 17
+                            roll: 14
                         },
                         defense_stat: BattleStat {
                             digit: 2,
                             value: 0x1F,
-                            roll: 31
+                            roll: 0
                         },
                     }
                 ),
@@ -342,12 +342,12 @@ fn update_game_log_on_battles() {
                         attack_stat: BattleStat {
                             digit: 0,
                             value: 0x1F,
-                            roll: 28
+                            roll: 3
                         },
                         defense_stat: BattleStat {
                             digit: 2,
                             value: 0x1F,
-                            roll: 3
+                            roll: 28
                         },
                     }
                 ),
@@ -380,12 +380,12 @@ fn update_game_log_on_battles() {
                         attack_stat: BattleStat {
                             digit: 0,
                             value: 0x1F,
-                            roll: 23
+                            roll: 8
                         },
                         defense_stat: BattleStat {
                             digit: 2,
                             value: 0x1F,
-                            roll: 23
+                            roll: 8
                         },
                     }
                 ),
@@ -432,12 +432,12 @@ fn flip_other_undefended_cards_after_attacker_wins_battle() {
                     attack_stat: BattleStat {
                         digit: 0,
                         value: 0xFF,
-                        roll: 142
+                        roll: 113
                     },
                     defense_stat: BattleStat {
                         digit: 2,
                         value: 0x0F,
-                        roll: 15
+                        roll: 0
                     },
                 }
             ),
@@ -486,12 +486,12 @@ fn dont_flip_other_undefended_cards_after_attacker_loses_battle() {
                     attack_stat: BattleStat {
                         digit: 0,
                         value: 0x0F,
-                        roll: 8
+                        roll: 7
                     },
                     defense_stat: BattleStat {
                         digit: 2,
                         value: 0xFF,
-                        roll: 109
+                        roll: 146
                     },
                 }
             ),
@@ -580,12 +580,12 @@ fn continue_after_battle_choice_is_given() {
                     attack_stat: BattleStat {
                         digit: 0,
                         value: 0x1F,
-                        roll: 17
+                        roll: 14
                     },
                     defense_stat: BattleStat {
                         digit: 2,
                         value: 0x1F,
-                        roll: 31
+                        roll: 0
                     },
                 }
             ),
@@ -598,12 +598,12 @@ fn continue_after_battle_choice_is_given() {
                     attack_stat: BattleStat {
                         digit: 0,
                         value: 0x1F,
-                        roll: 17
+                        roll: 14
                     },
                     defense_stat: BattleStat {
                         digit: 2,
                         value: 0x1F,
-                        roll: 18
+                        roll: 13
                     },
                 }
             ),
@@ -745,12 +745,12 @@ fn combo_flip_cards_that_are_pointed_to_by_defender_if_they_lose() {
                     attack_stat: BattleStat {
                         digit: 0,
                         value: 0xFF,
-                        roll: 142
+                        roll: 113
                     },
                     defense_stat: BattleStat {
                         digit: 2,
                         value: 0x0F,
-                        roll: 15
+                        roll: 0
                     },
                 }
             ),
@@ -797,12 +797,12 @@ fn combo_flip_cards_that_are_pointed_to_by_attacker_if_they_lose() {
                     attack_stat: BattleStat {
                         digit: 0,
                         value: 0x0F,
-                        roll: 8
+                        roll: 7
                     },
                     defense_stat: BattleStat {
                         digit: 2,
                         value: 0xFF,
-                        roll: 109
+                        roll: 146
                     },
                 }
             ),
@@ -848,12 +848,12 @@ fn dont_flip_back_undefended_cards_if_they_are_flipped_due_to_combos() {
                     attack_stat: BattleStat {
                         digit: 0,
                         value: 0xFF,
-                        roll: 142
+                        roll: 113
                     },
                     defense_stat: BattleStat {
                         digit: 2,
                         value: 0x0F,
-                        roll: 15
+                        roll: 0
                     },
                 }
             ),

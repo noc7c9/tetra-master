@@ -21,7 +21,7 @@ enum BattleSystem {
 impl BattleSystem {
     fn roll(self, rng: &Rng, value: u8) -> u8 {
         match self {
-            BattleSystem::Original => rng.u8(..=value),
+            BattleSystem::Original => value - rng.u8(..=value),
             BattleSystem::Dice { sides } => {
                 // get the high hex digit (n has the range 0x0-0xF)
                 let n = value >> 4;
@@ -168,15 +168,6 @@ struct BattleStat {
     digit: u8,
     value: u8,
     roll: u8,
-}
-
-impl BattleStat {
-    fn resolve(self, battle_system: BattleSystem) -> u8 {
-        match battle_system {
-            BattleSystem::Original => self.value - self.roll,
-            BattleSystem::Dice { .. } => self.roll,
-        }
-    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]

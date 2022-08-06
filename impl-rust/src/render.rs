@@ -315,12 +315,10 @@ fn push_game_log(o: &mut String, log: &GameLog, battle_system: BattleSystem) -> 
                 let att_color = attacker.owner.to_color();
                 let att_value = result.attack_stat.value;
                 let att_roll = result.attack_stat.roll;
-                let att_resolve = result.attack_stat.resolve(battle_system);
 
                 let def_color = defender.owner.to_color();
                 let def_value = result.defense_stat.value;
                 let def_roll = result.defense_stat.roll;
-                let def_resolve = result.defense_stat.resolve(battle_system);
 
                 write!(o, "           {RESET}│         ")?;
 
@@ -344,16 +342,16 @@ fn push_game_log(o: &mut String, log: &GameLog, battle_system: BattleSystem) -> 
                 match result.winner {
                     BattleWinner::Attacker => {
                         write!(o, "           │         {att_color}Attacker wins{RESET} ")?;
-                        write!(o, "({att_resolve} > {def_resolve})")?;
+                        write!(o, "({att_roll} > {def_roll})")?;
                     }
                     BattleWinner::Defender => {
                         write!(o, "           │         {def_color}Defender wins{RESET} ")?;
-                        write!(o, "({att_resolve} < {def_resolve})")?;
+                        write!(o, "({att_roll} < {def_roll})")?;
                     }
                     BattleWinner::None => {
                         write!(o, "           │         Draw, ")?;
                         write!(o, "{def_color}defender wins{RESET} ")?;
-                        write!(o, "by default ({att_resolve} = {def_resolve})")?;
+                        write!(o, "by default ({att_roll} = {def_roll})")?;
                     }
                 }
             }

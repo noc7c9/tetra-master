@@ -318,11 +318,8 @@ fn calculate_battle_result(state: &GameState, attacker: Card, defender: Card) ->
     let attack_stat = get_attack_stat(&state.rng, battle_system, attacker);
     let defense_stat = get_defense_stat(&state.rng, battle_system, attacker, defender);
 
-    let att = attack_stat.resolve(battle_system);
-    let def = defense_stat.resolve(battle_system);
-
     use std::cmp::Ordering;
-    let winner = match att.cmp(&def) {
+    let winner = match attack_stat.roll.cmp(&defense_stat.roll) {
         Ordering::Greater => BattleWinner::Attacker,
         Ordering::Less => BattleWinner::Defender,
         Ordering::Equal => BattleWinner::None,
