@@ -263,7 +263,7 @@ fn push_game_log(o: &mut String, log: &GameLog, battle_system: BattleSystem) -> 
             write!(o, "   Turn 10 ")?;
         }
         print_prefix = false;
-        write!(o, "│ ")?;
+        write!(o, "| ")?;
 
         match entry {
             Entry::PreGameSetup {
@@ -277,8 +277,8 @@ fn push_game_log(o: &mut String, log: &GameLog, battle_system: BattleSystem) -> 
                         writeln!(o, "Using the Dice battle system with {sides} sided die")?
                     }
                 }
-                writeln!(o, "           │ The RNG seed is {seed}")?;
-                write!(o, "           │ Player 1 picked hand {p1_pick}, ")?;
+                writeln!(o, "           | The RNG seed is {seed}")?;
+                write!(o, "           | Player 1 picked hand {p1_pick}, ")?;
                 write!(o, "Player 2 picked hand {p2_pick}")?;
             }
 
@@ -314,7 +314,7 @@ fn push_game_log(o: &mut String, log: &GameLog, battle_system: BattleSystem) -> 
                 let def_value = result.defense_stat.value;
                 let def_roll = result.defense_stat.roll;
 
-                write!(o, "           │         ")?;
+                write!(o, "           |         ")?;
 
                 match battle_system {
                     BattleSystem::Original => {
@@ -332,15 +332,15 @@ fn push_game_log(o: &mut String, log: &GameLog, battle_system: BattleSystem) -> 
 
                 match result.winner {
                     BattleWinner::Attacker => {
-                        write!(o, "           │         Attacker wins ")?;
+                        write!(o, "           |         Attacker wins ")?;
                         write!(o, "({att_roll} > {def_roll})")?;
                     }
                     BattleWinner::Defender => {
-                        write!(o, "           │         Defender wins ")?;
+                        write!(o, "           |         Defender wins ")?;
                         write!(o, "({att_roll} < {def_roll})")?;
                     }
                     BattleWinner::None => {
-                        write!(o, "           │         Draw, ")?;
+                        write!(o, "           |         Draw, ")?;
                         write!(o, "defender wins ")?;
                         write!(o, "by default ({att_roll} = {def_roll})")?;
                     }
@@ -356,7 +356,7 @@ fn push_game_log(o: &mut String, log: &GameLog, battle_system: BattleSystem) -> 
 }
 
 fn push_prompt(o: &mut String, state: &GameState) -> Result {
-    write!(o, "  Next: {} │ ", DisplayPlayer(state.turn))?;
+    write!(o, "  Next: {} | ", DisplayPlayer(state.turn))?;
 
     match &state.status {
         GameStatus::WaitingPlace => {
@@ -377,7 +377,7 @@ fn push_prompt(o: &mut String, state: &GameState) -> Result {
 }
 
 fn push_game_over(o: &mut String, winner: Option<Player>) -> Result {
-    write!(o, " Game Over │ ")?;
+    write!(o, " Game Over | ")?;
     match winner {
         Some(winner) => {
             writeln!(o, "{} Wins", DisplayPlayer(winner))?;
