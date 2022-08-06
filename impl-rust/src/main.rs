@@ -205,9 +205,9 @@ struct PreGameState {
 }
 
 impl PreGameState {
-    fn with_seed(seed: u64) -> Self {
+    fn new() -> Self {
         let status = PreGameStatus::P1Picking;
-        let rng = Rng::with_seed(seed);
+        let rng = Rng::new();
         let board = rng::random_board(&rng);
         let hand_candidates = rng::random_hand_candidates(&rng);
 
@@ -351,7 +351,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut buf = String::new();
 
     // pre-game loop
-    let mut state = PreGameState::with_seed(rng::random_seed());
+    let mut state = PreGameState::new();
     loop {
         buf.clear();
         if args.simple_ui {

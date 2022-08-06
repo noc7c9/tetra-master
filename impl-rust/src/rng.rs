@@ -1,9 +1,43 @@
 use crate::{Arrows, Board, Card, CardType, Cell, Hand, HAND_CANDIDATES, HAND_SIZE};
 
-pub(crate) type Rng = fastrand::Rng;
+type Seed = u64;
 
-pub(crate) fn random_seed() -> u64 {
-    fastrand::u64(..)
+/// Wrapper around fastrand::Rng that keeps track of the initial seed
+#[derive(Debug, Clone)]
+pub(crate) struct Rng {
+    initial_seed: Seed,
+    rng: fastrand::Rng,
+}
+
+impl Rng {
+    pub(crate) fn new() -> Self {
+        Self::with_seed(fastrand::u64(..))
+    }
+
+    pub(crate) fn with_seed(initial_seed: Seed) -> Self {
+        Self {
+            initial_seed,
+            rng: fastrand::Rng::with_seed(initial_seed),
+        }
+    }
+
+    pub(crate) fn initial_seed(&self) -> Seed {
+        self.initial_seed
+    }
+
+    // passthrough method
+
+    pub(crate) fn f32(&self) -> f32 {
+        self.rng.f32()
+    }
+
+    pub(crate) fn u8(&self, range: impl std::ops::RangeBounds<u8>) -> u8 {
+        self.rng.u8(range)
+    }
+
+    pub(crate) fn usize(&self, range: impl std::ops::RangeBounds<usize>) -> usize {
+        self.rng.usize(range)
+    }
 }
 
 pub(crate) fn random_board(rng: &Rng) -> Board {
