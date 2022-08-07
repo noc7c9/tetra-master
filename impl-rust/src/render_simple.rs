@@ -4,6 +4,109 @@ use crate::{
 };
 use std::fmt::Write;
 
+// src: figlet font, Alligator2 by Daniel Wiz. AKA Merlin Greywolf <merlin@brahms.udel.edu>
+const NUMBERS: [[&str; 7]; 11] = [
+    [
+        "    :::::::",
+        "   :+:   :+:",
+        "   +:+  :+:+",
+        "   +#+ + +:+",
+        "   +#+#  +#+",
+        "   #+#   #+#",
+        "    #######",
+    ],
+    [
+        "     :::",
+        "   :+:+:",
+        "     +:+",
+        "     +#+",
+        "     +#+",
+        "     #+#",
+        "   #######",
+    ],
+    [
+        "    ::::::::",
+        "   :+:    :+:",
+        "         +:+",
+        "       +#+",
+        "     +#+",
+        "    #+#",
+        "   ##########",
+    ],
+    [
+        "    ::::::::",
+        "   :+:    :+:",
+        "          +:+",
+        "       +#++:",
+        "          +#+",
+        "   #+#    #+#",
+        "    ########",
+    ],
+    [
+        "       :::",
+        "      :+:",
+        "     +:+ +:+",
+        "    +#+  +:+",
+        "   +#+#+#+#+#+",
+        "         #+#",
+        "         ###",
+    ],
+    [
+        "   ::::::::::",
+        "   :+:    :+:",
+        "   +:+",
+        "   +#++:++#+",
+        "          +#+",
+        "   #+#    #+#",
+        "    ########",
+    ],
+    [
+        "    ::::::::",
+        "   :+:    :+:",
+        "   +:+",
+        "   +#++:++#+",
+        "   +#+    +#+",
+        "   #+#    #+#",
+        "    ########",
+    ],
+    [
+        "   :::::::::::",
+        "   :+:     :+:",
+        "          +:+",
+        "         +#+",
+        "        +#+",
+        "       #+#",
+        "       ###",
+    ],
+    [
+        "    ::::::::",
+        "   :+:    :+:",
+        "   +:+    +:+",
+        "    +#++:++#",
+        "   +#+    +#+",
+        "   #+#    #+#",
+        "    ########",
+    ],
+    [
+        "    ::::::::",
+        "   :+:    :+:",
+        "   +:+    +:+",
+        "    +#++:++#+",
+        "          +#+",
+        "   #+#    #+#",
+        "    ########",
+    ],
+    [
+        "     :::  :::::::",
+        "   :+:+: :+:   :+:",
+        "     +:+ +:+  :+:+",
+        "     +#+ +#+ + +:+",
+        "     +#+ +#+#  +#+",
+        "     #+# #+#   #+#",
+        "   ##############",
+    ],
+];
+
 type Result = std::result::Result<(), std::fmt::Error>;
 
 pub(crate) fn pre_game_screen(o: &mut String, state: &PreGameState) -> Result {
@@ -156,6 +259,12 @@ fn push_hand(o: &mut String, hand: &[Option<Card>; 5]) -> Result {
 fn push_board(o: &mut String, board: &Board) -> Result {
     writeln!(o, "   +-----------+-----------+-----------+-----------+")?;
 
+    let (p1_card_count, p2_card_count) = board.iter().fold((0, 0), |(p1, p2), cell| match cell {
+        Cell::Card(OwnedCard { owner, .. }) if *owner == Player::P1 => (p1 + 1, p2),
+        Cell::Card(OwnedCard { owner, .. }) if *owner == Player::P2 => (p1, p2 + 1),
+        _ => (p1, p2),
+    });
+
     for (idx, &row) in [[0, 1, 2, 3], [4, 5, 6, 7], [8, 9, 10, 11], [12, 13, 14, 15]]
         .iter()
         .enumerate()
@@ -171,6 +280,12 @@ fn push_board(o: &mut String, board: &Board) -> Result {
                 Cell::Empty => write!(o, "           ")?,
             }
             write!(o, "|")?;
+        }
+        if idx == 1 {
+            write!(o, "{}", NUMBERS[p1_card_count][4])?;
+        }
+        if idx == 3 {
+            write!(o, "{}", NUMBERS[p2_card_count][4])?;
         }
 
         // line 2 in row
@@ -188,9 +303,15 @@ fn push_board(o: &mut String, board: &Board) -> Result {
             }
             write!(o, "|")?;
         }
-        write!(o, "\n   |")?;
+        if idx == 1 {
+            write!(o, "{}", NUMBERS[p1_card_count][5])?;
+        }
+        if idx == 3 {
+            write!(o, "{}", NUMBERS[p2_card_count][5])?;
+        }
 
         // line 3 in row
+        write!(o, "\n   |")?;
         for j in row {
             match board[j] {
                 Cell::Card(OwnedCard { card, .. }) => {
@@ -203,6 +324,18 @@ fn push_board(o: &mut String, board: &Board) -> Result {
                 Cell::Empty => write!(o, "     {j:X}     ")?,
             }
             write!(o, "|")?;
+        }
+        if idx == 0 {
+            write!(o, "{}", NUMBERS[p1_card_count][0])?;
+        }
+        if idx == 1 {
+            write!(o, "{}", NUMBERS[p1_card_count][6])?;
+        }
+        if idx == 2 {
+            write!(o, "{}", NUMBERS[p2_card_count][0])?;
+        }
+        if idx == 3 {
+            write!(o, "{}", NUMBERS[p2_card_count][6])?;
         }
 
         // line 4 in row
@@ -220,9 +353,15 @@ fn push_board(o: &mut String, board: &Board) -> Result {
             }
             write!(o, "|")?;
         }
-        write!(o, "\n   |")?;
+        if idx == 0 {
+            write!(o, "{}", NUMBERS[p1_card_count][1])?;
+        }
+        if idx == 2 {
+            write!(o, "{}", NUMBERS[p2_card_count][1])?;
+        }
 
         // line 5 in row
+        write!(o, "\n   |")?;
         for j in row {
             match &board[j] {
                 Cell::Card(OwnedCard { owner, .. }) => {
@@ -233,9 +372,22 @@ fn push_board(o: &mut String, board: &Board) -> Result {
             }
             write!(o, "|")?;
         }
+        if idx == 0 {
+            write!(o, "{}", NUMBERS[p1_card_count][2])?;
+        }
+        if idx == 2 {
+            write!(o, "{}", NUMBERS[p2_card_count][2])?;
+        }
 
         if idx != 3 {
-            writeln!(o, "\n   +-----------+-----------+-----------+-----------+")?;
+            write!(o, "\n   +-----------+-----------+-----------+-----------+")?;
+            if idx == 0 {
+                write!(o, "{}", NUMBERS[p1_card_count][3])?;
+            }
+            if idx == 2 {
+                write!(o, "{}", NUMBERS[p2_card_count][3])?;
+            }
+            writeln!(o)?;
         }
     }
 
