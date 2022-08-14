@@ -5,12 +5,18 @@ mod render;
 mod render_simple;
 mod rng;
 
+use game_log::{Entry, GameLog};
+use rng::{Rng, Seed};
+
+const MAX_NUMBER_OF_BLOCKS: u8 = 6;
 const HAND_CANDIDATES: usize = 3;
 const HAND_SIZE: usize = 5;
 const BOARD_SIZE: usize = 4 * 4;
 
-pub(crate) use game_log::{Entry, GameLog};
-pub(crate) use rng::{Rng, Seed};
+type Hand = [Option<Card>; HAND_SIZE];
+type HandCandidate = [Card; HAND_SIZE];
+type HandCandidates = [HandCandidate; HAND_CANDIDATES];
+type Board = [Cell; BOARD_SIZE];
 
 #[derive(Debug, Clone, Copy)]
 enum BattleSystem {
@@ -190,8 +196,9 @@ struct BattleResult {
     defense_stat: BattleStat,
 }
 
-type Hand = [Option<Card>; HAND_SIZE];
-type Board = [Cell; BOARD_SIZE];
+/*****************************************************************************************
+ * PreGame Types
+ */
 
 #[derive(Debug, Clone, PartialEq)]
 enum PreGameStatus {
@@ -205,7 +212,7 @@ struct PreGameState {
     status: PreGameStatus,
     rng: Rng,
     board: Board,
-    hand_candidates: [Hand; HAND_CANDIDATES],
+    hand_candidates: HandCandidates,
 }
 
 impl PreGameState {
@@ -226,6 +233,15 @@ impl PreGameState {
         matches!(self.status, PreGameStatus::Complete { .. })
     }
 }
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+struct PreGameInput {
+    pick: usize,
+}
+
+/*****************************************************************************************
+ * Game Types
+ */
 
 #[derive(Debug, Clone, PartialEq)]
 enum GameStatus {
@@ -252,6 +268,10 @@ struct GameState {
 
 impl GameState {
     fn from_pre_game_state(pre_game_state: PreGameState, battle_system: BattleSystem) -> Self {
+        fn convert_hand([a, b, c, d, e]: HandCandidate) -> Hand {
+            [Some(a), Some(b), Some(c), Some(d), Some(e)]
+        }
+
         let status = GameStatus::WaitingPlace;
         let turn = Player::P1;
 
@@ -262,8 +282,8 @@ impl GameState {
             PreGameStatus::Complete { p1_pick, p2_pick } => (p1_pick, p2_pick),
             _ => panic!("Cannot get picks from an incomplete PreGameState"),
         };
-        let p1_hand = pre_game_state.hand_candidates[p1_pick];
-        let p2_hand = pre_game_state.hand_candidates[p2_pick];
+        let p1_hand = convert_hand(pre_game_state.hand_candidates[p1_pick]);
+        let p2_hand = convert_hand(pre_game_state.hand_candidates[p2_pick]);
 
         Self {
             status,
@@ -290,11 +310,6 @@ impl GameState {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq)]
-struct PreGameInput {
-    pick: usize,
-}
-
 #[derive(Debug, Clone, Copy)]
 enum GameInput {
     Place(GameInputPlace),
@@ -311,6 +326,10 @@ struct GameInputPlace {
 struct GameInputBattle {
     cell: usize,
 }
+
+/*****************************************************************************************
+ * Args
+ */
 
 struct Args {
     battle_system: BattleSystem,
@@ -350,6 +369,10 @@ fn parse_args() -> Result<Args, String> {
     }
     Ok(args)
 }
+
+/*****************************************************************************************
+ * main
+ */
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     use std::io::{BufRead, Write};
@@ -450,4 +473,23 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     Ok(())
+}
+
+#[cfg(test)]
+#[test]
+fn type_sizes() {
+    use std::mem::size_of;
+
+    let max = size_of::<u64>();
+
+    assert!(size_of::<Arrows>() < max);
+    assert!(size_of::<BattleResult>() < max);
+    assert!(size_of::<BattleStat>() < max);
+    assert!(size_of::<BattleSystem>() < max);
+    assert!(size_of::<BattleWinner>() < max);
+    assert!(size_of::<Card>() < max);
+    assert!(size_of::<CardType>() < max);
+    assert!(size_of::<Cell>() < max);
+    assert!(size_of::<OwnedCard>() < max);
+    assert!(size_of::<Player>() < max);
 }

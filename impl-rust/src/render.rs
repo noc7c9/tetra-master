@@ -121,48 +121,40 @@ type Result = std::result::Result<(), std::fmt::Error>;
 pub(crate) fn pre_game_screen(o: &mut String, state: &PreGameState) -> Result {
     write!(o, "\x1b]50;ClearScrollback\x07")?;
 
-    fn render_hand_candidates(
-        o: &mut String,
-        state: &PreGameState,
-        p1_pick: Option<usize>,
-    ) -> Result {
-        for (idx, hand) in state.hand_candidates.iter().enumerate() {
-            if Some(idx) == p1_pick {
-                continue;
-            }
-
-            writeln!(o, "Hand {idx}")?;
-            push_hand(o, None, hand)?;
-        }
-        Ok(())
-    }
-
     let p1 = DisplayPlayer(Player::P1);
     let p2 = DisplayPlayer(Player::P2);
     match state.status {
         PreGameStatus::P1Picking => {
             push_board(o, &state.board)?;
 
-            render_hand_candidates(o, state, None)?;
+            for (idx, hand) in state.hand_candidates.iter().enumerate() {
+                writeln!(o, "Hand {idx}")?;
+                push_hand_candidate(o, None, hand)?;
+            }
 
             write!(o, "{p1} pick a hand ")?;
             writeln!(o, "{GRAY}({p2} will pick next){RESET}")?;
         }
         PreGameStatus::P2Picking { p1_pick } => {
-            push_hand(o, Some(Player::P1), &state.hand_candidates[p1_pick])?;
+            push_hand_candidate(o, Some(Player::P1), &state.hand_candidates[p1_pick])?;
 
             push_board(o, &state.board)?;
 
-            render_hand_candidates(o, state, Some(p1_pick))?;
+            for (idx, hand) in state.hand_candidates.iter().enumerate() {
+                if idx != p1_pick {
+                    writeln!(o, "Hand {idx}")?;
+                    push_hand_candidate(o, None, hand)?;
+                }
+            }
 
             writeln!(o, "{p2} pick a hand?")?;
         }
         PreGameStatus::Complete { p1_pick, p2_pick } => {
-            push_hand(o, Some(Player::P1), &state.hand_candidates[p1_pick])?;
+            push_hand_candidate(o, Some(Player::P1), &state.hand_candidates[p1_pick])?;
 
             push_board(o, &state.board)?;
 
-            push_hand(o, Some(Player::P2), &state.hand_candidates[p2_pick])?;
+            push_hand_candidate(o, Some(Player::P2), &state.hand_candidates[p2_pick])?;
         }
     }
 
@@ -185,6 +177,14 @@ pub(crate) fn game_screen(o: &mut String, log: &GameLog, state: &GameState) -> R
     } else {
         push_prompt(o, state)
     }
+}
+
+fn push_hand_candidate(
+    o: &mut String,
+    owner: Option<Player>,
+    &[a, b, c, d, e]: &[Card; 5],
+) -> Result {
+    push_hand(o, owner, &[Some(a), Some(b), Some(c), Some(d), Some(e)])
 }
 
 fn push_hand(o: &mut String, owner: Option<Player>, hand: &[Option<Card>; 5]) -> Result {

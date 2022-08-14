@@ -112,48 +112,40 @@ type Result = std::result::Result<(), std::fmt::Error>;
 pub(crate) fn pre_game_screen(o: &mut String, state: &PreGameState) -> Result {
     clear_screen(o)?;
 
-    fn render_hand_candidates(
-        o: &mut String,
-        state: &PreGameState,
-        p1_pick: Option<usize>,
-    ) -> Result {
-        for (idx, hand) in state.hand_candidates.iter().enumerate() {
-            if Some(idx) == p1_pick {
-                continue;
-            }
-
-            writeln!(o, "Hand {idx}")?;
-            push_hand(o, hand)?;
-        }
-        Ok(())
-    }
-
     match state.status {
         PreGameStatus::P1Picking => {
             push_board(o, &state.board)?;
 
-            render_hand_candidates(o, state, None)?;
+            for (idx, hand) in state.hand_candidates.iter().enumerate() {
+                writeln!(o, "Hand {idx}")?;
+                push_hand_candidate(o, hand)?;
+            }
 
             writeln!(o, "Player 1 pick a hand (Player 2 will pick next)")?;
         }
         PreGameStatus::P2Picking { p1_pick } => {
             writeln!(o, "Player 1")?;
-            push_hand(o, &state.hand_candidates[p1_pick])?;
+            push_hand_candidate(o, &state.hand_candidates[p1_pick])?;
 
             push_board(o, &state.board)?;
 
-            render_hand_candidates(o, state, Some(p1_pick))?;
+            for (idx, hand) in state.hand_candidates.iter().enumerate() {
+                if idx != p1_pick {
+                    writeln!(o, "Hand {idx}")?;
+                    push_hand_candidate(o, hand)?;
+                }
+            }
 
             writeln!(o, "Player 2 pick a hand?")?;
         }
         PreGameStatus::Complete { p1_pick, p2_pick } => {
             writeln!(o, "Player 1")?;
-            push_hand(o, &state.hand_candidates[p1_pick])?;
+            push_hand_candidate(o, &state.hand_candidates[p1_pick])?;
 
             push_board(o, &state.board)?;
 
             writeln!(o, "Player 2")?;
-            push_hand(o, &state.hand_candidates[p2_pick])?;
+            push_hand_candidate(o, &state.hand_candidates[p2_pick])?;
         }
     }
 
@@ -193,6 +185,10 @@ fn clear_screen(o: &mut String) -> Result {
     }
 
     Ok(())
+}
+
+fn push_hand_candidate(o: &mut String, &[a, b, c, d, e]: &[Card; 5]) -> Result {
+    push_hand(o, &[Some(a), Some(b), Some(c), Some(d), Some(e)])
 }
 
 fn push_hand(o: &mut String, hand: &[Option<Card>; 5]) -> Result {

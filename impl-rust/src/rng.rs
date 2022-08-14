@@ -1,4 +1,7 @@
-use crate::{Arrows, Board, Card, CardType, Cell, Hand, HAND_CANDIDATES, HAND_SIZE};
+use crate::{
+    Arrows, Board, Card, CardType, Cell, HandCandidate, HandCandidates, HAND_CANDIDATES, HAND_SIZE,
+    MAX_NUMBER_OF_BLOCKS,
+};
 
 pub(crate) type Seed = u64;
 
@@ -41,8 +44,6 @@ impl Rng {
 }
 
 pub(crate) fn random_board(rng: &Rng) -> Board {
-    const MAX_NUMBER_OF_BLOCKS: u8 = 6;
-
     let mut board: Board = Default::default();
 
     // block cells
@@ -54,7 +55,7 @@ pub(crate) fn random_board(rng: &Rng) -> Board {
     board
 }
 
-pub(crate) fn random_hand_candidates(rng: &Rng) -> [Hand; HAND_CANDIDATES] {
+pub(crate) fn random_hand_candidates(rng: &Rng) -> HandCandidates {
     fn estimate_card_value(card: &Card) -> f64 {
         // very simple, we *don't* want this to be super accurate to allow the player to
         // strategize
@@ -98,16 +99,13 @@ pub(crate) fn random_hand_candidates(rng: &Rng) -> [Hand; HAND_CANDIDATES] {
     let mut hands = Vec::with_capacity(INITIAL_SET);
     for _ in 0..INITIAL_SET {
         let hand = [
-            Some(random_card(rng)),
-            Some(random_card(rng)),
-            Some(random_card(rng)),
-            Some(random_card(rng)),
-            Some(random_card(rng)),
+            random_card(rng),
+            random_card(rng),
+            random_card(rng),
+            random_card(rng),
+            random_card(rng),
         ];
-        let value: f64 = hand
-            .iter()
-            .map(|card| estimate_card_value(&card.expect("card should exist")))
-            .sum();
+        let value: f64 = hand.iter().map(estimate_card_value).sum();
         hands.push((value, hand));
     }
 
@@ -116,7 +114,7 @@ pub(crate) fn random_hand_candidates(rng: &Rng) -> [Hand; HAND_CANDIDATES] {
     let pick = hands
         .windows(HAND_CANDIDATES)
         .min_by(|a, b| {
-            fn get_value_difference(hands: &[(f64, Hand)]) -> f64 {
+            fn get_value_difference(hands: &[(f64, HandCandidate)]) -> f64 {
                 let (first, _) = hands.first().expect("window should not be empty");
                 let (last, _) = hands.last().expect("window should not be empty");
                 last - first
@@ -134,14 +132,14 @@ pub(crate) fn random_hand_candidates(rng: &Rng) -> [Hand; HAND_CANDIDATES] {
 }
 
 pub(crate) fn random_card(rng: &Rng) -> Card {
-    fn randpick<'a, T>(rng: &Rng, values: &'a [T]) -> &'a T {
+    fn randpick(rng: &Rng, values: &[u8]) -> u8 {
         let len = values.len();
         let idx = rng.usize(..len);
-        &values[idx]
+        values[idx]
     }
 
     fn random_stat(rng: &Rng) -> u8 {
-        *match rng.f32() {
+        match rng.f32() {
             n if n < 0.05 => randpick(rng, &[0, 1]),          // 5%
             n if n < 0.35 => randpick(rng, &[2, 3, 4, 5]),    // 30%
             n if n < 0.8 => randpick(rng, &[6, 7, 8, 9, 10]), // 45%
@@ -159,11 +157,8 @@ pub(crate) fn random_card(rng: &Rng) -> Card {
 
     let arrows = Arrows(rng.u8(..));
 
-    Card {
-        card_type,
-        arrows,
-        attack: random_stat(rng),
-        physical_defense: random_stat(rng),
-        magical_defense: random_stat(rng),
-    }
+    let attack = random_stat(rng);
+    let physical_defense = random_stat(rng);
+    let magical_defense = random_stat(rng);
+    Card::new(attack, card_type, physical_defense, magical_defense, arrows)
 }
