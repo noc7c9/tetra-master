@@ -18,20 +18,6 @@ enum BattleSystem {
     Dice { sides: u8 },
 }
 
-impl BattleSystem {
-    fn roll(self, rng: &Rng, value: u8) -> u8 {
-        match self {
-            BattleSystem::Original => value - rng.u8(..=value),
-            BattleSystem::Dice { sides } => {
-                // get the high hex digit (n has the range 0x0-0xF)
-                let n = value >> 4;
-                // roll n dice and return the sum
-                (0..n).map(|_| rng.u8(1..=sides)).sum()
-            }
-        }
-    }
-}
-
 #[derive(Debug, Clone, Copy, PartialEq)]
 enum Player {
     P1,
@@ -135,6 +121,33 @@ struct Card {
     physical_defense: u8,
     magical_defense: u8,
     arrows: Arrows,
+}
+
+impl Card {
+    fn new(
+        attack: u8,
+        card_type: CardType,
+        physical_defense: u8,
+        magical_defense: u8,
+        arrows: Arrows,
+    ) -> Self {
+        assert!(attack <= 0xF, "attack outside expected range 0-F");
+        assert!(
+            physical_defense <= 0xF,
+            "physical defense outside expected range 0-F"
+        );
+        assert!(
+            magical_defense <= 0xF,
+            "magical defense outside expected range 0-F"
+        );
+        Card {
+            card_type,
+            attack,
+            physical_defense,
+            magical_defense,
+            arrows,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]

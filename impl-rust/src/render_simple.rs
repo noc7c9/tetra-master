@@ -607,9 +607,9 @@ impl From<&OwnedCard> for Stats {
 
 impl std::fmt::Display for Stats {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let att = self.card.attack >> 4;
-        let phy = self.card.physical_defense >> 4;
-        let mag = self.card.magical_defense >> 4;
+        let att = self.card.attack;
+        let phy = self.card.physical_defense;
+        let mag = self.card.magical_defense;
         let typ = match self.card.card_type {
             CardType::Physical => 'P',
             CardType::Magical => 'M',

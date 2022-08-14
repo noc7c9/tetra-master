@@ -263,6 +263,20 @@ fn flip(log: &mut GameLog, card: &mut OwnedCard, cell: usize, via_combo: bool) {
     card.owner = to;
 }
 
+fn roll(battle_system: BattleSystem, rng: &Rng, value: u8) -> u8 {
+    match battle_system {
+        BattleSystem::Original => {
+            let high_digit = value - rng.u8(..=value);
+            let low_digit = rng.u8(..=0xF);
+            (high_digit << 4) + low_digit
+        }
+        BattleSystem::Dice { sides } => {
+            // roll {value} dice and return the sum
+            (0..value).map(|_| rng.u8(1..=sides)).sum()
+        }
+    }
+}
+
 fn get_attack_stat(rng: &Rng, battle_system: BattleSystem, attacker: Card) -> BattleStat {
     let (digit, value) = if let CardType::Assault = attacker.card_type {
         // use the highest stat
@@ -281,7 +295,7 @@ fn get_attack_stat(rng: &Rng, battle_system: BattleSystem, attacker: Card) -> Ba
         (0, attacker.attack)
     };
 
-    let roll = battle_system.roll(rng, value);
+    let roll = roll(battle_system, rng, value);
     BattleStat { digit, value, roll }
 }
 
@@ -317,7 +331,7 @@ fn get_defense_stat(
         }
     };
 
-    let roll = battle_system.roll(rng, value);
+    let roll = roll(battle_system, rng, value);
     BattleStat { digit, value, roll }
 }
 
