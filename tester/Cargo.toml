@@ -1,0 +1,10 @@
+[package]
+name = "tetra-master-tester"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+anyhow = "1.0.61"
+clap = { version = "3.2.16", features = ["derive"] }
+nom = "7.1.1"
+pretty_assertions = "1.2.1"
