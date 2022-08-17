@@ -26,15 +26,11 @@ impl Command {
                 }
                 if let Some(blocked_cells) = blocked_cells {
                     write!(out, " blocked_cells=")?;
-                    write_list(out, ',', blocked_cells.iter(), |out, v| {
-                        write!(out, "{v:X}")
-                    })?;
+                    write_blocked_cells(out, &blocked_cells)?;
                 }
                 if let Some(hand_candidates) = hand_candidates {
                     write!(out, " hand_candidates=")?;
-                    write_list(out, ';', hand_candidates.iter(), |out, hand| {
-                        write_list(out, ',', hand.iter(), |out, card| write_card(out, *card))
-                    })?;
+                    write_hand_candidates(out, &hand_candidates)?;
                 }
             }
         }
@@ -72,87 +68,120 @@ fn write_card(out: &mut String, card: Card) -> Result {
         CardType::Assault => 'A',
     };
     let arr = card.arrows.0;
-    write!(out, "{att:X}{typ}{phy:X}{mag:X}@{arr:X}")
+    write!(out, "{att:X}{typ}{phy:X}{mag:X}@{arr:02X}")
+}
+
+fn write_blocked_cells(out: &mut String, blocked_cells: &[u8]) -> Result {
+    write_list(out, ',', blocked_cells.iter(), |out, v| {
+        write!(out, "{v:X}")
+    })
+}
+
+fn write_hand_candidates(out: &mut String, hand_candidates: &HandCandidates) -> Result {
+    write_list(out, ';', hand_candidates.iter(), |out, hand| {
+        write_list(out, ',', hand.iter(), |out, card| write_card(out, *card))
+    })
 }
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use crate::Arrows;
-    use pretty_assertions::assert_eq;
+    use test_case::test_case;
+
+    use super::Command::{self, *};
+    use crate::{Arrows, Card, CardType, HandCandidates};
+
+    fn assert_eq<T, U>(expected: T) -> impl Fn(U)
+    where
+        T: std::fmt::Debug,
+        U: PartialEq<T> + std::fmt::Debug,
+    {
+        move |actual| pretty_assertions::assert_eq!(actual, expected)
+    }
 
     const C1P23_4: Card = Card::new(1, CardType::Physical, 2, 3, Arrows::new(4));
     const C5M67_8: Card = Card::new(5, CardType::Magical, 6, 7, Arrows::new(8));
     const C9XAB_C: Card = Card::new(9, CardType::Exploit, 0xA, 0xB, Arrows::new(0xC));
     const CDAEF_0: Card = Card::new(0xD, CardType::Assault, 0xE, 0xF, Arrows::new(0));
+    const C0P00_0F: Card = Card::new(0, CardType::Physical, 0, 0, Arrows::new(0xF));
+    const C0P00_A0: Card = Card::new(0, CardType::Physical, 0, 0, Arrows::new(0xA0));
+    const C0P00_FA: Card = Card::new(0, CardType::Physical, 0, 0, Arrows::new(0xFA));
 
-    #[test]
-    fn setup() {
-        use Command::*;
+    #[test_case(C1P23_4 => using assert_eq("1P23@04"))]
+    #[test_case(C5M67_8 => using assert_eq("5M67@08"))]
+    #[test_case(C9XAB_C => using assert_eq("9XAB@0C"))]
+    #[test_case(CDAEF_0 => using assert_eq("DAEF@00"))]
+    #[test_case(C0P00_0F => using assert_eq("0P00@0F"))]
+    #[test_case(C0P00_A0 => using assert_eq("0P00@A0"))]
+    #[test_case(C0P00_FA => using assert_eq("0P00@FA"))]
+    fn write_card(input: Card) -> String {
+        let mut out = String::new();
+        super::write_card(&mut out, input).unwrap();
+        out
+    }
 
-        let mut actual = String::new();
-        for (input, expected) in [
-            (
-                Setup {
-                    seed: None,
-                    blocked_cells: None,
-                    hand_candidates: None,
-                },
-                "setup\n",
-            ),
-            (
-                Setup {
-                    seed: Some(123),
-                    blocked_cells: None,
-                    hand_candidates: None,
-                },
-                "setup seed=123\n",
-            ),
-            (
-                Setup {
-                    seed: None,
-                    blocked_cells: Some(vec![]),
-                    hand_candidates: None,
-                },
-                "setup blocked_cells=[]\n",
-            ),
-            (
-                Setup {
-                    seed: None,
-                    blocked_cells: Some(vec![2]),
-                    hand_candidates: None,
-                },
-                "setup blocked_cells=[2]\n",
-            ),
-            (
-                Setup {
-                    seed: None,
-                    blocked_cells: None,
-                    hand_candidates: Some([
-                        [C1P23_4, C5M67_8, C9XAB_C, CDAEF_0, C5M67_8],
-                        [C5M67_8, C1P23_4, CDAEF_0, C5M67_8, C9XAB_C],
-                        [CDAEF_0, C5M67_8, C9XAB_C, C5M67_8, C1P23_4],
-                    ]),
-                },
-                "setup hand_candidates=[[1P23@4,5M67@8,9XAB@C,DAEF@0,5M67@8];[5M67@8,1P23@4,DAEF@0,5M67@8,9XAB@C];[DAEF@0,5M67@8,9XAB@C,5M67@8,1P23@4]]\n",
-            ),
-            (
-                Setup {
-                    seed: Some(123),
-                    blocked_cells: Some(vec![2, 8, 0xA]),
-                    hand_candidates: Some([
-                        [C1P23_4, C5M67_8, C9XAB_C, CDAEF_0, C5M67_8],
-                        [C5M67_8, C1P23_4, CDAEF_0, C5M67_8, C9XAB_C],
-                        [CDAEF_0, C5M67_8, C9XAB_C, C5M67_8, C1P23_4],
-                    ]),
-                },
-                "setup seed=123 blocked_cells=[2,8,A] hand_candidates=[[1P23@4,5M67@8,9XAB@C,DAEF@0,5M67@8];[5M67@8,1P23@4,DAEF@0,5M67@8,9XAB@C];[DAEF@0,5M67@8,9XAB@C,5M67@8,1P23@4]]\n",
-            ),
-        ] {
-            dbg!((&input, &expected));
-            actual.clear();
-            input.serialize(&mut actual).unwrap();
-            assert_eq!(expected, actual);
-        }
+    #[test_case(Vec::<u8>::new() => using assert_eq("[]"))]
+    #[test_case(vec![1] => using assert_eq("[1]"))]
+    #[test_case(vec![0xa, 0xf, 3] => using assert_eq("[A,F,3]"))]
+    #[test_case(vec![1, 2, 3, 4, 5, 6] => using assert_eq("[1,2,3,4,5,6]"))]
+    fn write_blocked_cells(input: Vec<u8>) -> String {
+        let mut out = String::new();
+        super::write_blocked_cells(&mut out, &input).unwrap();
+        out
+    }
+
+    #[test_case([
+        [C1P23_4, C5M67_8, C9XAB_C, CDAEF_0, C5M67_8],
+        [C5M67_8, C1P23_4, CDAEF_0, C5M67_8, C9XAB_C],
+        [CDAEF_0, C5M67_8, C9XAB_C, C5M67_8, C1P23_4],
+    ] => using assert_eq("[[1P23@04,5M67@08,9XAB@0C,DAEF@00,5M67@08];[5M67@08,1P23@04,DAEF@00,5M67@08,9XAB@0C];[DAEF@00,5M67@08,9XAB@0C,5M67@08,1P23@04]]"))]
+    fn write_hand_candidates(input: HandCandidates) -> String {
+        let mut out = String::new();
+        super::write_hand_candidates(&mut out, &input).unwrap();
+        out
+    }
+
+    #[test_case(Setup {
+        seed: None,
+        blocked_cells: None,
+        hand_candidates: None,
+    } => using assert_eq("setup\n"))]
+    #[test_case(Setup {
+        seed: Some(123),
+        blocked_cells: None,
+        hand_candidates: None,
+    } => using assert_eq("setup seed=123\n"))]
+    #[test_case(Setup {
+        seed: None,
+        blocked_cells: Some(vec![]),
+        hand_candidates: None,
+    } => using assert_eq("setup blocked_cells=[]\n"))]
+    #[test_case(Setup {
+        seed: None,
+        blocked_cells: Some(vec![2]),
+        hand_candidates: None,
+    } => using assert_eq("setup blocked_cells=[2]\n"))]
+    #[test_case(Setup {
+        seed: None,
+        blocked_cells: None,
+        hand_candidates: Some([
+            [C1P23_4, C5M67_8, C9XAB_C, CDAEF_0, C5M67_8],
+            [C5M67_8, C1P23_4, CDAEF_0, C5M67_8, C9XAB_C],
+            [CDAEF_0, C5M67_8, C9XAB_C, C5M67_8, C1P23_4],
+        ]),
+    } => using assert_eq("setup hand_candidates=[[1P23@04,5M67@08,9XAB@0C,DAEF@00,5M67@08];[5M67@08,1P23@04,DAEF@00,5M67@08,9XAB@0C];[DAEF@00,5M67@08,9XAB@0C,5M67@08,1P23@04]]\n"))]
+    #[test_case(Setup {
+        seed: Some(123),
+        blocked_cells: Some(vec![2, 8, 0xA]),
+        hand_candidates: Some([
+            [C1P23_4, C5M67_8, C9XAB_C, CDAEF_0, C5M67_8],
+            [C5M67_8, C1P23_4, CDAEF_0, C5M67_8, C9XAB_C],
+            [CDAEF_0, C5M67_8, C9XAB_C, C5M67_8, C1P23_4],
+        ]),
+    } => using assert_eq("setup seed=123 blocked_cells=[2,8,A] hand_candidates=[[1P23@04,5M67@08,9XAB@0C,DAEF@00,5M67@08];[5M67@08,1P23@04,DAEF@00,5M67@08,9XAB@0C];[DAEF@00,5M67@08,9XAB@0C,5M67@08,1P23@04]]\n")
+    )]
+    fn setup(input: Command) -> String {
+        let mut out = String::new();
+        input.serialize(&mut out).unwrap();
+        out
     }
 }
