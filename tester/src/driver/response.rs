@@ -47,20 +47,20 @@ fn hex_digits<'a>(max: usize) -> impl FnMut(&'a str) -> IResult<&str, u8> {
     )
 }
 
-fn card_full(input: &str) -> IResult<&str, Card> {
+fn card(input: &str) -> IResult<&str, Card> {
     let (input, (attack, card_type, physical_defense, magical_defense, _, arrow)) = tuple((
         hex_digits(1),
-        one_of("PMXA"),
+        one_of("PMXApmxa"),
         hex_digits(1),
         hex_digits(1),
         char('@'),
         hex_digits(2),
     ))(input)?;
     let card_type = match card_type {
-        'P' => CardType::Physical,
-        'M' => CardType::Magical,
-        'X' => CardType::Exploit,
-        'A' => CardType::Assault,
+        'P' | 'p' => CardType::Physical,
+        'M' | 'm' => CardType::Magical,
+        'X' | 'x' => CardType::Exploit,
+        'A' | 'a' => CardType::Assault,
         _ => unreachable!(),
     };
     let arrows = Arrows(arrow);
@@ -76,8 +76,12 @@ fn card_full(input: &str) -> IResult<&str, Card> {
     ))
 }
 
+fn blocked_cells(input: &str) -> IResult<&str, Vec<u8>> {
+    verify(list(',', hex_digits(1)), |v: &Vec<_>| v.len() < 6)(input)
+}
+
 fn hand_candidate(input: &str) -> IResult<&str, HandCandidate> {
-    let (input, cards) = list_of_length(',', card_full, crate::HAND_SIZE)(input)?;
+    let (input, cards) = list_of_length(',', card, crate::HAND_SIZE)(input)?;
     Ok((input, [cards[0], cards[1], cards[2], cards[3], cards[4]]))
 }
 
@@ -90,7 +94,7 @@ fn setup_ok(input: &str) -> IResult<&str, Response> {
     let (input, _) = tag("setup-ok")(input)?;
 
     let (input, seed) = preceded(tag(" seed="), u64)(input)?;
-    let (input, blocked_cells) = preceded(tag(" blocked_cells="), list(',', hex_digits(1)))(input)?;
+    let (input, blocked_cells) = preceded(tag(" blocked_cells="), blocked_cells)(input)?;
     let (input, hand_candidates) = preceded(tag(" hand_candidates="), hand_candidates)(input)?;
 
     Ok((
@@ -105,57 +109,107 @@ fn setup_ok(input: &str) -> IResult<&str, Response> {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use pretty_assertions::assert_eq;
+    use test_case::test_case;
 
-    const C0P00: Card = Card::new(0, CardType::Physical, 0, 0, Arrows::new(0));
-    const C1X23: Card = Card::new(1, CardType::Exploit, 2, 3, Arrows::new(0x45));
+    use super::Response::{self, *};
+    use crate::{
+        Arrows, Card,
+        CardType::{self, *},
+        HandCandidate,
+    };
 
-    #[test]
-    fn setup_ok() {
-        use Response::*;
+    fn assert_eq<T: PartialEq + std::fmt::Debug>(expected: T) -> impl Fn(T) {
+        move |actual| pretty_assertions::assert_eq!(actual, expected)
+    }
 
-        for (input, expected) in [
-            (
-                "setup-ok seed=123 blocked_cells=[2,3,f] hand_candidates=[[0P00@0,0P00@0,0P00@0,0P00@0,0P00@0];[0P00@0,0P00@0,0P00@0,0P00@0,0P00@0];[0P00@0,0P00@0,0P00@0,0P00@0,0P00@0]]\n",
-                SetupOk {
-                    seed: 123,
-                    blocked_cells: vec![2, 3, 0xf],
-                    hand_candidates: [
-                        [C0P00, C0P00, C0P00, C0P00, C0P00],
-                        [C0P00, C0P00, C0P00, C0P00, C0P00],
-                        [C0P00, C0P00, C0P00, C0P00, C0P00],
-                    ],
-                },
-            ),
-            (
-                "setup-ok seed=1 blocked_cells=[] hand_candidates=[[0P00@0,0P00@0,0P00@0,0P00@0,0P00@0];[0P00@0,0P00@0,0P00@0,0P00@0,0P00@0];[0P00@0,0P00@0,0P00@0,0P00@0,0P00@0]]\n",
-                SetupOk {
-                    seed: 1,
-                    blocked_cells: vec![],
-                    hand_candidates: [
-                        [C0P00, C0P00, C0P00, C0P00, C0P00],
-                        [C0P00, C0P00, C0P00, C0P00, C0P00],
-                        [C0P00, C0P00, C0P00, C0P00, C0P00],
-                    ],
-                },
-            ),
-            (
-                "setup-ok seed=1 blocked_cells=[] hand_candidates=[[0P00@0,0P00@0,0P00@0,0P00@0,0P00@0];[0P00@0,0P00@0,0P00@0,1X23@45,0P00@0];[0P00@0,0P00@0,0P00@0,0P00@0,0P00@0]]\n",
-                SetupOk {
-                    seed: 1,
-                    blocked_cells: vec![],
-                    hand_candidates: [
-                        [C0P00, C0P00, C0P00, C0P00, C0P00],
-                        [C0P00, C0P00, C0P00, C1X23, C0P00],
-                        [C0P00, C0P00, C0P00, C0P00, C0P00],
-                    ],
-                },
-            ),
-        ] {
-            dbg!((&input, &expected));
-            let actual = Response::deserialize(input).unwrap();
-            assert_eq!(expected, actual);
-        }
+    const fn card(att: u8, typ: CardType, phy: u8, mag: u8, arrows: u8) -> Card {
+        Card::new(att, typ, phy, mag, Arrows::new(arrows))
+    }
+
+    // note: first arg is used to differentiate names that generate with the same name types
+    #[test_case(0, "0P00@0" => using assert_eq(card(0, Physical, 0, 0, 0)))]
+    #[test_case(0, "0M00@0" => using assert_eq(card(0, Magical, 0, 0, 0)))]
+    #[test_case(0, "0X00@0" => using assert_eq(card(0, Exploit, 0, 0, 0)))]
+    #[test_case(0, "0A00@0" => using assert_eq(card(0, Assault, 0, 0, 0)))]
+    #[test_case(1, "0p00@0" => using assert_eq(card(0, Physical, 0, 0, 0)))]
+    #[test_case(1, "0m00@0" => using assert_eq(card(0, Magical, 0, 0, 0)))]
+    #[test_case(1, "0x00@0" => using assert_eq(card(0, Exploit, 0, 0, 0)))]
+    #[test_case(1, "0a00@0" => using assert_eq(card(0, Assault, 0, 0, 0)))]
+    #[test_case(1, "0B00@0" => panics)]
+    // stats
+    #[test_case(0, "1P23@0" => using assert_eq(card(1, Physical, 2, 3, 0)))]
+    #[test_case(0, "aPbc@0" => using assert_eq(card(0xa, Physical, 0xb, 0xc, 0)))]
+    #[test_case(1, "APBC@0" => using assert_eq(card(0xa, Physical, 0xb, 0xc, 0)))]
+    // arrows
+    #[test_case(0, "0P00@1" => using assert_eq(card(0, Physical, 0, 0, 1)))]
+    #[test_case(0, "0P00@F" => using assert_eq(card(0, Physical, 0, 0, 0xf)))]
+    #[test_case(1, "0P00@f" => using assert_eq(card(0, Physical, 0, 0, 0xf)))]
+    #[test_case(0, "0P00@00" => using assert_eq(card(0, Physical, 0, 0, 0)))]
+    #[test_case(0, "0P00@0F" => using assert_eq(card(0, Physical, 0, 0, 0xf)))]
+    #[test_case(1, "0P00@0f" => using assert_eq(card(0, Physical, 0, 0, 0xf)))]
+    #[test_case(0, "0P00@f0" => using assert_eq(card(0, Physical, 0, 0, 0xf0)))]
+    #[test_case(1, "0P00@F0" => using assert_eq(card(0, Physical, 0, 0, 0xf0)))]
+    #[test_case(0, "0P00@fF" => using assert_eq(card(0, Physical, 0, 0, 0xff)))]
+    #[test_case(1, "0P00@ff" => using assert_eq(card(0, Physical, 0, 0, 0xff)))]
+    #[test_case(2, "0P00@FF" => using assert_eq(card(0, Physical, 0, 0, 0xff)))]
+    fn card_(_: u8, input: &str) -> Card {
+        super::card(input).unwrap().1
+    }
+
+    const C0P00: Card = card(0, Physical, 0, 0, 0);
+    const C1X23: Card = card(1, Exploit, 2, 3, 0x45);
+
+    #[test_case("[0P00@0,0P00@0,0P00@0,0P00@0,1X23@45]" => using assert_eq([C0P00,C0P00,C0P00,C0P00,C1X23]))]
+    #[test_case("[0P00@0,0P00@0,0P00@0,1X23@45,0P00@0]" => using assert_eq([C0P00,C0P00,C0P00,C1X23,C0P00]))]
+    #[test_case("[0P00@0,0P00@0,1X23@45,0P00@0,0P00@0]" => using assert_eq([C0P00,C0P00,C1X23,C0P00,C0P00]))]
+    #[test_case("[0P00@0,1X23@45,0P00@0,0P00@0,0P00@0]" => using assert_eq([C0P00,C1X23,C0P00,C0P00,C0P00]))]
+    #[test_case("[1X23@45,0P00@0,0P00@0,0P00@0,0P00@0]" => using assert_eq([C1X23,C0P00,C0P00,C0P00,C0P00]))]
+    #[test_case("[0P00@0,0P00@0,0P00@0,0P00@0]" => panics)]
+    #[test_case("[]" => panics)]
+    #[test_case(" " => panics; "empty string")]
+    fn hand_candidate(input: &str) -> HandCandidate {
+        super::hand_candidate(input).unwrap().1
+    }
+
+    #[test_case("[]" => Vec::<u8>::new())]
+    #[test_case("[1]" => vec![1])]
+    #[test_case("[2,a,B,F]" => vec![2,0xa,0xb,0xf])]
+    #[test_case("[0,0,0,0,0,0,0]" => panics)]
+    #[test_case("[2a]" => panics)]
+    #[test_case(" " => panics; "empty string")]
+    fn blocked_cells(input: &str) -> Vec<u8> {
+        super::blocked_cells(input).unwrap().1
+    }
+
+    const BLOCKED_CELLS: &str = "[2,3,F]";
+    const HAND_CANDIDATES: &str = "[[0P00@0,0P00@0,0P00@0,0P00@0,0P00@0];[0P00@0,0P00@0,0P00@0,0P00@0,0P00@0];[0P00@0,0P00@0,0P00@0,0P00@0,0P00@0]]";
+    #[test_case(
+        format!("setup-ok seed=123 blocked_cells={BLOCKED_CELLS} hand_candidates={HAND_CANDIDATES}\n")
+        ; "seed blocked_cells hand_candidates"
+    )]
+    // #[test_case(
+    //     format!("setup-ok blocked_cells={BLOCKED_CELLS} seed=123 hand_candidates={HAND_CANDIDATES}\n")
+    //     ; "blocked_cells seed hand_candidates"
+    // )]
+    // #[test_case(
+    //     format!("setup-ok hand_candidates={HAND_CANDIDATES} seed=123 blocked_cells={BLOCKED_CELLS}\n")
+    //     ; "hand_candidates seed blocked_cells"
+    // )]
+    // #[test_case(
+    //     format!("setup-ok hand_candidates={HAND_CANDIDATES} blocked_cells={BLOCKED_CELLS} seed=123\n")
+    //     ; "hand_candidates blocked_cells seed"
+    // )]
+    fn setup_ok(input: String) {
+        let actual = Response::deserialize(&input).unwrap();
+        let expected = SetupOk {
+            seed: 123,
+            blocked_cells: vec![2, 3, 0xf],
+            hand_candidates: [
+                [C0P00, C0P00, C0P00, C0P00, C0P00],
+                [C0P00, C0P00, C0P00, C0P00, C0P00],
+                [C0P00, C0P00, C0P00, C0P00, C0P00],
+            ],
+        };
+        assert_eq!(expected, actual);
     }
 }
