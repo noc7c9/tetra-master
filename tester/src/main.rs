@@ -66,12 +66,30 @@ impl Card {
     }
 }
 
-fn implementation_driver(
-    implementation: &str,
-) -> (
-    std::process::Child,
-    driver::Driver<std::io::BufReader<std::process::ChildStdout>, std::process::ChildStdin>,
-) {
+struct ImplementationDriver {
+    proc: std::process::Child,
+    driver: driver::Driver<std::io::BufReader<std::process::ChildStdout>, std::process::ChildStdin>,
+}
+
+impl ImplementationDriver {
+    fn transmit(&mut self, cmd: driver::Command) -> anyhow::Result<()> {
+        self.driver.transmit(cmd)
+    }
+
+    fn receive(&mut self) -> anyhow::Result<driver::Response> {
+        self.driver.receive()
+    }
+}
+
+impl Drop for ImplementationDriver {
+    fn drop(&mut self) {
+        // if killing the child fails, just ignore it
+        // the OS should clean up after the tester process closes
+        let _ = self.proc.kill();
+    }
+}
+
+fn implementation_driver(implementation: &str) -> ImplementationDriver {
     use std::process::{Command, Stdio};
 
     let mut proc = Command::new(implementation)
@@ -87,7 +105,7 @@ fn implementation_driver(
 
     let driver = driver::Driver::new(stdout, stdin);
 
-    (proc, driver)
+    ImplementationDriver { proc, driver }
 }
 
 #[derive(Debug, clap::Parser)]
@@ -109,7 +127,7 @@ fn main() -> anyhow::Result<()> {
 
     // setup process
     harness.test("Setup without args", || {
-        let (mut proc1, mut driver1) = implementation_driver(&args.implementation);
+        let mut driver1 = implementation_driver(&args.implementation);
         driver1.transmit(Command::Setup {
             seed: None,
             blocked_cells: None,
@@ -117,7 +135,7 @@ fn main() -> anyhow::Result<()> {
         })?;
         let first = driver1.receive()?;
 
-        let (mut proc2, mut driver2) = implementation_driver(&args.implementation);
+        let mut driver2 = implementation_driver(&args.implementation);
         driver2.transmit(Command::Setup {
             seed: None,
             blocked_cells: None,
@@ -127,14 +145,11 @@ fn main() -> anyhow::Result<()> {
 
         assert_ne!(first, second);
 
-        proc1.kill()?;
-        proc2.kill()?;
-
         Ok(())
     });
 
     harness.test("Setup with set seed", || {
-        let (mut proc1, mut driver1) = implementation_driver(&args.implementation);
+        let mut driver1 = implementation_driver(&args.implementation);
         driver1.transmit(Command::Setup {
             seed: None,
             blocked_cells: None,
@@ -148,7 +163,7 @@ fn main() -> anyhow::Result<()> {
             panic!("unexpected response");
         };
 
-        let (mut proc2, mut driver1) = implementation_driver(&args.implementation);
+        let mut driver1 = implementation_driver(&args.implementation);
         driver1.transmit(Command::Setup {
             seed: Some(seed),
             blocked_cells: None,
@@ -158,33 +173,27 @@ fn main() -> anyhow::Result<()> {
 
         assert_eq!(first, second);
 
-        proc1.kill()?;
-        proc2.kill()?;
-
         Ok(())
     });
 
     harness.test("Setup with set blocked_cells", || {
-        let (mut proc, mut driver) = implementation_driver(&args.implementation);
+        let mut driver = implementation_driver(&args.implementation);
         driver.transmit(Command::Setup {
             seed: None,
             blocked_cells: Some((&[6u8, 3, 0xC] as &[_]).try_into().unwrap()),
             hand_candidates: None,
         })?;
-        let res = driver.receive()?;
 
-        let mut blocked_cells = if let Response::SetupOk { blocked_cells, .. } = res {
-            blocked_cells
+        if let Response::SetupOk {
+            mut blocked_cells, ..
+        } = driver.receive()?
+        {
+            blocked_cells.sort_unstable();
+            assert_eq!(blocked_cells.as_slice(), &[3, 6, 0xC]);
+            Ok(())
         } else {
             panic!("unexpected response");
-        };
-
-        blocked_cells.sort_unstable();
-        assert_eq!(blocked_cells.as_slice(), &[3, 6, 0xC]);
-
-        proc.kill()?;
-
-        Ok(())
+        }
     });
 
     harness.test("Setup with set hand candidates", || {
@@ -198,28 +207,22 @@ fn main() -> anyhow::Result<()> {
             [C1P23_4, C5M67_8, CDAEF_0, C5M67_8, C9XAB_C],
         ];
 
-        let (mut proc, mut driver) = implementation_driver(&args.implementation);
+        let mut driver = implementation_driver(&args.implementation);
         driver.transmit(Command::Setup {
             seed: None,
             blocked_cells: None,
             hand_candidates: Some(expected),
         })?;
-        let res = driver.receive()?;
 
-        let hand_candidates = if let Response::SetupOk {
+        if let Response::SetupOk {
             hand_candidates, ..
-        } = res
+        } = driver.receive()?
         {
-            hand_candidates
+            assert_eq!(expected, hand_candidates);
+            Ok(())
         } else {
             panic!("unexpected response");
-        };
-
-        assert_eq!(expected, hand_candidates);
-
-        proc.kill()?;
-
-        Ok(())
+        }
     });
 
     // TODO pre-game
