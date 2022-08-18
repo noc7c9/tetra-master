@@ -88,7 +88,7 @@ mod tests {
     use test_case::test_case;
 
     use super::Command::{self, *};
-    use crate::{Arrows, Card, CardType, HandCandidates};
+    use crate::{Card, HandCandidates};
 
     fn assert_eq<T, U>(expected: T) -> impl Fn(U)
     where
@@ -98,13 +98,13 @@ mod tests {
         move |actual| pretty_assertions::assert_eq!(actual, expected)
     }
 
-    const C1P23_4: Card = Card::new(1, CardType::Physical, 2, 3, Arrows::new(4));
-    const C5M67_8: Card = Card::new(5, CardType::Magical, 6, 7, Arrows::new(8));
-    const C9XAB_C: Card = Card::new(9, CardType::Exploit, 0xA, 0xB, Arrows::new(0xC));
-    const CDAEF_0: Card = Card::new(0xD, CardType::Assault, 0xE, 0xF, Arrows::new(0));
-    const C0P00_0F: Card = Card::new(0, CardType::Physical, 0, 0, Arrows::new(0xF));
-    const C0P00_A0: Card = Card::new(0, CardType::Physical, 0, 0, Arrows::new(0xA0));
-    const C0P00_FA: Card = Card::new(0, CardType::Physical, 0, 0, Arrows::new(0xFA));
+    const C1P23_4: Card = Card::physical(1, 2, 3, 4);
+    const C5M67_8: Card = Card::magical(5, 6, 7, 8);
+    const C9XAB_C: Card = Card::exploit(9, 0xA, 0xB, 0xC);
+    const CDAEF_0: Card = Card::assault(0xD, 0xE, 0xF, 0);
+    const C0P00_0F: Card = Card::physical(0, 0, 0, 0xF);
+    const C0P00_A0: Card = Card::physical(0, 0, 0, 0xA0);
+    const C0P00_FA: Card = Card::physical(0, 0, 0, 0xFA);
 
     #[test_case(C1P23_4 => using assert_eq("1P23@04"))]
     #[test_case(C5M67_8 => using assert_eq("5M67@08"))]

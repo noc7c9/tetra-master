@@ -9,7 +9,7 @@ type HandCandidate = [Card; HAND_SIZE];
 type HandCandidates = [HandCandidate; HAND_CANDIDATES];
 
 #[derive(Debug, Clone, Copy, PartialEq)]
-pub(crate) enum CardType {
+enum CardType {
     Physical,
     Magical,
     Exploit,
@@ -17,16 +17,16 @@ pub(crate) enum CardType {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
-pub(crate) struct Arrows(u8);
+struct Arrows(u8);
 
 impl Arrows {
-    pub(crate) const fn new(bitset: u8) -> Self {
+    const fn new(bitset: u8) -> Self {
         Self(bitset)
     }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
-pub(crate) struct Card {
+struct Card {
     attack: u8,
     card_type: CardType,
     physical_defense: u8,
@@ -35,7 +35,7 @@ pub(crate) struct Card {
 }
 
 impl Card {
-    pub(crate) const fn new(
+    const fn new(
         attack: u8,
         card_type: CardType,
         physical_defense: u8,
@@ -49,6 +49,20 @@ impl Card {
             magical_defense,
             arrows,
         }
+    }
+
+    // shortcut constructors
+    const fn physical(att: u8, phy: u8, mag: u8, arrows: u8) -> Self {
+        Self::new(att, CardType::Physical, phy, mag, Arrows::new(arrows))
+    }
+    const fn magical(att: u8, phy: u8, mag: u8, arrows: u8) -> Self {
+        Self::new(att, CardType::Magical, phy, mag, Arrows::new(arrows))
+    }
+    const fn exploit(att: u8, phy: u8, mag: u8, arrows: u8) -> Self {
+        Self::new(att, CardType::Exploit, phy, mag, Arrows::new(arrows))
+    }
+    const fn assault(att: u8, phy: u8, mag: u8, arrows: u8) -> Self {
+        Self::new(att, CardType::Assault, phy, mag, Arrows::new(arrows))
     }
 }
 
@@ -174,10 +188,10 @@ fn main() -> anyhow::Result<()> {
     });
 
     harness.test("Setup with set hand candidates", || {
-        const C1P23_4: Card = Card::new(1, CardType::Physical, 2, 3, Arrows::new(4));
-        const C5M67_8: Card = Card::new(5, CardType::Magical, 6, 7, Arrows::new(8));
-        const C9XAB_C: Card = Card::new(9, CardType::Exploit, 0xA, 0xB, Arrows::new(0xC));
-        const CDAEF_0: Card = Card::new(0xD, CardType::Assault, 0xE, 0xF, Arrows::new(0));
+        const C1P23_4: Card = Card::physical(1, 2, 3, 4);
+        const C5M67_8: Card = Card::magical(5, 6, 7, 8);
+        const C9XAB_C: Card = Card::exploit(9, 0xA, 0xB, 0xC);
+        const CDAEF_0: Card = Card::assault(0xD, 0xE, 0xF, 0);
         let expected = [
             [C5M67_8, CDAEF_0, C9XAB_C, C5M67_8, C1P23_4],
             [C1P23_4, C5M67_8, C9XAB_C, CDAEF_0, C5M67_8],

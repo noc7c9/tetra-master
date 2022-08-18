@@ -112,52 +112,44 @@ mod tests {
     use test_case::test_case;
 
     use super::Response::{self, *};
-    use crate::{
-        Arrows, Card,
-        CardType::{self, *},
-        HandCandidate,
-    };
+    use crate::{Card, HandCandidate};
 
     fn assert_eq<T: PartialEq + std::fmt::Debug>(expected: T) -> impl Fn(T) {
         move |actual| pretty_assertions::assert_eq!(actual, expected)
     }
 
-    const fn card(att: u8, typ: CardType, phy: u8, mag: u8, arrows: u8) -> Card {
-        Card::new(att, typ, phy, mag, Arrows::new(arrows))
-    }
-
     // note: first arg is used to differentiate names that generate with the same name types
-    #[test_case(0, "0P00@0" => using assert_eq(card(0, Physical, 0, 0, 0)))]
-    #[test_case(0, "0M00@0" => using assert_eq(card(0, Magical, 0, 0, 0)))]
-    #[test_case(0, "0X00@0" => using assert_eq(card(0, Exploit, 0, 0, 0)))]
-    #[test_case(0, "0A00@0" => using assert_eq(card(0, Assault, 0, 0, 0)))]
-    #[test_case(1, "0p00@0" => using assert_eq(card(0, Physical, 0, 0, 0)))]
-    #[test_case(1, "0m00@0" => using assert_eq(card(0, Magical, 0, 0, 0)))]
-    #[test_case(1, "0x00@0" => using assert_eq(card(0, Exploit, 0, 0, 0)))]
-    #[test_case(1, "0a00@0" => using assert_eq(card(0, Assault, 0, 0, 0)))]
+    #[test_case(0, "0P00@0" => using assert_eq(Card::physical(0, 0, 0, 0)))]
+    #[test_case(0, "0M00@0" => using assert_eq(Card::magical(0, 0, 0, 0)))]
+    #[test_case(0, "0X00@0" => using assert_eq(Card::exploit(0, 0, 0, 0)))]
+    #[test_case(0, "0A00@0" => using assert_eq(Card::assault(0, 0, 0, 0)))]
+    #[test_case(1, "0p00@0" => using assert_eq(Card::physical(0, 0, 0, 0)))]
+    #[test_case(1, "0m00@0" => using assert_eq(Card::magical(0, 0, 0, 0)))]
+    #[test_case(1, "0x00@0" => using assert_eq(Card::exploit(0, 0, 0, 0)))]
+    #[test_case(1, "0a00@0" => using assert_eq(Card::assault(0, 0, 0, 0)))]
     #[test_case(1, "0B00@0" => panics)]
     // stats
-    #[test_case(0, "1P23@0" => using assert_eq(card(1, Physical, 2, 3, 0)))]
-    #[test_case(0, "aPbc@0" => using assert_eq(card(0xa, Physical, 0xb, 0xc, 0)))]
-    #[test_case(1, "APBC@0" => using assert_eq(card(0xa, Physical, 0xb, 0xc, 0)))]
+    #[test_case(0, "1P23@0" => using assert_eq(Card::physical(1, 2, 3, 0)))]
+    #[test_case(0, "aPbc@0" => using assert_eq(Card::physical(0xa, 0xb, 0xc, 0)))]
+    #[test_case(1, "APBC@0" => using assert_eq(Card::physical(0xa, 0xb, 0xc, 0)))]
     // arrows
-    #[test_case(0, "0P00@1" => using assert_eq(card(0, Physical, 0, 0, 1)))]
-    #[test_case(0, "0P00@F" => using assert_eq(card(0, Physical, 0, 0, 0xf)))]
-    #[test_case(1, "0P00@f" => using assert_eq(card(0, Physical, 0, 0, 0xf)))]
-    #[test_case(0, "0P00@00" => using assert_eq(card(0, Physical, 0, 0, 0)))]
-    #[test_case(0, "0P00@0F" => using assert_eq(card(0, Physical, 0, 0, 0xf)))]
-    #[test_case(1, "0P00@0f" => using assert_eq(card(0, Physical, 0, 0, 0xf)))]
-    #[test_case(0, "0P00@f0" => using assert_eq(card(0, Physical, 0, 0, 0xf0)))]
-    #[test_case(1, "0P00@F0" => using assert_eq(card(0, Physical, 0, 0, 0xf0)))]
-    #[test_case(0, "0P00@fF" => using assert_eq(card(0, Physical, 0, 0, 0xff)))]
-    #[test_case(1, "0P00@ff" => using assert_eq(card(0, Physical, 0, 0, 0xff)))]
-    #[test_case(2, "0P00@FF" => using assert_eq(card(0, Physical, 0, 0, 0xff)))]
+    #[test_case(0, "0P00@1" => using assert_eq(Card::physical(0, 0, 0, 1)))]
+    #[test_case(0, "0P00@F" => using assert_eq(Card::physical(0, 0, 0, 0xf)))]
+    #[test_case(1, "0P00@f" => using assert_eq(Card::physical(0, 0, 0, 0xf)))]
+    #[test_case(0, "0P00@00" => using assert_eq(Card::physical(0, 0, 0, 0)))]
+    #[test_case(0, "0P00@0F" => using assert_eq(Card::physical(0, 0, 0, 0xf)))]
+    #[test_case(1, "0P00@0f" => using assert_eq(Card::physical(0, 0, 0, 0xf)))]
+    #[test_case(0, "0P00@f0" => using assert_eq(Card::physical(0, 0, 0, 0xf0)))]
+    #[test_case(1, "0P00@F0" => using assert_eq(Card::physical(0, 0, 0, 0xf0)))]
+    #[test_case(0, "0P00@fF" => using assert_eq(Card::physical(0, 0, 0, 0xff)))]
+    #[test_case(1, "0P00@ff" => using assert_eq(Card::physical(0, 0, 0, 0xff)))]
+    #[test_case(2, "0P00@FF" => using assert_eq(Card::physical(0, 0, 0, 0xff)))]
     fn card_(_: u8, input: &str) -> Card {
         super::card(input).unwrap().1
     }
 
-    const C0P00: Card = card(0, Physical, 0, 0, 0);
-    const C1X23: Card = card(1, Exploit, 2, 3, 0x45);
+    const C0P00: Card = Card::physical(0, 0, 0, 0);
+    const C1X23: Card = Card::exploit(1, 2, 3, 0x45);
 
     #[test_case("[0P00@0,0P00@0,0P00@0,0P00@0,1X23@45]" => using assert_eq([C0P00,C0P00,C0P00,C0P00,C1X23]))]
     #[test_case("[0P00@0,0P00@0,0P00@0,1X23@45,0P00@0]" => using assert_eq([C0P00,C0P00,C0P00,C1X23,C0P00]))]
