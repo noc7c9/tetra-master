@@ -27,7 +27,7 @@ impl<'a> Harness<'a> {
 
     pub(crate) fn run(self) {
         for test in self.tests {
-            match std::panic::catch_unwind(move || (test.func)()) {
+            match std::panic::catch_unwind(move || (test.func)().unwrap()) {
                 Err(err) => println!("> {} FAIL: {err:?}", test.name),
                 Ok(_) => println!("> {} PASS", test.name),
             }
