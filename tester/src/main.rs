@@ -121,6 +121,19 @@ fn main() -> anyhow::Result<()> {
 
     let mut harness = Harness::new();
 
+    // reused mock values
+
+    const C1P23_4: Card = Card::physical(1, 2, 3, 4);
+    const C5M67_8: Card = Card::magical(5, 6, 7, 8);
+    const C9XAB_C: Card = Card::exploit(9, 0xA, 0xB, 0xC);
+    const CDAEF_0: Card = Card::assault(0xD, 0xE, 0xF, 0);
+
+    const HAND_CANDIDATES: HandCandidates = [
+        [C5M67_8, CDAEF_0, C9XAB_C, C5M67_8, C1P23_4],
+        [C1P23_4, C5M67_8, C9XAB_C, CDAEF_0, C5M67_8],
+        [C1P23_4, C5M67_8, CDAEF_0, C5M67_8, C9XAB_C],
+    ];
+
     // setup process
     harness.test("Setup without args", || {
         let mut driver1 = implementation_driver(&args.implementation);
@@ -187,16 +200,7 @@ fn main() -> anyhow::Result<()> {
     });
 
     harness.test("Setup with set hand candidates", || {
-        const C1P23_4: Card = Card::physical(1, 2, 3, 4);
-        const C5M67_8: Card = Card::magical(5, 6, 7, 8);
-        const C9XAB_C: Card = Card::exploit(9, 0xA, 0xB, 0xC);
-        const CDAEF_0: Card = Card::assault(0xD, 0xE, 0xF, 0);
-        let expected = [
-            [C5M67_8, CDAEF_0, C9XAB_C, C5M67_8, C1P23_4],
-            [C1P23_4, C5M67_8, C9XAB_C, CDAEF_0, C5M67_8],
-            [C1P23_4, C5M67_8, CDAEF_0, C5M67_8, C9XAB_C],
-        ];
-
+        let expected = HAND_CANDIDATES;
         let mut driver = implementation_driver(&args.implementation);
 
         if let Response::SetupOk {
@@ -213,7 +217,87 @@ fn main() -> anyhow::Result<()> {
         }
     });
 
-    // TODO pre-game
+    // pre-game
+    harness.test("P1 hand selection, ok", || {
+        let mut driver = implementation_driver(&args.implementation);
+        driver.send(Command::Setup {
+            seed: None,
+            blocked_cells: None,
+            hand_candidates: Some(HAND_CANDIDATES),
+        })?;
+
+        if let Response::PickHandOk = driver.send(Command::PickHand { index: 1 })? {
+            Ok(())
+        } else {
+            panic!("unexpected response");
+        }
+    });
+
+    harness.test("P1 hand selection, invalid number", || {
+        let mut driver = implementation_driver(&args.implementation);
+        driver.send(Command::Setup {
+            seed: None,
+            blocked_cells: None,
+            hand_candidates: Some(HAND_CANDIDATES),
+        })?;
+
+        if let Response::PickHandErr { reason } = driver.send(Command::PickHand { index: 3 })? {
+            assert_eq!(reason, "Invalid Pick '3', expected a number from 0 to 2");
+            Ok(())
+        } else {
+            panic!("unexpected response");
+        }
+    });
+
+    harness.test("P2 hand selection, ok", || {
+        let mut driver = implementation_driver(&args.implementation);
+        driver.send(Command::Setup {
+            seed: None,
+            blocked_cells: None,
+            hand_candidates: Some(HAND_CANDIDATES),
+        })?;
+
+        driver.send(Command::PickHand { index: 0 })?;
+        if let Response::PickHandOk = driver.send(Command::PickHand { index: 1 })? {
+            Ok(())
+        } else {
+            panic!("unexpected response");
+        }
+    });
+
+    harness.test("P2 hand selection, invalid number", || {
+        let mut driver = implementation_driver(&args.implementation);
+        driver.send(Command::Setup {
+            seed: None,
+            blocked_cells: None,
+            hand_candidates: Some(HAND_CANDIDATES),
+        })?;
+
+        driver.send(Command::PickHand { index: 0 })?;
+        if let Response::PickHandErr { reason } = driver.send(Command::PickHand { index: 3 })? {
+            assert_eq!(reason, "Invalid Pick '3', expected a number from 0 to 2");
+            Ok(())
+        } else {
+            panic!("unexpected response");
+        }
+    });
+
+    harness.test("P2 hand selection, hand already selected", || {
+        let mut driver = implementation_driver(&args.implementation);
+        driver.send(Command::Setup {
+            seed: None,
+            blocked_cells: None,
+            hand_candidates: Some(HAND_CANDIDATES),
+        })?;
+
+        driver.send(Command::PickHand { index: 0 })?;
+        if let Response::PickHandErr { reason } = driver.send(Command::PickHand { index: 0 })? {
+            assert_eq!(reason, "Hand 0 has already been picked");
+            Ok(())
+        } else {
+            panic!("unexpected response");
+        }
+    });
 
     // TODO game proper
 

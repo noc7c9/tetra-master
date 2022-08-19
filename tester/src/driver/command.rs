@@ -9,6 +9,9 @@ pub(crate) enum Command {
         blocked_cells: Option<Vec<u8>>,
         hand_candidates: Option<HandCandidates>,
     },
+    PickHand {
+        index: usize,
+    },
 }
 
 impl Command {
@@ -32,6 +35,9 @@ impl Command {
                     write!(out, " hand_candidates=")?;
                     write_hand_candidates(out, &hand_candidates)?;
                 }
+            }
+            Command::PickHand { index } => {
+                write!(out, "pick-hand index={index}")?;
             }
         }
         out.write_char('\n')?;
@@ -180,6 +186,15 @@ mod tests {
     } => using assert_eq("setup seed=123 blocked_cells=[2,8,A] hand_candidates=[[1P23@04,5M67@08,9XAB@0C,DAEF@00,5M67@08];[5M67@08,1P23@04,DAEF@00,5M67@08,9XAB@0C];[DAEF@00,5M67@08,9XAB@0C,5M67@08,1P23@04]]\n")
     )]
     fn setup(input: Command) -> String {
+        let mut out = String::new();
+        input.serialize(&mut out).unwrap();
+        out
+    }
+
+    #[test_case(PickHand { index: 0 } => using assert_eq("pick-hand index=0\n"))]
+    #[test_case(PickHand { index: 1 } => using assert_eq("pick-hand index=1\n"))]
+    #[test_case(PickHand { index: 2 } => using assert_eq("pick-hand index=2\n"))]
+    fn pick_hand(input: Command) -> String {
         let mut out = String::new();
         input.serialize(&mut out).unwrap();
         out

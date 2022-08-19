@@ -11,11 +11,24 @@ pub(crate) fn pre_game_next(
 ) -> Result<(), String> {
     match state.status {
         PreGameStatus::P1Picking => {
+            if input.pick > 2 {
+                return Err(format!(
+                    "Invalid Pick '{}', expected a number from 0 to 2",
+                    input.pick
+                ));
+            }
+
             state.status = PreGameStatus::P2Picking {
                 p1_pick: input.pick,
             };
         }
         PreGameStatus::P2Picking { p1_pick } => {
+            if input.pick > 2 {
+                return Err(format!(
+                    "Invalid Pick '{}', expected a number from 0 to 2",
+                    input.pick
+                ));
+            }
             if input.pick == p1_pick {
                 return Err(format!("Hand {p1_pick} has already been picked"));
             }

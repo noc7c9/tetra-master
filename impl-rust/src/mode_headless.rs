@@ -1,5 +1,6 @@
 use crate::{
-    Arrows, Card, CardType, Cell, GameState, HandCandidate, HandCandidates, PreGameState, Rng, Seed,
+    input, logic, Arrows, BattleSystem, Card, CardType, Cell, GameLog, GameState, HandCandidate,
+    HandCandidates, PreGameInput, PreGameState, Rng, Seed,
 };
 use std::fmt::Write;
 
@@ -45,7 +46,7 @@ type Result<T = ()> = std::result::Result<T, Error>;
 #[allow(clippy::enum_variant_names)]
 enum HeadlessState {
     NotInGame,
-    InPreGame(PreGameState),
+    InPreGame(PreGameState, BattleSystem),
     InGame(GameState),
 }
 
@@ -55,7 +56,8 @@ pub(crate) fn run() -> std::result::Result<(), Box<dyn std::error::Error>> {
 
     let mut buf = String::new();
 
-    let mut state = HeadlessState::NotInGame;
+    let mut current_state = HeadlessState::NotInGame;
+    let mut log = GameLog::new();
 
     loop {
         use std::io::{BufRead, Write};
@@ -77,81 +79,73 @@ pub(crate) fn run() -> std::result::Result<(), Box<dyn std::error::Error>> {
         }
 
         // handle command
-        match state {
+        match current_state {
             HeadlessState::NotInGame => {
                 if cmd_name == "setup" {
-                    let mut seed = None;
-                    let mut blocked_cells: Option<Vec<usize>> = None;
-                    let mut hand_candidates: Option<HandCandidates> = None;
-                    for kv in cmd {
-                        let mut kv = kv.split('=');
-                        let k = kv.next().unwrap();
-                        let v = kv.next().unwrap();
-                        match k {
-                            "seed" => {
-                                seed = Some(parse_seed(v)?);
-                            }
-                            "blocked_cells" => {
-                                blocked_cells = Some(parse_blocked_cells(v)?);
-                            }
-                            "hand_candidates" => {
-                                hand_candidates = Some(parse_hand_candidates(v)?);
-                            }
-                            _ => panic!("Invalid arg {k}"),
-                        }
-                    }
+                    let (seed, blocked_cells, hand_candidates) = parse_setup(cmd)?;
 
                     let rng = seed.map_or_else(Rng::new, Rng::with_seed);
-                    let mut pre_game_state = PreGameState::with_rng(rng);
+                    let mut state = PreGameState::with_rng(rng);
 
                     if let Some(blocked_cells) = blocked_cells {
-                        pre_game_state.board = Default::default();
+                        state.board = Default::default();
                         for cell in blocked_cells {
-                            pre_game_state.board[cell] = Cell::Blocked;
+                            state.board[cell] = Cell::Blocked;
                         }
                     }
 
                     if let Some(hand_candidates) = hand_candidates {
-                        pre_game_state.hand_candidates = hand_candidates;
+                        state.hand_candidates = hand_candidates;
                     }
 
+                    let seed = state.rng.initial_seed();
+                    let blocked_cells = state.board.iter().enumerate().filter_map(|(idx, cell)| {
+                        if let Cell::Blocked = cell {
+                            Some(idx)
+                        } else {
+                            None
+                        }
+                    });
+                    let hand_candidates = &state.hand_candidates;
+
                     buf.clear();
-                    write!(buf, "setup-ok")?;
-
-                    write!(buf, " seed=")?;
-                    write_seed(&mut buf, pre_game_state.rng.initial_seed())?;
-
-                    write!(buf, " blocked_cells=")?;
-                    let blocked_cells =
-                        pre_game_state
-                            .board
-                            .iter()
-                            .enumerate()
-                            .filter_map(|(idx, cell)| {
-                                if let Cell::Blocked = cell {
-                                    Some(idx)
-                                } else {
-                                    None
-                                }
-                            });
-                    write_blocked_cells(&mut buf, blocked_cells)?;
-
-                    write!(buf, " hand_candidates=")?;
-                    write_hand_candidates(&mut buf, &pre_game_state.hand_candidates)?;
-
-                    writeln!(buf)?;
+                    write_setup_ok(&mut buf, seed, blocked_cells, hand_candidates)?;
 
                     out.write_all(buf.as_bytes())?;
                     out.flush()?;
 
-                    state = HeadlessState::InPreGame(pre_game_state);
+                    current_state = HeadlessState::InPreGame(state, BattleSystem::Original);
 
                     continue;
                 }
                 panic!("Unexpected command {buf}")
             }
-            HeadlessState::InPreGame(state) => {
-                todo!()
+            HeadlessState::InPreGame(mut state, battle_system) => {
+                if cmd_name == "pick-hand" {
+                    let index = parse_pick_hand(cmd)?;
+
+                    buf.clear();
+
+                    let input = PreGameInput { pick: index };
+                    if let Err(err) = logic::pre_game_next(&mut state, &mut log, input) {
+                        write_pick_hand_err(&mut buf, &err)?;
+                    } else {
+                        write_pick_hand_ok(&mut buf)?;
+                    }
+                    out.write_all(buf.as_bytes())?;
+                    out.flush()?;
+
+                    if state.is_complete() {
+                        let state = GameState::from_pre_game_state(state, battle_system);
+                        current_state = HeadlessState::InGame(state);
+                    } else {
+                        // restore previous state to keep borrow checker happy
+                        current_state = HeadlessState::InPreGame(state, battle_system);
+                    }
+
+                    continue;
+                }
+                panic!("Unexpected command {buf}")
             }
             HeadlessState::InGame(state) => {
                 todo!()
@@ -160,12 +154,67 @@ pub(crate) fn run() -> std::result::Result<(), Box<dyn std::error::Error>> {
     }
 }
 
-fn parse_seed(s: &str) -> Result<Seed> {
-    Ok(s.parse()?)
+fn parse_setup<'a>(
+    cmd: impl Iterator<Item = &'a str>,
+) -> Result<(Option<Seed>, Option<Vec<usize>>, Option<HandCandidates>)> {
+    let mut seed = None;
+    let mut blocked_cells: Option<Vec<usize>> = None;
+    let mut hand_candidates: Option<HandCandidates> = None;
+    for kv in cmd {
+        let mut kv = kv.split('=');
+        let k = kv.next().unwrap();
+        let v = kv.next().unwrap();
+        match k {
+            "seed" => {
+                seed = Some(v.parse()?);
+            }
+            "blocked_cells" => {
+                blocked_cells = Some(parse_blocked_cells(v)?);
+            }
+            "hand_candidates" => {
+                hand_candidates = Some(parse_hand_candidates(v)?);
+            }
+            _ => panic!("Invalid arg {k}"),
+        }
+    }
+
+    Ok((seed, blocked_cells, hand_candidates))
 }
 
-fn write_seed(o: &mut String, seed: Seed) -> Result {
-    write!(o, "{}", seed)?;
+fn write_setup_ok(
+    o: &mut String,
+    seed: Seed,
+    blocked_cells: impl Iterator<Item = usize>,
+    hand_candidates: &HandCandidates,
+) -> Result {
+    write!(o, "setup-ok")?;
+    write!(o, " seed={}", seed)?;
+    write!(o, " blocked_cells=")?;
+    write_blocked_cells(o, blocked_cells)?;
+    write!(o, " hand_candidates=")?;
+    write_hand_candidates(o, hand_candidates)?;
+    writeln!(o)?;
+    Ok(())
+}
+
+fn parse_pick_hand<'a>(mut cmd: impl Iterator<Item = &'a str>) -> Result<usize> {
+    let mut kv = cmd.next().unwrap().split('=');
+    let k = kv.next().unwrap();
+    if k == "index" {
+        Ok(kv.next().unwrap().parse()?)
+    } else {
+        panic!("Invalid arg {k}")
+    }
+}
+
+fn write_pick_hand_ok(o: &mut String) -> Result {
+    writeln!(o, "pick-hand-ok")?;
+    Ok(())
+}
+
+fn write_pick_hand_err(o: &mut String, err: &str) -> Result {
+    write!(o, "pick-hand-err")?;
+    writeln!(o, " reason=\"{err}\"")?;
     Ok(())
 }
 

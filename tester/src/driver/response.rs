@@ -1,6 +1,7 @@
 use crate::{Arrows, Card, CardType, HandCandidate, HandCandidates, Seed};
 use nom::{
-    bytes::complete::{tag, take_while_m_n},
+    branch::alt,
+    bytes::complete::{is_not, tag, take_while_m_n},
     character::complete::{char, one_of, u64},
     combinator::{map_res, verify},
     error::Error,
@@ -16,13 +17,22 @@ pub(crate) enum Response {
         blocked_cells: Vec<u8>,
         hand_candidates: HandCandidates,
     },
+    PickHandOk,
+    PickHandErr {
+        reason: String,
+    },
 }
 
 impl Response {
     pub(crate) fn deserialize(input: &str) -> anyhow::Result<Self> {
-        let (_, res) = setup_ok(input).map_err(|e| e.to_owned())?;
+        let (input, res) =
+            alt((setup_ok, pick_hand_ok, pick_hand_err))(input).map_err(|e| e.to_owned())?;
         Ok(res)
     }
+}
+
+fn string(input: &str) -> IResult<&str, &str> {
+    delimited(char('"'), is_not("\""), char('"'))(input)
 }
 
 fn list<'a, T>(
@@ -97,12 +107,32 @@ fn setup_ok(input: &str) -> IResult<&str, Response> {
     let (input, blocked_cells) = preceded(tag(" blocked_cells="), blocked_cells)(input)?;
     let (input, hand_candidates) = preceded(tag(" hand_candidates="), hand_candidates)(input)?;
 
+    let (input, _) = tag("\n")(input)?;
+
     Ok((
         input,
         Response::SetupOk {
             seed,
             blocked_cells,
             hand_candidates,
+        },
+    ))
+}
+
+fn pick_hand_ok(input: &str) -> IResult<&str, Response> {
+    let (input, _) = tag("pick-hand-ok")(input)?;
+    let (input, _) = tag("\n")(input)?;
+    Ok((input, Response::PickHandOk))
+}
+
+fn pick_hand_err(input: &str) -> IResult<&str, Response> {
+    let (input, _) = tag("pick-hand-err")(input)?;
+    let (input, reason) = preceded(tag(" reason="), string)(input)?;
+    let (input, _) = tag("\n")(input)?;
+    Ok((
+        input,
+        Response::PickHandErr {
+            reason: reason.into(),
         },
     ))
 }
@@ -203,5 +233,17 @@ mod tests {
             ],
         };
         assert_eq!(expected, actual);
+    }
+
+    #[test_case("pick-hand-ok\n" => PickHandOk)]
+    fn pick_hand_ok(input: &str) -> Response {
+        Response::deserialize(&input).unwrap()
+    }
+
+    #[test_case("pick-hand-err reason=\"oneword\"\n" => PickHandErr { reason: "oneword".into() })]
+    #[test_case("pick-hand-err reason=\"multiple words\"\n" => PickHandErr { reason: "multiple words".into() })]
+    #[test_case("pick-hand-err reason=\"escaped \\\" quote\"\n" => panics)]
+    fn pick_hand_err(input: &str) -> Response {
+        Response::deserialize(&input).unwrap()
     }
 }
