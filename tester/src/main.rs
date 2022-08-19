@@ -229,9 +229,8 @@ fn main() -> anyhow::Result<()> {
 
     // TODO game proper
 
-    println!("Running tests...");
+    println!("Running tests...\n");
     harness.run();
-    println!("Done!");
 
     Ok(())
 }
