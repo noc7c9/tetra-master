@@ -25,7 +25,12 @@ where
         }
     }
 
-    pub(crate) fn transmit(&mut self, cmd: Command) -> anyhow::Result<()> {
+    pub(crate) fn send(&mut self, cmd: Command) -> anyhow::Result<Response> {
+        self.tx(cmd)?;
+        self.rx()
+    }
+
+    fn tx(&mut self, cmd: Command) -> anyhow::Result<()> {
         self.buffer.clear();
         cmd.serialize(&mut self.buffer)?;
 
@@ -35,7 +40,7 @@ where
         Ok(())
     }
 
-    pub(crate) fn receive(&mut self) -> anyhow::Result<Response> {
+    fn rx(&mut self) -> anyhow::Result<Response> {
         self.buffer.clear();
         self.receiver.read_line(&mut self.buffer)?;
 

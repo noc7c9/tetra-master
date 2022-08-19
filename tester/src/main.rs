@@ -72,12 +72,8 @@ struct ImplementationDriver {
 }
 
 impl ImplementationDriver {
-    fn transmit(&mut self, cmd: driver::Command) -> anyhow::Result<()> {
-        self.driver.transmit(cmd)
-    }
-
-    fn receive(&mut self) -> anyhow::Result<driver::Response> {
-        self.driver.receive()
+    fn send(&mut self, cmd: driver::Command) -> anyhow::Result<driver::Response> {
+        self.driver.send(cmd)
     }
 }
 
@@ -128,20 +124,18 @@ fn main() -> anyhow::Result<()> {
     // setup process
     harness.test("Setup without args", || {
         let mut driver1 = implementation_driver(&args.implementation);
-        driver1.transmit(Command::Setup {
+        let first = driver1.send(Command::Setup {
             seed: None,
             blocked_cells: None,
             hand_candidates: None,
         })?;
-        let first = driver1.receive()?;
 
         let mut driver2 = implementation_driver(&args.implementation);
-        driver2.transmit(Command::Setup {
+        let second = driver2.send(Command::Setup {
             seed: None,
             blocked_cells: None,
             hand_candidates: None,
         })?;
-        let second = driver2.receive()?;
 
         assert_ne!(first, second);
 
@@ -150,12 +144,11 @@ fn main() -> anyhow::Result<()> {
 
     harness.test("Setup with set seed", || {
         let mut driver1 = implementation_driver(&args.implementation);
-        driver1.transmit(Command::Setup {
+        let first = driver1.send(Command::Setup {
             seed: None,
             blocked_cells: None,
             hand_candidates: None,
         })?;
-        let first = driver1.receive()?;
 
         let seed = if let Response::SetupOk { seed, .. } = first {
             seed
@@ -164,12 +157,11 @@ fn main() -> anyhow::Result<()> {
         };
 
         let mut driver1 = implementation_driver(&args.implementation);
-        driver1.transmit(Command::Setup {
+        let second = driver1.send(Command::Setup {
             seed: Some(seed),
             blocked_cells: None,
             hand_candidates: None,
         })?;
-        let second = driver1.receive()?;
 
         assert_eq!(first, second);
 
@@ -178,16 +170,14 @@ fn main() -> anyhow::Result<()> {
 
     harness.test("Setup with set blocked_cells", || {
         let mut driver = implementation_driver(&args.implementation);
-        driver.transmit(Command::Setup {
-            seed: None,
-            blocked_cells: Some((&[6u8, 3, 0xC] as &[_]).try_into().unwrap()),
-            hand_candidates: None,
-        })?;
 
         if let Response::SetupOk {
             mut blocked_cells, ..
-        } = driver.receive()?
-        {
+        } = driver.send(Command::Setup {
+            seed: None,
+            blocked_cells: Some((&[6u8, 3, 0xC] as &[_]).try_into().unwrap()),
+            hand_candidates: None,
+        })? {
             blocked_cells.sort_unstable();
             assert_eq!(blocked_cells.as_slice(), &[3, 6, 0xC]);
             Ok(())
@@ -208,16 +198,14 @@ fn main() -> anyhow::Result<()> {
         ];
 
         let mut driver = implementation_driver(&args.implementation);
-        driver.transmit(Command::Setup {
-            seed: None,
-            blocked_cells: None,
-            hand_candidates: Some(expected),
-        })?;
 
         if let Response::SetupOk {
             hand_candidates, ..
-        } = driver.receive()?
-        {
+        } = driver.send(Command::Setup {
+            seed: None,
+            blocked_cells: None,
+            hand_candidates: Some(expected),
+        })? {
             assert_eq!(expected, hand_candidates);
             Ok(())
         } else {
