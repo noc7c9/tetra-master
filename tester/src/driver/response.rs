@@ -25,7 +25,7 @@ pub(crate) enum Response {
 
 impl Response {
     pub(crate) fn deserialize(input: &str) -> anyhow::Result<Self> {
-        let (input, res) =
+        let (_, res) =
             alt((setup_ok, pick_hand_ok, pick_hand_err))(input).map_err(|e| e.to_owned())?;
         Ok(res)
     }
@@ -237,13 +237,13 @@ mod tests {
 
     #[test_case("pick-hand-ok\n" => PickHandOk)]
     fn pick_hand_ok(input: &str) -> Response {
-        Response::deserialize(&input).unwrap()
+        Response::deserialize(input).unwrap()
     }
 
     #[test_case("pick-hand-err reason=\"oneword\"\n" => PickHandErr { reason: "oneword".into() })]
     #[test_case("pick-hand-err reason=\"multiple words\"\n" => PickHandErr { reason: "multiple words".into() })]
     #[test_case("pick-hand-err reason=\"escaped \\\" quote\"\n" => panics)]
     fn pick_hand_err(input: &str) -> Response {
-        Response::deserialize(&input).unwrap()
+        Response::deserialize(input).unwrap()
     }
 }

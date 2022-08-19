@@ -82,19 +82,19 @@ pub(crate) fn run() -> std::result::Result<(), Box<dyn std::error::Error>> {
         match current_state {
             HeadlessState::NotInGame => {
                 if cmd_name == "setup" {
-                    let (seed, blocked_cells, hand_candidates) = parse_setup(cmd)?;
+                    let setup = parse_setup(cmd)?;
 
-                    let rng = seed.map_or_else(Rng::new, Rng::with_seed);
+                    let rng = setup.seed.map_or_else(Rng::new, Rng::with_seed);
                     let mut state = PreGameState::with_rng(rng);
 
-                    if let Some(blocked_cells) = blocked_cells {
+                    if let Some(blocked_cells) = setup.blocked_cells {
                         state.board = Default::default();
                         for cell in blocked_cells {
                             state.board[cell] = Cell::Blocked;
                         }
                     }
 
-                    if let Some(hand_candidates) = hand_candidates {
+                    if let Some(hand_candidates) = setup.hand_candidates {
                         state.hand_candidates = hand_candidates;
                     }
 
@@ -154,9 +154,12 @@ pub(crate) fn run() -> std::result::Result<(), Box<dyn std::error::Error>> {
     }
 }
 
-fn parse_setup<'a>(
-    cmd: impl Iterator<Item = &'a str>,
-) -> Result<(Option<Seed>, Option<Vec<usize>>, Option<HandCandidates>)> {
+struct SetupFields {
+    seed: Option<Seed>,
+    blocked_cells: Option<Vec<usize>>,
+    hand_candidates: Option<HandCandidates>,
+}
+fn parse_setup<'a>(cmd: impl Iterator<Item = &'a str>) -> Result<SetupFields> {
     let mut seed = None;
     let mut blocked_cells: Option<Vec<usize>> = None;
     let mut hand_candidates: Option<HandCandidates> = None;
@@ -177,8 +180,11 @@ fn parse_setup<'a>(
             _ => panic!("Invalid arg {k}"),
         }
     }
-
-    Ok((seed, blocked_cells, hand_candidates))
+    Ok(SetupFields {
+        seed,
+        blocked_cells,
+        hand_candidates,
+    })
 }
 
 fn write_setup_ok(
