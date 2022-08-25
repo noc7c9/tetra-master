@@ -226,6 +226,9 @@ fn write_pick_hand_err(o: &mut String, err: &str) -> Result {
 
 fn parse_blocked_cells(s: &str) -> Result<Vec<usize>> {
     let s = &s[1..s.len() - 1]; // remove brackets
+    if s.is_empty() {
+        return Ok(vec![]);
+    }
     s.split(',')
         .map(|v| -> Result<_> { Ok(usize::from_str_radix(v, 16)?) })
         .collect::<Result<Vec<_>>>()

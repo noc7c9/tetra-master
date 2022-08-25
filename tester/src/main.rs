@@ -188,11 +188,29 @@ fn main() -> anyhow::Result<()> {
             mut blocked_cells, ..
         } = driver.send(Command::Setup {
             seed: None,
-            blocked_cells: Some((&[6u8, 3, 0xC] as &[_]).try_into().unwrap()),
+            blocked_cells: Some(vec![6u8, 3, 0xC]),
             hand_candidates: None,
         })? {
             blocked_cells.sort_unstable();
-            assert_eq!(blocked_cells.as_slice(), &[3, 6, 0xC]);
+            assert_eq!(blocked_cells, vec![3, 6, 0xC]);
+            Ok(())
+        } else {
+            panic!("unexpected response");
+        }
+    });
+
+    harness.test("Setup with set blocked_cells to nothing", || {
+        let mut driver = implementation_driver(&args.implementation);
+
+        if let Response::SetupOk {
+            mut blocked_cells, ..
+        } = driver.send(Command::Setup {
+            seed: None,
+            blocked_cells: Some(vec![]),
+            hand_candidates: None,
+        })? {
+            blocked_cells.sort_unstable();
+            assert_eq!(blocked_cells, vec![]);
             Ok(())
         } else {
             panic!("unexpected response");
