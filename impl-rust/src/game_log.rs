@@ -22,7 +22,9 @@ pub(crate) enum Entry {
     },
     Battle {
         attacker: OwnedCard,
+        attacker_cell: usize,
         defender: OwnedCard,
+        defender_cell: usize,
         result: BattleResult,
     },
 }
@@ -53,10 +55,18 @@ impl Entry {
         }
     }
 
-    pub(crate) fn battle(attacker: OwnedCard, defender: OwnedCard, result: BattleResult) -> Self {
+    pub(crate) fn battle(
+        attacker: OwnedCard,
+        attacker_cell: usize,
+        defender: OwnedCard,
+        defender_cell: usize,
+        result: BattleResult,
+    ) -> Self {
         Entry::Battle {
             attacker,
+            attacker_cell,
             defender,
+            defender_cell,
             result,
         }
     }

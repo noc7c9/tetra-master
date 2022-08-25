@@ -235,7 +235,13 @@ fn battle(
     let mut defender = state.take_card(defender_cell);
 
     let result = calculate_battle_result(state, attacker.card, defender.card);
-    log.append(Entry::battle(attacker, defender, result));
+    log.append(Entry::battle(
+        attacker,
+        attacker_cell,
+        defender,
+        defender_cell,
+        result,
+    ));
     let (loser_cell, loser) = match result.winner {
         BattleWinner::Defender | BattleWinner::None => {
             // flip attacker

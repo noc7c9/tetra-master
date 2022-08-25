@@ -451,6 +451,7 @@ fn push_game_log(o: &mut String, log: &GameLog, battle_system: BattleSystem) -> 
                 attacker,
                 defender,
                 result,
+                ..
             } => {
                 let att_stats = Stats::from(attacker).highlight(result.attack_stat.digit);
                 let def_stats = Stats::from(defender).highlight(result.defense_stat.digit);

@@ -291,7 +291,9 @@ fn update_game_log_on_battles() {
                 &Entry::place_card(OwnedCard::p1(card_points_up), 4),
                 &Entry::battle(
                     OwnedCard::p1(card_points_up),
+                    4,
                     OwnedCard::p2(card_points_down),
+                    0,
                     BattleResult {
                         winner: BattleWinner::Attacker,
                         attack_stat: BattleStat {
@@ -329,7 +331,9 @@ fn update_game_log_on_battles() {
                 &Entry::place_card(OwnedCard::p1(card_points_up), 4),
                 &Entry::battle(
                     OwnedCard::p1(card_points_up),
+                    4,
                     OwnedCard::p2(card_points_down),
+                    0,
                     BattleResult {
                         winner: BattleWinner::Defender,
                         attack_stat: BattleStat {
@@ -367,7 +371,9 @@ fn update_game_log_on_battles() {
                 &Entry::place_card(OwnedCard::p1(card_points_up), 4),
                 &Entry::battle(
                     OwnedCard::p1(card_points_up),
+                    4,
                     OwnedCard::p2(card_points_down),
+                    0,
                     BattleResult {
                         winner: BattleWinner::None,
                         attack_stat: BattleStat {
@@ -419,7 +425,9 @@ fn flip_other_undefended_cards_after_attacker_wins_battle() {
             &Entry::place_card(OwnedCard::p1(card_points_all), 4),
             &Entry::battle(
                 OwnedCard::p1(card_points_all),
+                4,
                 OwnedCard::p2(card_points_down),
+                0,
                 BattleResult {
                     winner: BattleWinner::Attacker,
                     attack_stat: BattleStat {
@@ -473,7 +481,9 @@ fn dont_flip_other_undefended_cards_after_attacker_loses_battle() {
             &Entry::place_card(OwnedCard::p1(card_points_all), 4),
             &Entry::battle(
                 OwnedCard::p1(card_points_all),
+                4,
                 OwnedCard::p2(card_points_down),
+                0,
                 BattleResult {
                     winner: BattleWinner::Defender,
                     attack_stat: BattleStat {
@@ -567,7 +577,9 @@ fn continue_after_battle_choice_is_given() {
             &Entry::place_card(OwnedCard::p1(card_points_vert), 4),
             &Entry::battle(
                 OwnedCard::p1(card_points_vert),
+                4,
                 OwnedCard::p2(card_points_up),
+                8,
                 BattleResult {
                     winner: BattleWinner::Attacker,
                     attack_stat: BattleStat {
@@ -585,7 +597,9 @@ fn continue_after_battle_choice_is_given() {
             &Entry::flip_card(OwnedCard::p2(card_points_up), 8, Player::P1, false),
             &Entry::battle(
                 OwnedCard::p1(card_points_vert),
+                4,
                 OwnedCard::p2(card_points_down),
+                0,
                 BattleResult {
                     winner: BattleWinner::Attacker,
                     attack_stat: BattleStat {
@@ -732,7 +746,9 @@ fn combo_flip_cards_that_are_pointed_to_by_defender_if_they_lose() {
             &Entry::place_card(OwnedCard::p1(card_points_up), 9),
             &Entry::battle(
                 OwnedCard::p1(card_points_up),
+                9,
                 OwnedCard::p2(card_points_all),
+                5,
                 BattleResult {
                     winner: BattleWinner::Attacker,
                     attack_stat: BattleStat {
@@ -784,7 +800,9 @@ fn combo_flip_cards_that_are_pointed_to_by_attacker_if_they_lose() {
             &Entry::place_card(OwnedCard::p1(card_points_all), 5),
             &Entry::battle(
                 OwnedCard::p1(card_points_all),
+                5,
                 OwnedCard::p2(card_points_up),
+                9,
                 BattleResult {
                     winner: BattleWinner::Defender,
                     attack_stat: BattleStat {
@@ -835,7 +853,9 @@ fn dont_flip_back_undefended_cards_if_they_are_flipped_due_to_combos() {
             &Entry::place_card(OwnedCard::p1(card_points_all_att), 5),
             &Entry::battle(
                 OwnedCard::p1(card_points_all_att),
+                5,
                 OwnedCard::p2(card_points_all_def),
+                0,
                 BattleResult {
                     winner: BattleWinner::Attacker,
                     attack_stat: BattleStat {
