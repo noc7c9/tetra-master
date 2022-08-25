@@ -487,10 +487,10 @@ fn push_game_log(o: &mut String, log: &GameLog, battle_system: BattleSystem) -> 
                     }
                     BattleSystem::Dice { sides } => {
                         write!(o, "{att_color}Attacker{RESET} ")?;
-                        write!(o, "({}d{sides}) rolled {att_roll}, ", att_value >> 4)?;
+                        write!(o, "({att_value}d{sides}) rolled {att_roll}, ")?;
 
                         write!(o, "{def_color}Defender{RESET} ")?;
-                        writeln!(o, "({}d{sides}) rolled {def_roll}", def_value >> 4)?;
+                        writeln!(o, "({def_value}d{sides}) rolled {def_roll}")?;
                     }
                 }
 

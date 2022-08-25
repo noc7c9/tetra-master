@@ -471,11 +471,8 @@ fn push_game_log(o: &mut String, log: &GameLog, battle_system: BattleSystem) -> 
                         writeln!(o, "Defender ({def_value}) rolled {def_roll}")?;
                     }
                     BattleSystem::Dice { sides } => {
-                        let value = att_value >> 4;
-                        write!(o, "Attacker ({value}d{sides}) rolled {att_roll}, ")?;
-
-                        let value = def_value >> 4;
-                        writeln!(o, "Defender ({value}d{sides}) rolled {def_roll}")?;
+                        write!(o, "Attacker ({att_value}d{sides}) rolled {att_roll}, ")?;
+                        writeln!(o, "Defender ({def_value}d{sides}) rolled {def_roll}")?;
                     }
                 }
 
