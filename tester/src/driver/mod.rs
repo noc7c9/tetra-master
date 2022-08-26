@@ -1,3 +1,4 @@
+use owo_colors::OwoColorize;
 use std::io::{BufRead, Write};
 
 mod command;
@@ -10,6 +11,7 @@ pub(crate) struct Driver<Rx, Tx> {
     receiver: Rx,
     transmitter: Tx,
     buffer: String,
+    logging: bool,
 }
 
 impl<Rx, Tx> Driver<Rx, Tx>
@@ -22,6 +24,7 @@ where
             receiver,
             transmitter,
             buffer: String::new(),
+            logging: false,
         }
     }
 
@@ -30,9 +33,18 @@ where
         self.rx()
     }
 
+    #[allow(dead_code)]
+    pub(crate) fn toggle_logging(&mut self) {
+        self.logging = !self.logging;
+    }
+
     fn tx(&mut self, cmd: Command) -> anyhow::Result<()> {
         self.buffer.clear();
         cmd.serialize(&mut self.buffer)?;
+
+        if self.logging {
+            eprint!("{} {}", " TX ".black().on_purple(), self.buffer.purple());
+        }
 
         self.transmitter.write_all(self.buffer.as_bytes())?;
         self.transmitter.flush()?;
@@ -43,6 +55,10 @@ where
     fn rx(&mut self) -> anyhow::Result<Response> {
         self.buffer.clear();
         self.receiver.read_line(&mut self.buffer)?;
+
+        if self.logging {
+            eprint!("{} {}", " RX ".black().on_blue(), self.buffer.blue());
+        }
 
         Response::deserialize(&self.buffer)
     }

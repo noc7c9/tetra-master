@@ -75,6 +75,10 @@ impl ImplementationDriver {
     fn send(&mut self, cmd: driver::Command) -> anyhow::Result<driver::Response> {
         self.driver.send(cmd)
     }
+
+    fn toggle_logging(&mut self) {
+        self.driver.toggle_logging()
+    }
 }
 
 impl Drop for ImplementationDriver {
