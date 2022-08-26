@@ -20,10 +20,15 @@ type HandCandidate = [Card; HAND_SIZE];
 type HandCandidates = [HandCandidate; HAND_CANDIDATES];
 type Board = [Cell; BOARD_SIZE];
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone)]
 enum BattleSystem {
     Original,
-    Dice { sides: u8 },
+    Dice {
+        sides: u8,
+    },
+    External {
+        rolls: std::collections::VecDeque<u8>,
+    },
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -401,7 +406,6 @@ fn type_sizes() {
     assert!(size_of::<Arrows>() < max);
     assert!(size_of::<BattleResult>() < max);
     assert!(size_of::<BattleStat>() < max);
-    assert!(size_of::<BattleSystem>() < max);
     assert!(size_of::<BattleWinner>() < max);
     assert!(size_of::<Card>() < max);
     assert!(size_of::<CardType>() < max);

@@ -282,7 +282,7 @@ fn flip(log: &mut GameLog, card: &mut OwnedCard, cell: usize, via_combo: bool) {
     card.owner = to;
 }
 
-fn roll(battle_system: BattleSystem, rng: &Rng, value: u8) -> u8 {
+fn roll(battle_system: &mut BattleSystem, rng: &Rng, value: u8) -> u8 {
     match battle_system {
         BattleSystem::Original => {
             let high_digit = value - rng.u8(..=value);
@@ -291,12 +291,15 @@ fn roll(battle_system: BattleSystem, rng: &Rng, value: u8) -> u8 {
         }
         BattleSystem::Dice { sides } => {
             // roll {value} dice and return the sum
-            (0..value).map(|_| rng.u8(1..=sides)).sum()
+            (0..value).map(|_| rng.u8(1..=*sides)).sum()
         }
+        BattleSystem::External { rolls } => rolls
+            .pop_front()
+            .expect("Ran out of external random numbers"),
     }
 }
 
-fn get_attack_stat(rng: &Rng, battle_system: BattleSystem, attacker: Card) -> BattleStat {
+fn get_attack_stat(rng: &Rng, battle_system: &mut BattleSystem, attacker: Card) -> BattleStat {
     let (digit, value) = if let CardType::Assault = attacker.card_type {
         // use the highest stat
         let att = attacker.attack;
@@ -320,7 +323,7 @@ fn get_attack_stat(rng: &Rng, battle_system: BattleSystem, attacker: Card) -> Ba
 
 fn get_defense_stat(
     rng: &Rng,
-    battle_system: BattleSystem,
+    battle_system: &mut BattleSystem,
     attacker: Card,
     defender: Card,
 ) -> BattleStat {
@@ -354,8 +357,8 @@ fn get_defense_stat(
     BattleStat { digit, value, roll }
 }
 
-fn calculate_battle_result(state: &GameState, attacker: Card, defender: Card) -> BattleResult {
-    let battle_system = state.battle_system;
+fn calculate_battle_result(state: &mut GameState, attacker: Card, defender: Card) -> BattleResult {
+    let battle_system = &mut state.battle_system;
 
     let attack_stat = get_attack_stat(&state.rng, battle_system, attacker);
     let defense_stat = get_defense_stat(&state.rng, battle_system, attacker, defender);

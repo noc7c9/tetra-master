@@ -5,7 +5,7 @@ mod command;
 mod response;
 
 pub(crate) use command::Command;
-pub(crate) use response::Response;
+pub(crate) use response::{BattleWinner, Battler, Digit, Interaction, Response};
 
 pub(crate) struct Driver<Rx, Tx> {
     receiver: Rx,

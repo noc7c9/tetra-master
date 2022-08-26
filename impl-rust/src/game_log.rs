@@ -74,15 +74,25 @@ impl Entry {
 
 pub(crate) struct GameLog {
     entries: Vec<Entry>,
+    last_new_entries_idx: usize,
 }
 
 impl GameLog {
     pub(crate) fn new() -> Self {
-        GameLog { entries: vec![] }
+        GameLog {
+            entries: vec![],
+            last_new_entries_idx: 0,
+        }
     }
 
     pub(crate) fn append(&mut self, entry: Entry) {
         self.entries.push(entry);
+    }
+
+    pub(crate) fn new_entries(&mut self) -> &[Entry] {
+        let idx = self.last_new_entries_idx;
+        self.last_new_entries_idx = self.entries.len() - 1;
+        &self.entries[idx..]
     }
 
     pub(crate) fn iter(&self) -> std::slice::Iter<'_, Entry> {

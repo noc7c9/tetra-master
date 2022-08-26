@@ -169,7 +169,7 @@ pub(crate) fn game_screen(o: &mut String, log: &GameLog, state: &GameState) -> R
     writeln!(o, "Player 2")?;
     push_hand(o, &state.p2_hand)?;
 
-    push_game_log(o, log, state.battle_system)?;
+    push_game_log(o, log, &state.battle_system)?;
 
     if let GameStatus::GameOver { winner } = state.status {
         push_game_over(o, winner)
@@ -391,7 +391,7 @@ fn push_board(o: &mut String, board: &Board) -> Result {
     writeln!(o)
 }
 
-fn push_game_log(o: &mut String, log: &GameLog, battle_system: BattleSystem) -> Result {
+fn push_game_log(o: &mut String, log: &GameLog, battle_system: &BattleSystem) -> Result {
     writeln!(o, "                    ══ GAMELOG ══ ")?;
 
     let mut curr_turn_number = 0;
@@ -423,6 +423,9 @@ fn push_game_log(o: &mut String, log: &GameLog, battle_system: BattleSystem) -> 
                     BattleSystem::Original => writeln!(o, "Using the Original battle system")?,
                     BattleSystem::Dice { sides } => {
                         writeln!(o, "Using the Dice battle system with {sides} sided die")?
+                    }
+                    BattleSystem::External { rolls, .. } => {
+                        writeln!(o, "Using the External battle system (rolls: {rolls:?})")?
                     }
                 }
                 writeln!(o, "           | The RNG seed is {seed}")?;
@@ -466,7 +469,7 @@ fn push_game_log(o: &mut String, log: &GameLog, battle_system: BattleSystem) -> 
                 write!(o, "           |         ")?;
 
                 match battle_system {
-                    BattleSystem::Original => {
+                    BattleSystem::Original | BattleSystem::External { .. } => {
                         write!(o, "Attacker ({att_value}) rolled {att_roll}, ")?;
                         writeln!(o, "Defender ({def_value}) rolled {def_roll}")?;
                     }
