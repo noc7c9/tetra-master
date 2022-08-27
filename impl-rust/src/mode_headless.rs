@@ -1,7 +1,7 @@
 use crate::{
-    logic, Arrows, BattleStat, BattleSystem, BattleWinner, Card, CardType, Cell, Entry, GameInput,
-    GameInputBattle, GameInputPlace, GameLog, GameState, GameStatus, HandCandidate, HandCandidates,
-    PreGameInput, PreGameState, Rng, Seed,
+    logic, Arrows, BattleStat, BattleSystem, BattleWinner, Board, Card, CardType, Cell, Entry,
+    GameInput, GameInputBattle, GameInputPlace, GameLog, GameState, GameStatus, HandCandidate,
+    HandCandidates, PreGameInput, PreGameState, Rng, Seed,
 };
 use std::fmt::Write;
 
@@ -9,6 +9,7 @@ use std::fmt::Write;
 enum Error {
     HandCandidatesTooShort,
     HandCandidateTooShort,
+    InvalidRng { input: String },
     InvalidBattleSystem { input: String },
     InvalidCardType { input: String },
     InvalidHexNumber(std::num::ParseIntError),
@@ -23,6 +24,7 @@ impl std::fmt::Display for Error {
         match self {
             HandCandidatesTooShort => f.write_str("hand candidates list too short"),
             HandCandidateTooShort => f.write_str("hand candidate list too short"),
+            InvalidRng { input } => write!(f, "'{input}' is not a valid rng"),
             InvalidBattleSystem { input } => write!(f, "'{input}' is not a valid battle system"),
             InvalidCardType { input } => write!(f, "'{input}' is not a valid card type"),
             InvalidHexNumber(inner) => inner.fmt(f),
@@ -87,21 +89,19 @@ pub(crate) fn run() -> std::result::Result<(), Box<dyn std::error::Error>> {
                 if cmd_name == "setup" {
                     let setup = parse_setup(cmd)?;
 
-                    let rng = setup.seed.map_or_else(Rng::new, Rng::with_seed);
-                    let mut state = PreGameState::with_rng(rng);
-
                     let battle_system = setup.battle_system.unwrap_or(BattleSystem::Original);
 
-                    if let Some(blocked_cells) = setup.blocked_cells {
-                        state.board = Default::default();
-                        for cell in blocked_cells {
-                            state.board[cell] = Cell::Blocked;
-                        }
-                    }
-
-                    if let Some(hand_candidates) = setup.hand_candidates {
-                        state.hand_candidates = hand_candidates;
-                    }
+                    let state = PreGameState::builder()
+                        .rng(setup.rng)
+                        .hand_candidates(setup.hand_candidates)
+                        .board(setup.blocked_cells.map(|blocked_cells| {
+                            let mut board: Board = Default::default();
+                            for cell in blocked_cells {
+                                board[cell] = Cell::Blocked;
+                            }
+                            board
+                        }))
+                        .build();
 
                     let seed = state.rng.initial_seed();
                     let blocked_cells = state.board.iter().enumerate().filter_map(|(idx, cell)| {
@@ -192,13 +192,13 @@ pub(crate) fn run() -> std::result::Result<(), Box<dyn std::error::Error>> {
 }
 
 struct SetupFields {
-    seed: Option<Seed>,
+    rng: Option<Rng>,
     battle_system: Option<BattleSystem>,
     blocked_cells: Option<Vec<usize>>,
     hand_candidates: Option<HandCandidates>,
 }
 fn parse_setup<'a>(cmd: impl Iterator<Item = &'a str>) -> Result<SetupFields> {
-    let mut seed = None;
+    let mut rng = None;
     let mut battle_system = None;
     let mut blocked_cells: Option<Vec<usize>> = None;
     let mut hand_candidates: Option<HandCandidates> = None;
@@ -207,8 +207,8 @@ fn parse_setup<'a>(cmd: impl Iterator<Item = &'a str>) -> Result<SetupFields> {
         let k = kv.next().unwrap();
         let v = kv.next().unwrap();
         match k {
-            "seed" => {
-                seed = Some(v.parse()?);
+            "rng" => {
+                rng = Some(parse_rng(v)?);
             }
             "battle_system" => {
                 battle_system = Some(parse_battle_system(v)?);
@@ -223,7 +223,7 @@ fn parse_setup<'a>(cmd: impl Iterator<Item = &'a str>) -> Result<SetupFields> {
         }
     }
     Ok(SetupFields {
-        seed,
+        rng,
         battle_system,
         blocked_cells,
         hand_candidates,
@@ -232,13 +232,15 @@ fn parse_setup<'a>(cmd: impl Iterator<Item = &'a str>) -> Result<SetupFields> {
 
 fn write_setup_ok(
     o: &mut String,
-    seed: Seed,
+    seed: Option<Seed>,
     battle_system: &BattleSystem,
     blocked_cells: impl Iterator<Item = usize>,
     hand_candidates: &HandCandidates,
 ) -> Result {
     write!(o, "setup-ok")?;
-    write!(o, " seed={}", seed)?;
+    if let Some(seed) = seed {
+        write!(o, " seed={}", seed)?;
+    }
     write!(o, " battle_system=")?;
     write_battle_system(o, battle_system)?;
     write!(o, " blocked_cells=")?;
@@ -354,18 +356,29 @@ fn write_place_card_pick_battle(o: &mut String, choices: &[(usize, Card)]) -> Re
     Ok(())
 }
 
-fn parse_battle_system(s: &str) -> Result<BattleSystem> {
-    if s == "original" {
-        Ok(BattleSystem::Original)
-    } else if &s[..4] == "dice" {
-        let sides = s[5..s.len() - 1].parse()?;
-        Ok(BattleSystem::Dice { sides })
+fn parse_rng(s: &str) -> Result<Rng> {
+    if &s[..4] == "seed" {
+        let seed = s[5..s.len() - 1].parse()?;
+        Ok(Rng::with_seed(seed))
     } else if &s[..8] == "external" {
         let rolls = s[9..s.len() - 1]
             .split(',')
             .map(|v| -> Result<_> { Ok(v.parse()?) })
             .collect::<Result<_>>()?;
-        Ok(BattleSystem::External { rolls })
+        Ok(Rng::new_external(rolls))
+    } else {
+        Err(Error::InvalidRng { input: s.into() })
+    }
+}
+
+fn parse_battle_system(s: &str) -> Result<BattleSystem> {
+    if s == "original" {
+        Ok(BattleSystem::Original)
+    } else if s == "original-approx" {
+        Ok(BattleSystem::OriginalApprox)
+    } else if &s[..4] == "dice" {
+        let sides = s[5..s.len() - 1].parse()?;
+        Ok(BattleSystem::Dice { sides })
     } else {
         Err(Error::InvalidBattleSystem { input: s.into() })
     }
@@ -384,18 +397,8 @@ fn parse_blocked_cells(s: &str) -> Result<Vec<usize>> {
 fn write_battle_system(o: &mut String, battle_system: &BattleSystem) -> Result {
     match battle_system {
         BattleSystem::Original => write!(o, "original")?,
+        BattleSystem::OriginalApprox => write!(o, "original-approx")?,
         BattleSystem::Dice { sides } => write!(o, "dice({sides})")?,
-        BattleSystem::External { rolls } => {
-            write!(o, "external[")?;
-            let mut rolls = rolls.iter();
-            if let Some(roll) = rolls.next() {
-                write!(o, "{roll}")?;
-                for roll in rolls {
-                    write!(o, ",{roll}")?;
-                }
-            }
-            write!(o, "]")?;
-        }
     }
     Ok(())
 }

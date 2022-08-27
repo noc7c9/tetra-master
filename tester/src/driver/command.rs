@@ -1,11 +1,11 @@
-use crate::{BattleSystem, Card, CardType, HandCandidates, Seed};
+use crate::{BattleSystem, Card, CardType, HandCandidates, Rng};
 use std::fmt::{Result, Write};
 
 #[derive(Debug)]
 pub(crate) enum Command {
     Quit,
     Setup {
-        seed: Option<Seed>,
+        rng: Option<Rng>,
         battle_system: Option<BattleSystem>,
         blocked_cells: Option<Vec<u8>>,
         hand_candidates: Option<HandCandidates>,
@@ -27,14 +27,15 @@ impl Command {
         match self {
             Command::Quit => out.write_str("quit")?,
             Command::Setup {
-                seed,
+                rng,
                 battle_system,
                 blocked_cells,
                 hand_candidates,
             } => {
                 out.write_str("setup")?;
-                if let Some(seed) = seed {
-                    write!(out, " seed={seed}")?;
+                if let Some(rng) = rng {
+                    write!(out, " rng=")?;
+                    write_rng(out, &rng)?;
                 }
                 if let Some(battle_system) = battle_system {
                     write!(out, " battle_system=")?;
@@ -96,14 +97,21 @@ fn write_card(out: &mut String, card: Card) -> Result {
     write!(out, "{att:X}{typ}{phy:X}{mag:X}@{arr:02X}")
 }
 
-fn write_battle_system(out: &mut String, battle_system: &BattleSystem) -> Result {
-    match battle_system {
-        BattleSystem::Original => write!(out, "original"),
-        BattleSystem::Dice { sides } => write!(out, "dice({sides})"),
-        BattleSystem::External { rolls } => {
+fn write_rng(out: &mut String, rng: &Rng) -> Result {
+    match rng {
+        Rng::Seeded { seed } => write!(out, "seed({seed})"),
+        Rng::External { rolls } => {
             write!(out, "external")?;
             write_list(out, ',', rolls.iter(), |out, v| write!(out, "{v}"))
         }
+    }
+}
+
+fn write_battle_system(out: &mut String, battle_system: &BattleSystem) -> Result {
+    match battle_system {
+        BattleSystem::Original => write!(out, "original"),
+        BattleSystem::OriginalApprox => write!(out, "original-approx"),
+        BattleSystem::Dice { sides } => write!(out, "dice({sides})"),
     }
 }
 
@@ -124,7 +132,7 @@ mod tests {
     use test_case::test_case;
 
     use super::Command::{self, *};
-    use crate::{BattleSystem, Card, HandCandidates};
+    use crate::{BattleSystem, Card, HandCandidates, Rng};
 
     fn assert_eq<T, U>(expected: T) -> impl Fn(U)
     where
@@ -177,49 +185,55 @@ mod tests {
     }
 
     #[test_case(Setup {
-        seed: None,
+        rng: None,
         battle_system: None,
         blocked_cells: None,
         hand_candidates: None,
     } => using assert_eq("setup\n"))]
     #[test_case(Setup {
-        seed: Some(123),
+        rng: Some(Rng::Seeded{ seed: 123 }),
         battle_system: None,
         blocked_cells: None,
         hand_candidates: None,
-    } => using assert_eq("setup seed=123\n"))]
+    } => using assert_eq("setup rng=seed(123)\n"))]
     #[test_case(Setup {
-        seed: None,
+        rng: Some(Rng::External { rolls: vec![2, 3, 5, 2, 1, 3, 5, 2, 4] }),
+        battle_system: None,
+        blocked_cells: None,
+        hand_candidates: None,
+    } => using assert_eq("setup rng=external[2,3,5,2,1,3,5,2,4]\n"))]
+    #[test_case(Setup {
+        rng: None,
         battle_system: Some(BattleSystem::Original),
         blocked_cells: None,
         hand_candidates: None,
     } => using assert_eq("setup battle_system=original\n"))]
     #[test_case(Setup {
-        seed: None,
+        rng: None,
+        battle_system: Some(BattleSystem::OriginalApprox),
+        blocked_cells: None,
+        hand_candidates: None,
+    } => using assert_eq("setup battle_system=original-approx\n"))]
+    #[test_case(Setup {
+        rng: None,
         battle_system: Some(BattleSystem::Dice { sides: 13 }),
         blocked_cells: None,
         hand_candidates: None,
     } => using assert_eq("setup battle_system=dice(13)\n"))]
     #[test_case(Setup {
-        seed: None,
-        battle_system: Some(BattleSystem::External { rolls: vec![2, 3, 5, 2, 1, 3, 5, 2, 4] }),
-        blocked_cells: None,
-        hand_candidates: None,
-    } => using assert_eq("setup battle_system=external[2,3,5,2,1,3,5,2,4]\n"))]
-    #[test_case(Setup {
-        seed: None,
+        rng: None,
         battle_system: None,
         blocked_cells: Some(vec![]),
         hand_candidates: None,
     } => using assert_eq("setup blocked_cells=[]\n"))]
     #[test_case(Setup {
-        seed: None,
+        rng: None,
         battle_system: None,
         blocked_cells: Some(vec![2]),
         hand_candidates: None,
     } => using assert_eq("setup blocked_cells=[2]\n"))]
     #[test_case(Setup {
-        seed: None,
+        rng: None,
         battle_system: None,
         blocked_cells: None,
         hand_candidates: Some([
@@ -229,7 +243,7 @@ mod tests {
         ]),
     } => using assert_eq("setup hand_candidates=[[1P23@04,5M67@08,9XAB@0C,DAEF@00,5M67@08];[5M67@08,1P23@04,DAEF@00,5M67@08,9XAB@0C];[DAEF@00,5M67@08,9XAB@0C,5M67@08,1P23@04]]\n"))]
     #[test_case(Setup {
-        seed: Some(123),
+        rng: Some(Rng::Seeded{ seed: 123 }),
         battle_system: Some(BattleSystem::Dice { sides: 8 }),
         blocked_cells: Some(vec![2, 8, 0xA]),
         hand_candidates: Some([
@@ -237,7 +251,7 @@ mod tests {
             [C5M67_8, C1P23_4, CDAEF_0, C5M67_8, C9XAB_C],
             [CDAEF_0, C5M67_8, C9XAB_C, C5M67_8, C1P23_4],
         ]),
-    } => using assert_eq("setup seed=123 battle_system=dice(8) blocked_cells=[2,8,A] hand_candidates=[[1P23@04,5M67@08,9XAB@0C,DAEF@00,5M67@08];[5M67@08,1P23@04,DAEF@00,5M67@08,9XAB@0C];[DAEF@00,5M67@08,9XAB@0C,5M67@08,1P23@04]]\n")
+    } => using assert_eq("setup rng=seed(123) battle_system=dice(8) blocked_cells=[2,8,A] hand_candidates=[[1P23@04,5M67@08,9XAB@0C,DAEF@00,5M67@08];[5M67@08,1P23@04,DAEF@00,5M67@08,9XAB@0C];[DAEF@00,5M67@08,9XAB@0C,5M67@08,1P23@04]]\n")
     )]
     fn setup(input: Command) -> String {
         let mut out = String::new();

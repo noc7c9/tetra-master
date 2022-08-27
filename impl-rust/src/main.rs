@@ -23,12 +23,8 @@ type Board = [Cell; BOARD_SIZE];
 #[derive(Debug, Clone)]
 enum BattleSystem {
     Original,
-    Dice {
-        sides: u8,
-    },
-    External {
-        rolls: std::collections::VecDeque<u8>,
-    },
+    OriginalApprox,
+    Dice { sides: u8 },
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -223,21 +219,55 @@ struct PreGameState {
 }
 
 impl PreGameState {
-    fn with_rng(rng: Rng) -> Self {
-        let status = PreGameStatus::P1Picking;
-        let board = rng::random_board(&rng);
-        let hand_candidates = rng::random_hand_candidates(&rng);
-
-        Self {
-            status,
-            rng,
-            board,
-            hand_candidates,
+    fn builder() -> PreGameStateBuilder {
+        PreGameStateBuilder {
+            rng: None,
+            board: None,
+            hand_candidates: None,
         }
     }
 
     fn is_complete(&self) -> bool {
         matches!(self.status, PreGameStatus::Complete { .. })
+    }
+}
+
+struct PreGameStateBuilder {
+    rng: Option<Rng>,
+    board: Option<Board>,
+    hand_candidates: Option<HandCandidates>,
+}
+
+impl PreGameStateBuilder {
+    fn rng(mut self, rng: Option<Rng>) -> Self {
+        self.rng = rng;
+        self
+    }
+
+    fn board(mut self, board: Option<Board>) -> Self {
+        self.board = board;
+        self
+    }
+
+    fn hand_candidates(mut self, hand_candidates: Option<HandCandidates>) -> Self {
+        self.hand_candidates = hand_candidates;
+        self
+    }
+
+    fn build(self) -> PreGameState {
+        let status = PreGameStatus::P1Picking;
+        let mut rng = self.rng.unwrap_or_else(Rng::new);
+        let board = self.board.unwrap_or_else(|| rng::random_board(&mut rng));
+        let hand_candidates = self
+            .hand_candidates
+            .unwrap_or_else(|| rng::random_hand_candidates(&mut rng));
+
+        PreGameState {
+            status,
+            rng,
+            board,
+            hand_candidates,
+        }
     }
 }
 

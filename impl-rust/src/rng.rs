@@ -7,9 +7,14 @@ pub(crate) type Seed = u64;
 
 /// Wrapper around fastrand::Rng that keeps track of the initial seed
 #[derive(Debug, Clone)]
-pub(crate) struct Rng {
-    initial_seed: Seed,
-    rng: fastrand::Rng,
+pub(crate) enum Rng {
+    Internal {
+        initial_seed: Seed,
+        rng: fastrand::Rng,
+    },
+    External {
+        random_numbers: std::collections::VecDeque<u8>,
+    },
 }
 
 impl Rng {
@@ -18,44 +23,93 @@ impl Rng {
     }
 
     pub(crate) fn with_seed(initial_seed: Seed) -> Self {
-        Self {
+        Self::Internal {
             initial_seed,
             rng: fastrand::Rng::with_seed(initial_seed),
         }
     }
 
-    pub(crate) fn initial_seed(&self) -> Seed {
-        self.initial_seed
+    pub(crate) fn new_external(random_numbers: std::collections::VecDeque<u8>) -> Self {
+        Self::External { random_numbers }
     }
 
-    // passthrough method
-
-    pub(crate) fn f32(&self) -> f32 {
-        self.rng.f32()
+    pub(crate) fn initial_seed(&self) -> Option<Seed> {
+        match self {
+            Self::Internal { initial_seed, .. } => Some(*initial_seed),
+            Self::External { .. } => None,
+        }
     }
 
-    pub(crate) fn u8(&self, range: impl std::ops::RangeBounds<u8>) -> u8 {
-        self.rng.u8(range)
+    // generate methods
+
+    pub(crate) fn u8(&mut self, range: impl std::ops::RangeBounds<u8>) -> u8 {
+        match self {
+            Self::Internal { rng, .. } => rng.u8(range),
+            Self::External { random_numbers } => {
+                // Simple way to map the given num to the range 0..max
+                // This isn't a perfect mapping but will suffice
+                // src: https://lemire.me/blog/2016/06/27/a-fast-alternative-to-the-modulo-reduction
+                fn bound(num: u8, max: u8) -> u8 {
+                    ((num as u16 * max as u16) >> 8) as u8
+                }
+
+                use std::ops::Bound::*;
+
+                let min = match range.start_bound() {
+                    Included(x) => *x,
+                    Excluded(x) => *x + 1,
+                    Unbounded => u8::MIN,
+                };
+                let max = match range.end_bound() {
+                    Included(x) => *x,
+                    Excluded(x) => *x - 1,
+                    Unbounded => u8::MAX,
+                };
+                debug_assert!(min <= max);
+
+                let random_number = random_numbers
+                    .pop_front()
+                    .expect("Ran out of external random numbers");
+
+                if min == u8::MIN {
+                    if max == u8::MAX {
+                        random_number
+                    } else {
+                        bound(random_number, max)
+                    }
+                } else {
+                    min + bound(random_number, max - min + 1)
+                }
+            }
+        }
     }
 
-    pub(crate) fn usize(&self, range: impl std::ops::RangeBounds<usize>) -> usize {
-        self.rng.usize(range)
+    fn f32(&mut self) -> f32 {
+        match self {
+            Self::Internal { rng, .. } => rng.f32(),
+            Self::External { .. } => {
+                let exponent = 0b0111_1111 << (f32::MANTISSA_DIGITS - 1);
+                let significant =
+                    (self.u8(..) as u32) << 16 | (self.u8(..) as u32) << 8 | self.u8(..) as u32;
+                f32::from_bits(exponent | significant) - 1.0
+            }
+        }
     }
 }
 
-pub(crate) fn random_board(rng: &Rng) -> Board {
+pub(crate) fn random_board(rng: &mut Rng) -> Board {
     let mut board: Board = Default::default();
 
     // block cells
     for _ in 0..rng.u8(..=MAX_NUMBER_OF_BLOCKS) {
-        let idx = rng.usize(..HAND_SIZE);
+        let idx = rng.u8(..(HAND_SIZE as u8)) as usize;
         board[idx] = Cell::Blocked;
     }
 
     board
 }
 
-pub(crate) fn random_hand_candidates(rng: &Rng) -> HandCandidates {
+pub(crate) fn random_hand_candidates(rng: &mut Rng) -> HandCandidates {
     fn estimate_card_value(card: &Card) -> f64 {
         // very simple, we *don't* want this to be super accurate to allow the player to
         // strategize
@@ -131,14 +185,15 @@ pub(crate) fn random_hand_candidates(rng: &Rng) -> HandCandidates {
         .expect("pick should have correct length")
 }
 
-pub(crate) fn random_card(rng: &Rng) -> Card {
-    fn randpick(rng: &Rng, values: &[u8]) -> u8 {
+pub(crate) fn random_card(rng: &mut Rng) -> Card {
+    fn randpick(rng: &mut Rng, values: &[u8]) -> u8 {
         let len = values.len();
-        let idx = rng.usize(..len);
+        debug_assert!(len <= u8::MAX as usize);
+        let idx = rng.u8(..(len as u8)) as usize;
         values[idx]
     }
 
-    fn random_stat(rng: &Rng) -> u8 {
+    fn random_stat(rng: &mut Rng) -> u8 {
         match rng.f32() {
             n if n < 0.05 => randpick(rng, &[0, 1]),          // 5%
             n if n < 0.35 => randpick(rng, &[2, 3, 4, 5]),    // 30%

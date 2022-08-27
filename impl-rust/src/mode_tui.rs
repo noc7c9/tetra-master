@@ -11,7 +11,9 @@ pub(crate) fn run(args: crate::Args) -> Result<(), Box<dyn std::error::Error>> {
     let mut log = GameLog::new();
 
     // pre-game loop
-    let mut state = PreGameState::with_rng(args.seed.map_or_else(Rng::new, Rng::with_seed));
+    let mut state = PreGameState::builder()
+        .rng(args.seed.map(Rng::with_seed))
+        .build();
     loop {
         buf.clear();
         if args.simple_ui {

@@ -421,14 +421,16 @@ fn push_game_log(o: &mut String, log: &GameLog, battle_system: &BattleSystem) ->
             } => {
                 match battle_system {
                     BattleSystem::Original => writeln!(o, "Using the Original battle system")?,
+                    BattleSystem::OriginalApprox => {
+                        writeln!(o, "Using the Original (approximate) battle system")?
+                    }
                     BattleSystem::Dice { sides } => {
                         writeln!(o, "Using the Dice battle system with {sides} sided die")?
                     }
-                    BattleSystem::External { rolls, .. } => {
-                        writeln!(o, "Using the External battle system (rolls: {rolls:?})")?
-                    }
                 }
-                writeln!(o, "           | The RNG seed is {seed}")?;
+                if let Some(seed) = seed {
+                    writeln!(o, "           | The RNG seed is {seed}")?;
+                }
                 write!(o, "           | Player 1 picked hand {p1_pick}, ")?;
                 write!(o, "Player 2 picked hand {p2_pick}")?;
             }
@@ -469,7 +471,7 @@ fn push_game_log(o: &mut String, log: &GameLog, battle_system: &BattleSystem) ->
                 write!(o, "           |         ")?;
 
                 match battle_system {
-                    BattleSystem::Original | BattleSystem::External { .. } => {
+                    BattleSystem::Original | BattleSystem::OriginalApprox => {
                         write!(o, "Attacker ({att_value}) rolled {att_roll}, ")?;
                         writeln!(o, "Defender ({def_value}) rolled {def_roll}")?;
                     }

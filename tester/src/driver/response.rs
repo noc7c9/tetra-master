@@ -3,7 +3,7 @@ use nom::{
     branch::alt,
     bytes::complete::{is_not, tag, take_while_m_n},
     character::complete::{char, one_of, u64, u8},
-    combinator::{map, map_res, verify},
+    combinator::{map, map_res, opt, verify},
     error::Error,
     multi::{separated_list0, separated_list1},
     sequence::{delimited, preceded, terminated, tuple},
@@ -13,7 +13,7 @@ use nom::{
 #[derive(Debug, PartialEq)]
 pub(crate) enum Response {
     SetupOk {
-        seed: Seed,
+        seed: Option<Seed>,
         battle_system: BattleSystem,
         blocked_cells: Vec<u8>,
         hand_candidates: HandCandidates,
@@ -144,15 +144,12 @@ fn card(input: &str) -> IResult<&str, Card> {
 }
 
 fn battle_system(input: &str) -> IResult<&str, BattleSystem> {
+    let original_approx = map(tag("original-approx"), |_| BattleSystem::OriginalApprox);
     let original = map(tag("original"), |_| BattleSystem::Original);
     let dice = map(delimited(tag("dice("), u8, char(')')), |sides| {
         BattleSystem::Dice { sides }
     });
-    let external = map(preceded(tag("external"), list1(',', u8)), |rolls| {
-        BattleSystem::External { rolls }
-    });
-
-    alt((original, dice, external))(input)
+    alt((original_approx, original, dice))(input)
 }
 
 fn blocked_cells(input: &str) -> IResult<&str, Vec<u8>> {
@@ -172,7 +169,7 @@ fn hand_candidates(input: &str) -> IResult<&str, HandCandidates> {
 fn setup_ok(input: &str) -> IResult<&str, Response> {
     let (input, _) = tag("setup-ok")(input)?;
 
-    let (input, seed) = preceded(tag(" seed="), u64)(input)?;
+    let (input, seed) = opt(preceded(tag(" seed="), u64))(input)?;
     let (input, battle_system) = preceded(tag(" battle_system="), battle_system)(input)?;
     let (input, blocked_cells) = preceded(tag(" blocked_cells="), blocked_cells)(input)?;
     let (input, hand_candidates) = preceded(tag(" hand_candidates="), hand_candidates)(input)?;
@@ -363,11 +360,10 @@ mod tests {
     }
 
     #[test_case("original" => BattleSystem::Original)]
+    #[test_case("original-approx" => BattleSystem::OriginalApprox)]
     #[test_case("dice(4)" => BattleSystem::Dice { sides: 4 })]
     #[test_case("dice(11)" => BattleSystem::Dice { sides: 11 })]
     #[test_case("dice()" => panics)]
-    #[test_case("external[1,2,3]" => BattleSystem::External { rolls: vec![1, 2, 3] })]
-    #[test_case("external[]" => panics)]
     #[test_case("" => panics)]
     fn battle_system(input: &str) -> BattleSystem {
         super::battle_system(input).unwrap().1
@@ -377,24 +373,8 @@ mod tests {
     const HAND_CANDIDATES: &str = "[[0P00@0,0P00@0,0P00@0,0P00@0,0P00@0];[0P00@0,0P00@0,0P00@0,0P00@0,0P00@0];[0P00@0,0P00@0,0P00@0,0P00@0,0P00@0]]";
     #[test_case(
         format!("setup-ok seed=123 battle_system=dice(9) blocked_cells={BLOCKED_CELLS} hand_candidates={HAND_CANDIDATES}\n")
-        ; "seed blocked_cells hand_candidates"
-    )]
-    // #[test_case(
-    //     format!("setup-ok blocked_cells={BLOCKED_CELLS} seed=123 hand_candidates={HAND_CANDIDATES}\n")
-    //     ; "blocked_cells seed hand_candidates"
-    // )]
-    // #[test_case(
-    //     format!("setup-ok hand_candidates={HAND_CANDIDATES} seed=123 blocked_cells={BLOCKED_CELLS}\n")
-    //     ; "hand_candidates seed blocked_cells"
-    // )]
-    // #[test_case(
-    //     format!("setup-ok hand_candidates={HAND_CANDIDATES} blocked_cells={BLOCKED_CELLS} seed=123\n")
-    //     ; "hand_candidates blocked_cells seed"
-    // )]
-    fn setup_ok(input: String) {
-        let actual = Response::deserialize(&input).unwrap();
-        let expected = SetupOk {
-            seed: 123,
+        => SetupOk {
+            seed: Some(123),
             battle_system: BattleSystem::Dice { sides: 9 },
             blocked_cells: vec![2, 3, 0xf],
             hand_candidates: [
@@ -402,8 +382,23 @@ mod tests {
                 [C0P00, C0P00, C0P00, C0P00, C0P00],
                 [C0P00, C0P00, C0P00, C0P00, C0P00],
             ],
-        };
-        assert_eq!(expected, actual);
+        }
+    )]
+    #[test_case(
+        format!("setup-ok battle_system=dice(9) blocked_cells={BLOCKED_CELLS} hand_candidates={HAND_CANDIDATES}\n")
+        => SetupOk {
+            seed: None,
+            battle_system: BattleSystem::Dice { sides: 9 },
+            blocked_cells: vec![2, 3, 0xf],
+            hand_candidates: [
+                [C0P00, C0P00, C0P00, C0P00, C0P00],
+                [C0P00, C0P00, C0P00, C0P00, C0P00],
+                [C0P00, C0P00, C0P00, C0P00, C0P00],
+            ],
+        }
+    )]
+    fn setup_ok(input: String) -> Response {
+        Response::deserialize(&input).unwrap()
     }
 
     #[test_case("pick-hand-ok\n" => PickHandOk)]

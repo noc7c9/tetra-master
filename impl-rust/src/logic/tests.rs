@@ -225,7 +225,7 @@ fn battle_cards_that_belong_to_opponent_are_pointed_to_and_point_back() {
     {
         // rng is set to make the attacker win
         let mut state = GameState {
-            rng: Rng::with_seed(0),
+            rng: Rng::with_seed(1),
             ..state.clone()
         };
         let mut log = GameLog::new();
@@ -239,7 +239,7 @@ fn battle_cards_that_belong_to_opponent_are_pointed_to_and_point_back() {
     {
         // rng is set to make the defender win
         let mut state = GameState {
-            rng: Rng::with_seed(1),
+            rng: Rng::with_seed(0),
             ..state.clone()
         };
         let mut log = GameLog::new();
@@ -260,6 +260,7 @@ fn battle_cards_that_belong_to_opponent_are_pointed_to_and_point_back() {
 
         game_next(&mut state, &mut log, GameInput::place(0, 4)).unwrap();
 
+        // FIXME this test doesn't assert that the result was a draw
         assert_eq!(state.board[0], Cell::p2_card(card_points_down));
         assert_eq!(state.board[4], Cell::p2_card(card_points_up));
     }
@@ -277,7 +278,7 @@ fn update_game_log_on_battles() {
     {
         // rng is set to make the attacker win
         let mut state = GameState {
-            rng: Rng::with_seed(0),
+            rng: Rng::with_seed(1),
             ..state.clone()
         };
         let mut log = GameLog::new();
@@ -299,12 +300,12 @@ fn update_game_log_on_battles() {
                         attack_stat: BattleStat {
                             digit: 0,
                             value: 0x1,
-                            roll: 15
+                            roll: 27
                         },
                         defense_stat: BattleStat {
                             digit: 2,
                             value: 0x1,
-                            roll: 9
+                            roll: 0
                         },
                     }
                 ),
@@ -317,7 +318,7 @@ fn update_game_log_on_battles() {
     {
         // rng is set to make the defender win
         let mut state = GameState {
-            rng: Rng::with_seed(1),
+            rng: Rng::with_seed(0),
             ..state.clone()
         };
         let mut log = GameLog::new();
@@ -339,12 +340,12 @@ fn update_game_log_on_battles() {
                         attack_stat: BattleStat {
                             digit: 0,
                             value: 0x1,
-                            roll: 1,
+                            roll: 0,
                         },
                         defense_stat: BattleStat {
                             digit: 2,
                             value: 0x1,
-                            roll: 31,
+                            roll: 10,
                         },
                     }
                 ),
@@ -379,12 +380,12 @@ fn update_game_log_on_battles() {
                         attack_stat: BattleStat {
                             digit: 0,
                             value: 0x1,
-                            roll: 28
+                            roll: 4
                         },
                         defense_stat: BattleStat {
                             digit: 2,
                             value: 0x1,
-                            roll: 28
+                            roll: 4
                         },
                     }
                 ),
@@ -397,7 +398,10 @@ fn update_game_log_on_battles() {
 
 #[test]
 fn flip_other_undefended_cards_after_attacker_wins_battle() {
-    let mut state = GameState::empty();
+    let mut state = GameState {
+        rng: Rng::with_seed(1),
+        ..GameState::empty()
+    };
     let mut log = GameLog::new();
 
     let card_points_none = Card::from_str("0P00", Arrows::NONE);
@@ -433,12 +437,12 @@ fn flip_other_undefended_cards_after_attacker_wins_battle() {
                     attack_stat: BattleStat {
                         digit: 0,
                         value: 0xF,
-                        roll: 127
+                        roll: 226
                     },
                     defense_stat: BattleStat {
                         digit: 2,
                         value: 0x0,
-                        roll: 9
+                        roll: 0
                     },
                 }
             ),
@@ -489,12 +493,12 @@ fn dont_flip_other_undefended_cards_after_attacker_loses_battle() {
                     attack_stat: BattleStat {
                         digit: 0,
                         value: 0x0,
-                        roll: 15
+                        roll: 0
                     },
                     defense_stat: BattleStat {
                         digit: 2,
                         value: 0xF,
-                        roll: 121
+                        roll: 107
                     },
                 }
             ),
@@ -550,7 +554,10 @@ fn update_game_log_with_place_entry_when_multiple_battles_are_available() {
 
 #[test]
 fn continue_after_battle_choice_is_given() {
-    let mut state = GameState::empty();
+    let mut state = GameState {
+        rng: Rng::with_seed(2),
+        ..GameState::empty()
+    };
     let mut log = GameLog::new();
 
     let card_points_down = Card::from_str("0P10", Arrows::DOWN);
@@ -585,12 +592,12 @@ fn continue_after_battle_choice_is_given() {
                     attack_stat: BattleStat {
                         digit: 0,
                         value: 0x3,
-                        roll: 31
+                        roll: 38
                     },
                     defense_stat: BattleStat {
                         digit: 2,
                         value: 0x1,
-                        roll: 9
+                        roll: 13
                     },
                 }
             ),
@@ -605,12 +612,12 @@ fn continue_after_battle_choice_is_given() {
                     attack_stat: BattleStat {
                         digit: 0,
                         value: 0x3,
-                        roll: 18
+                        roll: 47
                     },
                     defense_stat: BattleStat {
                         digit: 2,
                         value: 0x1,
-                        roll: 11
+                        roll: 0
                     },
                 }
             ),
@@ -640,7 +647,10 @@ fn reject_input_if_the_choice_isnt_valid() {
 
 #[test]
 fn continue_offering_choices_when_multiple_battles_are_still_available() {
-    let mut state = GameState::empty();
+    let mut state = GameState {
+        rng: Rng::with_seed(1),
+        ..GameState::empty()
+    };
     let mut log = GameLog::new();
 
     let card_points_down = Card::from_str("0P00", Arrows::DOWN);
@@ -720,7 +730,10 @@ fn handle_game_over_when_attacker_loses_battle_after_battle_choice() {
 
 #[test]
 fn combo_flip_cards_that_are_pointed_to_by_defender_if_they_lose() {
-    let mut state = GameState::empty();
+    let mut state = GameState {
+        rng: Rng::with_seed(1),
+        ..GameState::empty()
+    };
     let mut log = GameLog::new();
 
     let card_points_all = Card::from_str("0P00", Arrows::ALL);
@@ -754,12 +767,12 @@ fn combo_flip_cards_that_are_pointed_to_by_defender_if_they_lose() {
                     attack_stat: BattleStat {
                         digit: 0,
                         value: 0xF,
-                        roll: 127
+                        roll: 226
                     },
                     defense_stat: BattleStat {
                         digit: 2,
                         value: 0x0,
-                        roll: 9
+                        roll: 0
                     },
                 }
             ),
@@ -808,12 +821,12 @@ fn combo_flip_cards_that_are_pointed_to_by_attacker_if_they_lose() {
                     attack_stat: BattleStat {
                         digit: 0,
                         value: 0x0,
-                        roll: 15
+                        roll: 0
                     },
                     defense_stat: BattleStat {
                         digit: 2,
                         value: 0xF,
-                        roll: 121
+                        roll: 107
                     },
                 }
             ),
@@ -828,7 +841,10 @@ fn combo_flip_cards_that_are_pointed_to_by_attacker_if_they_lose() {
 
 #[test]
 fn dont_flip_back_undefended_cards_if_they_are_flipped_due_to_combos() {
-    let mut state = GameState::empty();
+    let mut state = GameState {
+        rng: Rng::with_seed(1),
+        ..GameState::empty()
+    };
     let mut log = GameLog::new();
 
     let card_points_all_att = Card::from_str("FP00", Arrows::ALL);
@@ -861,12 +877,12 @@ fn dont_flip_back_undefended_cards_if_they_are_flipped_due_to_combos() {
                     attack_stat: BattleStat {
                         digit: 0,
                         value: 0xF,
-                        roll: 127
+                        roll: 226
                     },
                     defense_stat: BattleStat {
                         digit: 2,
                         value: 0x0,
-                        roll: 9
+                        roll: 0
                     },
                 }
             ),
@@ -957,7 +973,7 @@ mod test_get_attack_stat {
     #[test]
     fn physical_type_attacker_picks_attack_stat() {
         let mut bs = BattleSystem::Original;
-        let stat = get_attack_stat(&Rng::new(), &mut bs, card("APBC"));
+        let stat = get_attack_stat(&mut Rng::new(), &mut bs, card("APBC"));
         assert_eq!(stat.digit, 0);
         assert_eq!(stat.value, 0xA);
     }
@@ -965,7 +981,7 @@ mod test_get_attack_stat {
     #[test]
     fn magical_type_attacker_picks_attack_stat() {
         let mut bs = BattleSystem::Original;
-        let stat = get_attack_stat(&Rng::new(), &mut bs, card("AMBC"));
+        let stat = get_attack_stat(&mut Rng::new(), &mut bs, card("AMBC"));
         assert_eq!(stat.digit, 0);
         assert_eq!(stat.value, 0xA);
     }
@@ -973,7 +989,7 @@ mod test_get_attack_stat {
     #[test]
     fn exploit_type_attacker_picks_attack_stat() {
         let mut bs = BattleSystem::Original;
-        let stat = get_attack_stat(&Rng::new(), &mut bs, card("AXBC"));
+        let stat = get_attack_stat(&mut Rng::new(), &mut bs, card("AXBC"));
         assert_eq!(stat.digit, 0);
         assert_eq!(stat.value, 0xA);
     }
@@ -981,22 +997,31 @@ mod test_get_attack_stat {
     #[test]
     fn assault_type_attacker_picks_highest_stat() {
         let mut bs = BattleSystem::Original;
-        let stat = get_attack_stat(&Rng::new(), &mut bs, card("FA12"));
+        let stat = get_attack_stat(&mut Rng::new(), &mut bs, card("FA12"));
         assert_eq!(stat.digit, 0);
         assert_eq!(stat.value, 0xF);
 
-        let stat = get_attack_stat(&Rng::new(), &mut bs, card("AAB2"));
+        let stat = get_attack_stat(&mut Rng::new(), &mut bs, card("AAB2"));
         assert_eq!(stat.digit, 2);
         assert_eq!(stat.value, 0xB);
 
-        let stat = get_attack_stat(&Rng::new(), &mut bs, card("AA1F"));
+        let stat = get_attack_stat(&mut Rng::new(), &mut bs, card("AA1F"));
         assert_eq!(stat.digit, 3);
         assert_eq!(stat.value, 0xF);
 
         // when there is a tie between the attack stat and a defense stat, prefer the attack
-        assert_eq!(get_attack_stat(&Rng::new(), &mut bs, card("FAF0")).digit, 0);
-        assert_eq!(get_attack_stat(&Rng::new(), &mut bs, card("FA0F")).digit, 0);
-        assert_eq!(get_attack_stat(&Rng::new(), &mut bs, card("FAFF")).digit, 0);
+        assert_eq!(
+            get_attack_stat(&mut Rng::new(), &mut bs, card("FAF0")).digit,
+            0
+        );
+        assert_eq!(
+            get_attack_stat(&mut Rng::new(), &mut bs, card("FA0F")).digit,
+            0
+        );
+        assert_eq!(
+            get_attack_stat(&mut Rng::new(), &mut bs, card("FAFF")).digit,
+            0
+        );
     }
 }
 
@@ -1014,7 +1039,7 @@ mod test_get_defense_stat {
         let mut bs = BattleSystem::Original;
         let attacker = card("0P00");
         let defender = card("APBC");
-        let stat = get_defense_stat(&Rng::new(), &mut bs, attacker, defender);
+        let stat = get_defense_stat(&mut Rng::new(), &mut bs, attacker, defender);
         assert_eq!(stat.digit, 2);
         assert_eq!(stat.value, 0xB);
     }
@@ -1024,7 +1049,7 @@ mod test_get_defense_stat {
         let mut bs = BattleSystem::Original;
         let attacker = card("0M00");
         let defender = card("APBC");
-        let stat = get_defense_stat(&Rng::new(), &mut bs, attacker, defender);
+        let stat = get_defense_stat(&mut Rng::new(), &mut bs, attacker, defender);
         assert_eq!(stat.digit, 3);
         assert_eq!(stat.value, 0xC);
     }
@@ -1034,11 +1059,11 @@ mod test_get_defense_stat {
         let mut bs = BattleSystem::Original;
         let attacker = card("0X00");
 
-        let stat = get_defense_stat(&Rng::new(), &mut bs, attacker, card("APBC"));
+        let stat = get_defense_stat(&mut Rng::new(), &mut bs, attacker, card("APBC"));
         assert_eq!(stat.digit, 2);
         assert_eq!(stat.value, 0xB);
 
-        let stat = get_defense_stat(&Rng::new(), &mut bs, attacker, card("APCB"));
+        let stat = get_defense_stat(&mut Rng::new(), &mut bs, attacker, card("APCB"));
         assert_eq!(stat.digit, 3);
         assert_eq!(stat.value, 0xB);
     }
@@ -1048,15 +1073,15 @@ mod test_get_defense_stat {
         let mut bs = BattleSystem::Original;
         let attacker = card("0A00");
 
-        let stat = get_defense_stat(&Rng::new(), &mut bs, attacker, card("APBC"));
+        let stat = get_defense_stat(&mut Rng::new(), &mut bs, attacker, card("APBC"));
         assert_eq!(stat.digit, 0);
         assert_eq!(stat.value, 0xA);
 
-        let stat = get_defense_stat(&Rng::new(), &mut bs, attacker, card("BPAC"));
+        let stat = get_defense_stat(&mut Rng::new(), &mut bs, attacker, card("BPAC"));
         assert_eq!(stat.digit, 2);
         assert_eq!(stat.value, 0xA);
 
-        let stat = get_defense_stat(&Rng::new(), &mut bs, attacker, card("CPBA"));
+        let stat = get_defense_stat(&mut Rng::new(), &mut bs, attacker, card("CPBA"));
         assert_eq!(stat.digit, 3);
         assert_eq!(stat.value, 0xA);
     }

@@ -9,10 +9,16 @@ type HandCandidate = [Card; HAND_SIZE];
 type HandCandidates = [HandCandidate; HAND_CANDIDATES];
 
 #[derive(Debug, Clone, PartialEq)]
+enum Rng {
+    Seeded { seed: Seed },
+    External { rolls: Vec<u8> },
+}
+
+#[derive(Debug, Clone, PartialEq)]
 enum BattleSystem {
     Original,
+    OriginalApprox,
     Dice { sides: u8 },
-    External { rolls: Vec<u8> },
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -170,17 +176,17 @@ fn main() -> anyhow::Result<()> {
 
     // setup process
     harness.test("Setup without args", || {
-        let mut driver1 = implementation_driver(&args.implementation);
-        let first = driver1.send(Command::Setup {
-            seed: None,
+        let mut driver = implementation_driver(&args.implementation);
+        let first = driver.send(Command::Setup {
+            rng: None,
             battle_system: None,
             blocked_cells: None,
             hand_candidates: None,
         })?;
 
-        let mut driver2 = implementation_driver(&args.implementation);
-        let second = driver2.send(Command::Setup {
-            seed: None,
+        let mut driver = implementation_driver(&args.implementation);
+        let second = driver.send(Command::Setup {
+            rng: None,
             battle_system: None,
             blocked_cells: None,
             hand_candidates: None,
@@ -192,23 +198,26 @@ fn main() -> anyhow::Result<()> {
     });
 
     harness.test("Setup with set seed", || {
-        let mut driver1 = implementation_driver(&args.implementation);
-        let first = driver1.send(Command::Setup {
-            seed: None,
+        let mut driver = implementation_driver(&args.implementation);
+        let first = driver.send(Command::Setup {
+            rng: None,
             battle_system: None,
             blocked_cells: None,
             hand_candidates: None,
         })?;
 
-        let seed = if let Response::SetupOk { seed, .. } = first {
+        let seed = if let Response::SetupOk {
+            seed: Some(seed), ..
+        } = first
+        {
             seed
         } else {
             panic!("unexpected response");
         };
 
-        let mut driver1 = implementation_driver(&args.implementation);
-        let second = driver1.send(Command::Setup {
-            seed: Some(seed),
+        let mut driver = implementation_driver(&args.implementation);
+        let second = driver.send(Command::Setup {
+            rng: Some(Rng::Seeded { seed }),
             battle_system: None,
             blocked_cells: None,
             hand_candidates: None,
@@ -225,7 +234,7 @@ fn main() -> anyhow::Result<()> {
         if let Response::SetupOk {
             mut blocked_cells, ..
         } = driver.send(Command::Setup {
-            seed: None,
+            rng: None,
             battle_system: None,
             blocked_cells: Some(vec![6u8, 3, 0xC]),
             hand_candidates: None,
@@ -244,7 +253,7 @@ fn main() -> anyhow::Result<()> {
         if let Response::SetupOk {
             mut blocked_cells, ..
         } = driver.send(Command::Setup {
-            seed: None,
+            rng: None,
             battle_system: None,
             blocked_cells: Some(vec![]),
             hand_candidates: None,
@@ -264,7 +273,7 @@ fn main() -> anyhow::Result<()> {
         if let Response::SetupOk {
             hand_candidates, ..
         } = driver.send(Command::Setup {
-            seed: None,
+            rng: None,
             battle_system: None,
             blocked_cells: None,
             hand_candidates: Some(expected),
@@ -280,7 +289,7 @@ fn main() -> anyhow::Result<()> {
     harness.test("P1 hand selection, ok", || {
         let mut driver = implementation_driver(&args.implementation);
         driver.send(Command::Setup {
-            seed: None,
+            rng: None,
             battle_system: None,
             blocked_cells: None,
             hand_candidates: Some(HAND_CANDIDATES),
@@ -296,7 +305,7 @@ fn main() -> anyhow::Result<()> {
     harness.test("P1 hand selection, invalid number", || {
         let mut driver = implementation_driver(&args.implementation);
         driver.send(Command::Setup {
-            seed: None,
+            rng: None,
             battle_system: None,
             blocked_cells: None,
             hand_candidates: Some(HAND_CANDIDATES),
@@ -313,7 +322,7 @@ fn main() -> anyhow::Result<()> {
     harness.test("P2 hand selection, ok", || {
         let mut driver = implementation_driver(&args.implementation);
         driver.send(Command::Setup {
-            seed: None,
+            rng: None,
             battle_system: None,
             blocked_cells: None,
             hand_candidates: Some(HAND_CANDIDATES),
@@ -330,7 +339,7 @@ fn main() -> anyhow::Result<()> {
     harness.test("P2 hand selection, invalid number", || {
         let mut driver = implementation_driver(&args.implementation);
         driver.send(Command::Setup {
-            seed: None,
+            rng: None,
             battle_system: None,
             blocked_cells: None,
             hand_candidates: Some(HAND_CANDIDATES),
@@ -348,7 +357,7 @@ fn main() -> anyhow::Result<()> {
     harness.test("P2 hand selection, hand already selected", || {
         let mut driver = implementation_driver(&args.implementation);
         driver.send(Command::Setup {
-            seed: None,
+            rng: None,
             battle_system: None,
             blocked_cells: None,
             hand_candidates: Some(HAND_CANDIDATES),
@@ -367,7 +376,7 @@ fn main() -> anyhow::Result<()> {
     harness.test("place card on empty board", || {
         let mut driver = implementation_driver(&args.implementation);
         driver.send(Command::Setup {
-            seed: None,
+            rng: None,
             battle_system: None,
             blocked_cells: Some(vec![]),
             hand_candidates: Some(HAND_CANDIDATES),
@@ -390,7 +399,7 @@ fn main() -> anyhow::Result<()> {
             [C0P00_0, C0P00_0, C0P00_0, C0P00_0, C0P00_0],
         ];
         driver.send(Command::Setup {
-            seed: None,
+            rng: None,
             battle_system: None,
             blocked_cells: Some(vec![]),
             hand_candidates: Some(hand_candidates),
@@ -418,7 +427,7 @@ fn main() -> anyhow::Result<()> {
             [C0P00_0, C0P00_0, C0P00_0, C0P00_0, C0P00_0],
         ];
         driver.send(Command::Setup {
-            seed: None,
+            rng: None,
             battle_system: None,
             blocked_cells: Some(vec![]),
             hand_candidates: Some(hand_candidates),
@@ -446,7 +455,7 @@ fn main() -> anyhow::Result<()> {
             [C0P00_0, C0P00_0, C0P00_0, C0P00_0, C0P00_0],
         ];
         driver.send(Command::Setup {
-            seed: None,
+            rng: None,
             battle_system: None,
             blocked_cells: Some(vec![]),
             hand_candidates: Some(hand_candidates),
@@ -494,10 +503,10 @@ fn main() -> anyhow::Result<()> {
             [C0P00_0, C0P00_0, C0P00_0, C0P00_0, C0P00_0],
         ];
         driver.send(Command::Setup {
-            seed: None,
-            battle_system: Some(BattleSystem::External {
-                rolls: vec![123, 45],
+            rng: Some(Rng::External {
+                rolls: vec![255, 0],
             }),
+            battle_system: Some(BattleSystem::OriginalApprox),
             blocked_cells: Some(vec![]),
             hand_candidates: Some(hand_candidates),
         })?;
@@ -517,13 +526,13 @@ fn main() -> anyhow::Result<()> {
                             cell: 1,
                             digit: Digit::Attack,
                             value: 0xC,
-                            roll: 123
+                            roll: 0xC6
                         },
                         defender: Battler {
                             cell: 0,
                             digit: Digit::PhysicalDefense,
                             value: 3,
-                            roll: 45
+                            roll: 0
                         },
                         winner: BattleWinner::Attacker,
                     },
@@ -546,10 +555,10 @@ fn main() -> anyhow::Result<()> {
             [C0P00_0, C0P00_0, C0P00_0, C0P00_0, C0P00_0],
         ];
         driver.send(Command::Setup {
-            seed: None,
-            battle_system: Some(BattleSystem::External {
-                rolls: vec![12, 35],
+            rng: Some(Rng::External {
+                rolls: vec![0, 255],
             }),
+            battle_system: Some(BattleSystem::OriginalApprox),
             blocked_cells: Some(vec![]),
             hand_candidates: Some(hand_candidates),
         })?;
@@ -569,13 +578,13 @@ fn main() -> anyhow::Result<()> {
                             cell: 1,
                             digit: Digit::Attack,
                             value: 0xC,
-                            roll: 12
+                            roll: 0
                         },
                         defender: Battler {
                             cell: 0,
                             digit: Digit::PhysicalDefense,
                             value: 3,
-                            roll: 35
+                            roll: 0x36
                         },
                         winner: BattleWinner::Defender,
                     },
@@ -591,17 +600,17 @@ fn main() -> anyhow::Result<()> {
     harness.test("place card that results in a battle, draw", || {
         let mut driver = implementation_driver(&args.implementation);
         let defender = Card::physical(0, 3, 7, Arrows::ALL.0);
-        let attacker = Card::exploit(0xC, 0, 0, Arrows::ALL.0);
+        let attacker = Card::exploit(0x3, 0, 0, Arrows::ALL.0);
         let hand_candidates = [
             [defender, C0P00_0, C0P00_0, C0P00_0, C0P00_0],
             [attacker, C0P00_0, C0P00_0, C0P00_0, C0P00_0],
             [C0P00_0, C0P00_0, C0P00_0, C0P00_0, C0P00_0],
         ];
         driver.send(Command::Setup {
-            seed: None,
-            battle_system: Some(BattleSystem::External {
-                rolls: vec![12, 12],
+            rng: Some(Rng::External {
+                rolls: vec![100, 100],
             }),
+            battle_system: Some(BattleSystem::OriginalApprox),
             blocked_cells: Some(vec![]),
             hand_candidates: Some(hand_candidates),
         })?;
@@ -620,14 +629,14 @@ fn main() -> anyhow::Result<()> {
                         attacker: Battler {
                             cell: 1,
                             digit: Digit::Attack,
-                            value: 0xC,
-                            roll: 12
+                            value: 3,
+                            roll: 21
                         },
                         defender: Battler {
                             cell: 0,
                             digit: Digit::PhysicalDefense,
                             value: 3,
-                            roll: 12
+                            roll: 21
                         },
                         winner: BattleWinner::None,
                     },
@@ -650,8 +659,10 @@ fn main() -> anyhow::Result<()> {
             [C0P00_0, C0P00_0, C0P00_0, C0P00_0, C0P00_0],
         ];
         driver.send(Command::Setup {
-            seed: None,
-            battle_system: Some(BattleSystem::External { rolls: vec![2, 1] }),
+            rng: Some(Rng::External {
+                rolls: vec![255, 0],
+            }),
+            battle_system: Some(BattleSystem::OriginalApprox),
             blocked_cells: Some(vec![]),
             hand_candidates: Some(hand_candidates),
         })?;
@@ -673,13 +684,13 @@ fn main() -> anyhow::Result<()> {
                             cell: 9,
                             digit: Digit::Attack,
                             value: 0xC,
-                            roll: 2
+                            roll: 0xC6
                         },
                         defender: Battler {
                             cell: 5,
                             digit: Digit::PhysicalDefense,
                             value: 3,
-                            roll: 1
+                            roll: 0
                         },
                         winner: BattleWinner::Attacker,
                     },
@@ -704,10 +715,10 @@ fn main() -> anyhow::Result<()> {
             [C0P00_0, C0P00_0, C0P00_0, C0P00_0, C0P00_0],
         ];
         driver.send(Command::Setup {
-            seed: None,
-            battle_system: Some(BattleSystem::External {
-                rolls: vec![2, 1, 12, 23],
+            rng: Some(Rng::External {
+                rolls: vec![255, 0, 0, 255],
             }),
+            battle_system: Some(BattleSystem::OriginalApprox),
             blocked_cells: Some(vec![]),
             hand_candidates: Some(hand_candidates),
         })?;
@@ -738,13 +749,13 @@ fn main() -> anyhow::Result<()> {
                             cell: 4,
                             digit: Digit::Attack,
                             value: 0xC,
-                            roll: 2
+                            roll: 0xC6
                         },
                         defender: Battler {
                             cell: 8,
                             digit: Digit::MagicalDefense,
                             value: 4,
-                            roll: 1
+                            roll: 0
                         },
                         winner: BattleWinner::Attacker,
                     },
@@ -754,13 +765,13 @@ fn main() -> anyhow::Result<()> {
                             cell: 4,
                             digit: Digit::Attack,
                             value: 0xC,
-                            roll: 12
+                            roll: 0
                         },
                         defender: Battler {
                             cell: 0,
                             digit: Digit::PhysicalDefense,
                             value: 3,
-                            roll: 23
+                            roll: 0x36
                         },
                         winner: BattleWinner::Defender,
                     },
