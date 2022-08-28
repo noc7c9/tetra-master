@@ -1,7 +1,7 @@
 use crate::{
     logic, Arrows, BattleStat, BattleSystem, BattleWinner, Board, Card, CardType, Cell, Entry,
     GameInput, GameInputBattle, GameInputPlace, GameLog, GameState, GameStatus, HandCandidate,
-    HandCandidates, PreGameInput, PreGameState, Rng, Seed,
+    HandCandidates, Player, PreGameInput, PreGameState, Rng, Seed,
 };
 use std::fmt::Write;
 
@@ -177,7 +177,7 @@ pub(crate) fn run() -> std::result::Result<(), Box<dyn std::error::Error>> {
                 } else if let GameStatus::WaitingBattle { choices, .. } = &state.status {
                     write_place_card_pick_battle(&mut buf, choices)?;
                 } else {
-                    write_place_card_ok(&mut buf, log.new_entries())?;
+                    write_place_card_ok(&mut buf, log.new_entries(), &state.status)?;
                 }
 
                 out.write_all(buf.as_bytes())?;
@@ -292,8 +292,9 @@ fn parse_place_card<'a>(mut cmd: impl Iterator<Item = &'a str>) -> Result<(usize
     Ok((card, cell))
 }
 
-fn write_place_card_ok(o: &mut String, entries: &[Entry]) -> Result {
+fn write_place_card_ok(o: &mut String, entries: &[Entry], status: &GameStatus) -> Result {
     write!(o, "place-card-ok")?;
+
     for entry in entries {
         match entry {
             Entry::FlipCard {
@@ -328,6 +329,17 @@ fn write_place_card_ok(o: &mut String, entries: &[Entry]) -> Result {
             _ => {}
         }
     }
+
+    if let GameStatus::GameOver { winner } = status {
+        write!(o, " game_over=")?;
+        let winner = match winner {
+            Some(Player::P1) => "player1",
+            Some(Player::P2) => "player2",
+            None => "draw",
+        };
+        write!(o, "{winner}")?;
+    }
+
     writeln!(o)?;
     Ok(())
 }

@@ -1,4 +1,4 @@
-use crate::{Arrows, BattleSystem, Card, CardType, HandCandidate, HandCandidates, Seed};
+use crate::{Arrows, BattleSystem, Card, CardType, HandCandidate, HandCandidates, Player, Seed};
 use nom::{
     branch::alt,
     bytes::complete::{is_not, tag, take_while_m_n},
@@ -42,6 +42,9 @@ pub(crate) enum Interaction {
         attacker: Battler,
         defender: Battler,
         winner: BattleWinner,
+    },
+    GameOver {
+        winner: Option<Player>,
     },
 }
 
@@ -272,8 +275,18 @@ fn place_card_ok(input: &str) -> IResult<&str, Response> {
         ))
     }
 
+    fn game_over(input: &str) -> IResult<&str, Interaction> {
+        let (input, _) = tag("game_over=")(input)?;
+        let (input, winner) = alt((
+            map(tag("player1"), |_| Some(Player::P1)),
+            map(tag("player2"), |_| Some(Player::P2)),
+            map(tag("draw"), |_| None),
+        ))(input)?;
+        Ok((input, Interaction::GameOver { winner }))
+    }
+
     fn interaction(input: &str) -> IResult<&str, Interaction> {
-        alt((flip, combo_flip, battle))(input)
+        alt((flip, combo_flip, battle, game_over))(input)
     }
 
     let (input, _) = tag("place-card-ok")(input)?;
@@ -298,7 +311,7 @@ mod tests {
         BattleSystem, BattleWinner, Battler, Digit, Interaction,
         Response::{self, *},
     };
-    use crate::{Card, HandCandidate};
+    use crate::{Card, HandCandidate, Player};
 
     fn assert_eq<T: PartialEq + std::fmt::Debug>(expected: T) -> impl Fn(T) {
         move |actual| pretty_assertions::assert_eq!(actual, expected)
@@ -426,6 +439,9 @@ mod tests {
             defender: Battler { cell: 8, digit: Digit::MagicalDefense, value: 3, roll: 0xCD },
             winner: BattleWinner::Attacker,
         }] })]
+    #[test_case("place-card-ok game_over=player1\n" => PlaceCardOk { interactions: vec![Interaction::GameOver { winner: Some(Player::P1) }] })]
+    #[test_case("place-card-ok game_over=player2\n" => PlaceCardOk { interactions: vec![Interaction::GameOver { winner: Some(Player::P2) }] })]
+    #[test_case("place-card-ok game_over=draw\n" => PlaceCardOk { interactions: vec![Interaction::GameOver { winner: None }] })]
     fn place_card_ok(input: &str) -> Response {
         Response::deserialize(input).unwrap()
     }

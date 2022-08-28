@@ -22,6 +22,12 @@ enum BattleSystem {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
+enum Player {
+    P1,
+    P2,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
 enum CardType {
     Physical,
     Magical,
@@ -778,6 +784,138 @@ fn main() -> anyhow::Result<()> {
                     Interaction::Flip { cell: 4 },
                     Interaction::ComboFlip { cell: 8 },
                 ]
+            );
+            Ok(())
+        } else {
+            panic!("unexpected response");
+        }
+    });
+
+    harness.test("place card that ends the game in a draw", || {
+        let mut driver = implementation_driver(&args.implementation);
+        let hand_candidates = [
+            [C0P00_0, C0P00_0, C0P00_0, C0P00_0, C0P00_0],
+            [C0P00_0, C0P00_0, C0P00_0, C0P00_0, C0P00_0],
+            [C0P00_0, C0P00_0, C0P00_0, C0P00_0, C0P00_0],
+        ];
+        driver.send(Command::Setup {
+            rng: None,
+            battle_system: None,
+            blocked_cells: Some(vec![]),
+            hand_candidates: Some(hand_candidates),
+        })?;
+        driver.send(Command::PickHand { index: 0 })?;
+        driver.send(Command::PickHand { index: 1 })?;
+
+        driver.send(Command::PlaceCard { card: 0, cell: 0 })?;
+        driver.send(Command::PlaceCard { card: 0, cell: 1 })?;
+
+        driver.send(Command::PlaceCard { card: 1, cell: 2 })?;
+        driver.send(Command::PlaceCard { card: 1, cell: 3 })?;
+
+        driver.send(Command::PlaceCard { card: 2, cell: 4 })?;
+        driver.send(Command::PlaceCard { card: 2, cell: 5 })?;
+
+        driver.send(Command::PlaceCard { card: 3, cell: 6 })?;
+        driver.send(Command::PlaceCard { card: 3, cell: 7 })?;
+
+        driver.send(Command::PlaceCard { card: 4, cell: 8 })?;
+
+        if let Response::PlaceCardOk { interactions } =
+            driver.send(Command::PlaceCard { card: 4, cell: 9 })?
+        {
+            assert_eq!(interactions, vec![Interaction::GameOver { winner: None }]);
+            Ok(())
+        } else {
+            panic!("unexpected response");
+        }
+    });
+
+    harness.test("place card that ends the game in player 1 drawing", || {
+        let mut driver = implementation_driver(&args.implementation);
+        let attacker = Card::physical(0, 0, 0, Arrows::ALL.0);
+        let hand_candidates = [
+            [C0P00_0, C0P00_0, C0P00_0, C0P00_0, attacker],
+            [C0P00_0, C0P00_0, C0P00_0, C0P00_0, C0P00_0],
+            [C0P00_0, C0P00_0, C0P00_0, C0P00_0, C0P00_0],
+        ];
+        driver.send(Command::Setup {
+            rng: None,
+            battle_system: None,
+            blocked_cells: Some(vec![]),
+            hand_candidates: Some(hand_candidates),
+        })?;
+        driver.send(Command::PickHand { index: 0 })?;
+        driver.send(Command::PickHand { index: 1 })?;
+
+        driver.send(Command::PlaceCard { card: 0, cell: 0 })?;
+        driver.send(Command::PlaceCard { card: 0, cell: 1 })?;
+
+        driver.send(Command::PlaceCard { card: 1, cell: 2 })?;
+        driver.send(Command::PlaceCard { card: 1, cell: 3 })?;
+
+        driver.send(Command::PlaceCard { card: 2, cell: 4 })?;
+        driver.send(Command::PlaceCard { card: 2, cell: 5 })?;
+
+        driver.send(Command::PlaceCard { card: 3, cell: 6 })?;
+        driver.send(Command::PlaceCard { card: 3, cell: 7 })?;
+
+        driver.send(Command::PlaceCard { card: 4, cell: 8 })?;
+
+        if let Response::PlaceCardOk { interactions } =
+            driver.send(Command::PlaceCard { card: 4, cell: 9 })?
+        {
+            assert_eq!(
+                interactions,
+                vec![Interaction::GameOver {
+                    winner: Some(Player::P1)
+                }]
+            );
+            Ok(())
+        } else {
+            panic!("unexpected response");
+        }
+    });
+
+    harness.test("place card that ends the game in player 2 drawing", || {
+        let mut driver = implementation_driver(&args.implementation);
+        let attacker = Card::physical(0, 0, 0, Arrows::ALL.0);
+        let hand_candidates = [
+            [C0P00_0, C0P00_0, C0P00_0, C0P00_0, C0P00_0],
+            [C0P00_0, C0P00_0, C0P00_0, attacker, C0P00_0],
+            [C0P00_0, C0P00_0, C0P00_0, C0P00_0, C0P00_0],
+        ];
+        driver.send(Command::Setup {
+            rng: None,
+            battle_system: None,
+            blocked_cells: Some(vec![]),
+            hand_candidates: Some(hand_candidates),
+        })?;
+        driver.send(Command::PickHand { index: 0 })?;
+        driver.send(Command::PickHand { index: 1 })?;
+
+        driver.send(Command::PlaceCard { card: 0, cell: 0 })?;
+        driver.send(Command::PlaceCard { card: 0, cell: 1 })?;
+
+        driver.send(Command::PlaceCard { card: 1, cell: 2 })?;
+        driver.send(Command::PlaceCard { card: 1, cell: 3 })?;
+
+        driver.send(Command::PlaceCard { card: 2, cell: 4 })?;
+        driver.send(Command::PlaceCard { card: 2, cell: 5 })?;
+
+        driver.send(Command::PlaceCard { card: 3, cell: 6 })?;
+        driver.send(Command::PlaceCard { card: 3, cell: 7 })?;
+
+        driver.send(Command::PlaceCard { card: 4, cell: 8 })?;
+
+        if let Response::PlaceCardOk { interactions } =
+            driver.send(Command::PlaceCard { card: 4, cell: 9 })?
+        {
+            assert_eq!(
+                interactions,
+                vec![Interaction::GameOver {
+                    winner: Some(Player::P2)
+                }]
             );
             Ok(())
         } else {
