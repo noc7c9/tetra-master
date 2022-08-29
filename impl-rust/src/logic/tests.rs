@@ -628,6 +628,147 @@ fn continue_after_battle_choice_is_given() {
 }
 
 #[test]
+fn change_turn_after_choice_battle_if_attacker_wins() {
+    let mut state = GameState {
+        rng: Rng::with_seed(2),
+        ..GameState::empty()
+    };
+    let mut log = GameLog::new();
+
+    let card_points_down = Card::from_str("0P10", Arrows::DOWN);
+    let card_points_up = Card::from_str("0P10", Arrows::UP);
+    let card_points_vert = Card::from_str("3P00", Arrows::UP | Arrows::DOWN);
+    state.p1_hand[0] = Some(card_points_vert);
+    state.board[0] = Cell::p2_card(card_points_down);
+    state.board[8] = Cell::p2_card(card_points_up);
+
+    // placed card attacks both 0 and 8
+    game_next(&mut state, &mut log, GameInput::place(0, 4)).unwrap();
+    // attack card 8
+    game_next(&mut state, &mut log, GameInput::battle(8)).unwrap();
+
+    let log: Vec<_> = log.iter().collect();
+    assert_eq!(
+        log[1],
+        &Entry::battle(
+            OwnedCard::p1(card_points_vert),
+            4,
+            OwnedCard::p2(card_points_up),
+            8,
+            BattleResult {
+                winner: BattleWinner::Attacker,
+                attack_stat: BattleStat {
+                    digit: 0,
+                    value: 3,
+                    roll: 38
+                },
+                defense_stat: BattleStat {
+                    digit: 2,
+                    value: 1,
+                    roll: 13
+                },
+            }
+        )
+    );
+    assert_eq!(state.turn, Player::P2);
+    assert_eq!(log[5], &Entry::next_turn(Player::P2));
+}
+
+#[test]
+fn change_turn_after_choice_battle_if_defender_wins() {
+    let mut state = GameState {
+        rng: Rng::with_seed(0),
+        ..GameState::empty()
+    };
+    let mut log = GameLog::new();
+
+    let card_points_down = Card::from_str("0P10", Arrows::DOWN);
+    let card_points_up = Card::from_str("0P10", Arrows::UP);
+    let card_points_vert = Card::from_str("3P00", Arrows::UP | Arrows::DOWN);
+    state.p1_hand[0] = Some(card_points_vert);
+    state.board[0] = Cell::p2_card(card_points_down);
+    state.board[8] = Cell::p2_card(card_points_up);
+
+    // placed card attacks both 0 and 8
+    game_next(&mut state, &mut log, GameInput::place(0, 4)).unwrap();
+    // attack card 8
+    game_next(&mut state, &mut log, GameInput::battle(8)).unwrap();
+
+    let log: Vec<_> = log.iter().collect();
+    assert_eq!(
+        log[1],
+        &Entry::battle(
+            OwnedCard::p1(card_points_vert),
+            4,
+            OwnedCard::p2(card_points_up),
+            8,
+            BattleResult {
+                winner: BattleWinner::Defender,
+                attack_stat: BattleStat {
+                    digit: 0,
+                    value: 3,
+                    roll: 0
+                },
+                defense_stat: BattleStat {
+                    digit: 2,
+                    value: 1,
+                    roll: 10
+                },
+            }
+        )
+    );
+    assert_eq!(state.turn, Player::P2);
+    assert_eq!(log[3], &Entry::next_turn(Player::P2));
+}
+
+#[test]
+fn change_turn_after_choice_battle_if_its_a_draw() {
+    let mut state = GameState {
+        rng: Rng::with_seed(25),
+        ..GameState::empty()
+    };
+    let mut log = GameLog::new();
+
+    let card_points_down = Card::from_str("0P10", Arrows::DOWN);
+    let card_points_up = Card::from_str("0P10", Arrows::UP);
+    let card_points_vert = Card::from_str("3P00", Arrows::UP | Arrows::DOWN);
+    state.p1_hand[0] = Some(card_points_vert);
+    state.board[0] = Cell::p2_card(card_points_down);
+    state.board[8] = Cell::p2_card(card_points_up);
+
+    // placed card attacks both 0 and 8
+    game_next(&mut state, &mut log, GameInput::place(0, 4)).unwrap();
+    // attack card 8
+    game_next(&mut state, &mut log, GameInput::battle(8)).unwrap();
+
+    let log: Vec<_> = log.iter().collect();
+    assert_eq!(
+        log[1],
+        &Entry::battle(
+            OwnedCard::p1(card_points_vert),
+            4,
+            OwnedCard::p2(card_points_up),
+            8,
+            BattleResult {
+                winner: BattleWinner::None,
+                attack_stat: BattleStat {
+                    digit: 0,
+                    value: 3,
+                    roll: 24
+                },
+                defense_stat: BattleStat {
+                    digit: 2,
+                    value: 1,
+                    roll: 24
+                },
+            }
+        )
+    );
+    assert_eq!(state.turn, Player::P2);
+    assert_eq!(log[3], &Entry::next_turn(Player::P2));
+}
+
+#[test]
 fn reject_input_if_the_choice_isnt_valid() {
     let mut state = GameState::empty();
     let mut log = GameLog::new();
@@ -665,6 +806,7 @@ fn continue_offering_choices_when_multiple_battles_are_still_available() {
     game_next(&mut state, &mut log, GameInput::place(0, 4)).unwrap();
     game_next(&mut state, &mut log, GameInput::battle(0)).unwrap();
 
+    assert_eq!(state.turn, Player::P1);
     assert_eq!(
         state.status,
         GameStatus::WaitingBattle {

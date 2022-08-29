@@ -128,6 +128,10 @@ fn handle_waiting_battle(
     if winner == BattleWinner::Attacker {
         resolve_interactions(state, log, attacker_cell);
     } else {
+        // next turn
+        state.turn = state.turn.opposite();
+        log.append(Entry::next_turn(state.turn));
+
         check_for_game_over(state);
     }
 
