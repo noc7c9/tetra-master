@@ -2,10 +2,10 @@ use crate::{Arrows, BattleSystem, Card, CardType, HandCandidate, HandCandidates,
 use nom::{
     branch::alt,
     bytes::complete::{is_not, tag, take_while_m_n},
-    character::complete::{char, one_of, u64, u8},
+    character::complete::{char, multispace0, multispace1, one_of},
     combinator::{map, map_res, opt, verify},
     error::Error,
-    multi::{separated_list0, separated_list1},
+    multi::separated_list0,
     sequence::{delimited, preceded, terminated, tuple},
     IResult, Parser,
 };
@@ -23,7 +23,7 @@ pub(crate) enum Response {
         reason: String,
     },
     PlaceCardOk {
-        interactions: Vec<Interaction>,
+        events: Vec<Event>,
     },
     PlaceCardPickBattle {
         choices: Vec<u8>,
@@ -31,7 +31,7 @@ pub(crate) enum Response {
 }
 
 #[derive(Debug, PartialEq)]
-pub(crate) enum Interaction {
+pub(crate) enum Event {
     Flip {
         cell: u8,
     },
@@ -48,7 +48,7 @@ pub(crate) enum Interaction {
     },
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, Copy, Clone, PartialEq)]
 pub(crate) struct Battler {
     pub cell: u8,
     pub digit: Digit,
@@ -56,14 +56,14 @@ pub(crate) struct Battler {
     pub roll: u8,
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, Copy, Clone, PartialEq)]
 pub(crate) enum Digit {
     Attack,
     PhysicalDefense,
     MagicalDefense,
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, Copy, Clone, PartialEq)]
 pub(crate) enum BattleWinner {
     Attacker,
     Defender,
@@ -71,71 +71,90 @@ pub(crate) enum BattleWinner {
 }
 
 impl Response {
-    pub(crate) fn deserialize(input: &str) -> anyhow::Result<Self> {
+    pub(crate) fn deserialize(i: &str) -> anyhow::Result<Self> {
         let (_, res) = alt((
             setup_ok,
             pick_hand_ok,
             pick_hand_err,
             place_card_ok,
             place_card_pick_battle,
-        ))(input)
+        ))(i)
         .map_err(|e| e.to_owned())?;
         Ok(res)
     }
 }
 
-fn string(input: &str) -> IResult<&str, &str> {
-    delimited(char('"'), is_not("\""), char('"'))(input)
+fn atom<'a, T>(
+    inner: impl Parser<&'a str, T, Error<&'a str>>,
+) -> impl FnMut(&'a str) -> IResult<&'a str, T> {
+    delimited(multispace0, inner, multispace0)
 }
 
-fn list0<'a, T>(
-    delimiter: char,
-    item: impl Parser<&'a str, T, Error<&'a str>>,
+fn ident<'a>(value: &'static str) -> impl FnMut(&'a str) -> IResult<&'a str, &str> {
+    atom(tag(value))
+}
+
+fn list<'a, T>(
+    inner: impl Parser<&'a str, T, Error<&'a str>>,
+) -> impl FnMut(&'a str) -> IResult<&'a str, T> {
+    delimited(char('('), atom(inner), char(')'))
+}
+
+fn array<'a, T>(
+    inner: impl Parser<&'a str, T, Error<&'a str>>,
 ) -> impl FnMut(&'a str) -> IResult<&'a str, Vec<T>> {
-    delimited(char('['), separated_list0(char(delimiter), item), char(']'))
+    list(separated_list0(multispace1, inner))
 }
 
-fn list1<'a, T>(
-    delimiter: char,
-    item: impl Parser<&'a str, T, Error<&'a str>>,
+fn array_verify<'a, T>(
+    inner: impl Parser<&'a str, T, Error<&'a str>>,
+    predicate: impl Fn(&Vec<T>) -> bool,
 ) -> impl FnMut(&'a str) -> IResult<&'a str, Vec<T>> {
-    delimited(char('['), separated_list1(char(delimiter), item), char(']'))
+    verify(array(inner), predicate)
 }
 
-fn list_of_length<'a, T>(
-    delimiter: char,
-    item: impl Parser<&'a str, T, Error<&'a str>>,
-    len: usize,
-) -> impl FnMut(&'a str) -> IResult<&'a str, Vec<T>> {
-    verify(list0(delimiter, item), move |v: &Vec<T>| v.len() == len)
+fn string(i: &str) -> IResult<&str, String> {
+    let (i, string) = delimited(char('"'), is_not("\""), char('"'))(i)?;
+    Ok((i, string.into()))
 }
 
-fn hex_digits<'a>(max: usize) -> impl FnMut(&'a str) -> IResult<&str, u8> {
-    map_res(
-        take_while_m_n(1, max, |c: char| c.is_ascii_hexdigit()),
-        |input| u8::from_str_radix(input, 16),
-    )
+fn hex_digit_1_n<'a, T: FromStrHex>(n: usize) -> impl FnMut(&'a str) -> IResult<&str, T> {
+    map_res(take_while_m_n(1, n, |c: char| c.is_ascii_hexdigit()), |i| {
+        T::from_str_hex(i)
+    })
 }
 
-fn card(input: &str) -> IResult<&str, Card> {
-    let (input, (attack, card_type, physical_defense, magical_defense, _, arrow)) = tuple((
-        hex_digits(1),
-        one_of("PMXApmxa"),
-        hex_digits(1),
-        hex_digits(1),
-        char('@'),
-        hex_digits(2),
-    ))(input)?;
-    let card_type = match card_type {
+trait FromStrHex: Sized {
+    fn from_str_hex(s: &str) -> Result<Self, std::num::ParseIntError>;
+}
+
+impl FromStrHex for u8 {
+    fn from_str_hex(s: &str) -> Result<Self, std::num::ParseIntError> {
+        Self::from_str_radix(s, 16)
+    }
+}
+
+impl FromStrHex for u64 {
+    fn from_str_hex(s: &str) -> Result<Self, std::num::ParseIntError> {
+        Self::from_str_radix(s, 16)
+    }
+}
+
+fn card(i: &str) -> IResult<&str, Card> {
+    let (i, attack) = hex_digit_1_n(1)(i)?;
+    let (i, card_type) = map(one_of("PMXApmxa"), |ch| match ch {
         'P' | 'p' => CardType::Physical,
         'M' | 'm' => CardType::Magical,
         'X' | 'x' => CardType::Exploit,
         'A' | 'a' => CardType::Assault,
         _ => unreachable!(),
-    };
-    let arrows = Arrows(arrow);
+    })(i)?;
+    let (i, physical_defense) = hex_digit_1_n(1)(i)?;
+    let (i, magical_defense) = hex_digit_1_n(1)(i)?;
+    let (i, _) = char('_')(i)?;
+    let (i, arrows) = map(hex_digit_1_n(2), Arrows)(i)?;
     Ok((
-        input,
+        i,
         Card {
             attack,
             card_type,
@@ -146,161 +165,155 @@ fn card(input: &str) -> IResult<&str, Card> {
     ))
 }
 
-fn battle_system(input: &str) -> IResult<&str, BattleSystem> {
-    let original_approx = map(tag("original-approx"), |_| BattleSystem::OriginalApprox);
-    let original = map(tag("original"), |_| BattleSystem::Original);
-    let dice = map(delimited(tag("dice("), u8, char(')')), |sides| {
-        BattleSystem::Dice { sides }
-    });
-    alt((original_approx, original, dice))(input)
+fn battle_system(i: &str) -> IResult<&str, BattleSystem> {
+    alt((
+        map(ident("original-approx"), |_| BattleSystem::OriginalApprox),
+        map(ident("original"), |_| BattleSystem::Original),
+        map(preceded(ident("dice"), atom(hex_digit_1_n(2))), |sides| {
+            BattleSystem::Dice { sides }
+        }),
+    ))(i)
 }
 
-fn blocked_cells(input: &str) -> IResult<&str, Vec<u8>> {
-    verify(list0(',', hex_digits(1)), |v: &Vec<_>| v.len() < 6)(input)
+fn blocked_cells(i: &str) -> IResult<&str, Vec<u8>> {
+    array_verify(hex_digit_1_n(1), |v| v.len() < 6)(i)
 }
 
-fn hand_candidate(input: &str) -> IResult<&str, HandCandidate> {
-    let (input, cards) = list_of_length(',', card, crate::HAND_SIZE)(input)?;
-    Ok((input, [cards[0], cards[1], cards[2], cards[3], cards[4]]))
+fn hand(i: &str) -> IResult<&str, HandCandidate> {
+    let (i, cards) = array_verify(card, |v| v.len() == crate::HAND_SIZE)(i)?;
+    Ok((i, [cards[0], cards[1], cards[2], cards[3], cards[4]]))
 }
 
-fn hand_candidates(input: &str) -> IResult<&str, HandCandidates> {
-    let (input, hands) = list_of_length(';', hand_candidate, crate::HAND_CANDIDATES)(input)?;
-    Ok((input, [hands[0], hands[1], hands[2]]))
+fn hand_candidates(i: &str) -> IResult<&str, HandCandidates> {
+    let (i, hands) = array_verify(hand, |v| v.len() == crate::HAND_CANDIDATES)(i)?;
+    Ok((i, [hands[0], hands[1], hands[2]]))
 }
 
-fn setup_ok(input: &str) -> IResult<&str, Response> {
-    let (input, _) = tag("setup-ok")(input)?;
+fn response<'a>(
+    name: &'static str,
+    inner: impl Parser<&'a str, Response, Error<&'a str>>,
+) -> impl FnMut(&'a str) -> IResult<&'a str, Response> {
+    terminated(list(preceded(ident(name), inner)), char('\n'))
+}
 
-    let (input, seed) = opt(preceded(tag(" seed="), u64))(input)?;
-    let (input, battle_system) = preceded(tag(" battle_system="), battle_system)(input)?;
-    let (input, blocked_cells) = preceded(tag(" blocked_cells="), blocked_cells)(input)?;
-    let (input, hand_candidates) = preceded(tag(" hand_candidates="), hand_candidates)(input)?;
+fn prop<'a, T>(
+    name: &'static str,
+    inner: impl Parser<&'a str, T, Error<&'a str>>,
+) -> impl FnMut(&'a str) -> IResult<&'a str, T> {
+    preceded(multispace0, list(preceded(ident(name), inner)))
+}
 
-    let (input, _) = tag("\n")(input)?;
-
-    Ok((
-        input,
-        Response::SetupOk {
+fn setup_ok(i: &str) -> IResult<&str, Response> {
+    response("setup-ok", |i| {
+        let (i, seed) = opt(prop("seed", hex_digit_1_n(16)))(i)?;
+        let (i, battle_system) = prop("battle-system", battle_system)(i)?;
+        let (i, blocked_cells) = prop("blocked-cells", blocked_cells)(i)?;
+        let (i, hand_candidates) = prop("hand-candidates", hand_candidates)(i)?;
+        let response = Response::SetupOk {
             seed,
             battle_system,
             blocked_cells,
             hand_candidates,
-        },
-    ))
+        };
+        Ok((i, response))
+    })(i)
 }
 
-fn pick_hand_ok(input: &str) -> IResult<&str, Response> {
-    let (input, _) = tag("pick-hand-ok")(input)?;
-    let (input, _) = tag("\n")(input)?;
-    Ok((input, Response::PickHandOk))
+fn pick_hand_ok(i: &str) -> IResult<&str, Response> {
+    response("pick-hand-ok", |i| Ok((i, Response::PickHandOk)))(i)
 }
 
-fn pick_hand_err(input: &str) -> IResult<&str, Response> {
-    let (input, _) = tag("pick-hand-err")(input)?;
-    let (input, reason) = preceded(tag(" reason="), string)(input)?;
-    let (input, _) = tag("\n")(input)?;
-    Ok((
-        input,
-        Response::PickHandErr {
-            reason: reason.into(),
-        },
-    ))
+fn pick_hand_err(i: &str) -> IResult<&str, Response> {
+    response("pick-hand-err", |i| {
+        let (i, reason) = prop("reason", string)(i)?;
+        Ok((i, Response::PickHandErr { reason }))
+    })(i)
 }
 
-fn place_card_ok(input: &str) -> IResult<&str, Response> {
-    fn flip(input: &str) -> IResult<&str, Interaction> {
-        let (input, _) = tag("flip=")(input)?;
-        let (input, cell) = hex_digits(1)(input)?;
-        Ok((input, Interaction::Flip { cell: cell.into() }))
+fn place_card_ok(i: &str) -> IResult<&str, Response> {
+    fn flip(i: &str) -> IResult<&str, Event> {
+        let (i, cell) = prop("flip", hex_digit_1_n(1))(i)?;
+        Ok((i, Event::Flip { cell }))
     }
 
-    fn combo_flip(input: &str) -> IResult<&str, Interaction> {
-        let (input, _) = tag("combo-flip=")(input)?;
-        let (input, cell) = hex_digits(1)(input)?;
-        Ok((input, Interaction::ComboFlip { cell: cell.into() }))
+    fn combo_flip(i: &str) -> IResult<&str, Event> {
+        let (i, cell) = prop("combo-flip", hex_digit_1_n(1))(i)?;
+        Ok((i, Event::ComboFlip { cell }))
     }
 
-    fn battle(input: &str) -> IResult<&str, Interaction> {
-        fn digit(input: &str) -> IResult<&str, Digit> {
-            alt((
-                map(tag("att"), |_| Digit::Attack),
-                map(tag("phy"), |_| Digit::PhysicalDefense),
-                map(tag("mag"), |_| Digit::MagicalDefense),
-            ))(input)
+    fn battle(i: &str) -> IResult<&str, Event> {
+        fn digit(i: &str) -> IResult<&str, Digit> {
+            map(one_of("PMApmx"), |ch| match ch {
+                'A' | 'a' => Digit::Attack,
+                'P' | 'p' => Digit::PhysicalDefense,
+                'M' | 'm' => Digit::MagicalDefense,
+                _ => unreachable!(),
+            })(i)
         }
 
-        fn battler(input: &str) -> IResult<&str, Battler> {
-            let (input, cell) = terminated(hex_digits(1), char(','))(input)?;
-            let (input, digit) = terminated(digit, char(','))(input)?;
-            let (input, value) = terminated(hex_digits(1), char(','))(input)?;
-            let (input, roll) = hex_digits(2)(input)?;
+        fn battler(i: &str) -> IResult<&str, Battler> {
+            let (i, (cell, digit, value, roll)) = list(tuple((
+                atom(hex_digit_1_n(1)),
+                atom(digit),
+                atom(hex_digit_1_n(1)),
+                atom(hex_digit_1_n(2)),
+            )))(i)?;
             let battler = Battler {
                 cell,
                 digit,
                 value,
                 roll,
             };
-            Ok((input, battler))
+            Ok((i, battler))
         }
 
-        fn winner(input: &str) -> IResult<&str, BattleWinner> {
+        fn winner(i: &str) -> IResult<&str, BattleWinner> {
             alt((
                 map(tag("attacker"), |_| BattleWinner::Attacker),
                 map(tag("defender"), |_| BattleWinner::Defender),
                 map(tag("none"), |_| BattleWinner::None),
-            ))(input)
+            ))(i)
         }
 
-        let (input, _) = tag("battle=(")(input)?;
-
-        let (input, _) = tag("attacker=(")(input)?;
-        let (input, attacker) = battler(input)?;
-
-        let (input, _) = tag("),defender=(")(input)?;
-        let (input, defender) = battler(input)?;
-
-        let (input, _) = tag("),winner=")(input)?;
-        let (input, winner) = winner(input)?;
-
-        let (input, _) = tag(")")(input)?;
-
-        Ok((
-            input,
-            Interaction::Battle {
-                attacker,
-                defender,
-                winner,
-            },
-        ))
+        let (i, (attacker, defender, winner)) = prop(
+            "battle",
+            tuple((atom(battler), atom(battler), atom(winner))),
+        )(i)?;
+        let battle = Event::Battle {
+            attacker,
+            defender,
+            winner,
+        };
+        Ok((i, battle))
     }
 
-    fn game_over(input: &str) -> IResult<&str, Interaction> {
-        let (input, _) = tag("game_over=")(input)?;
-        let (input, winner) = alt((
-            map(tag("player1"), |_| Some(Player::P1)),
-            map(tag("player2"), |_| Some(Player::P2)),
-            map(tag("draw"), |_| None),
-        ))(input)?;
-        Ok((input, Interaction::GameOver { winner }))
+    fn game_over(i: &str) -> IResult<&str, Event> {
+        let (i, winner) = prop(
+            "game-over",
+            alt((
+                map(tag("player1"), |_| Some(Player::P1)),
+                map(tag("player2"), |_| Some(Player::P2)),
+                map(tag("draw"), |_| None),
+            )),
+        )(i)?;
+        Ok((i, Event::GameOver { winner }))
     }
 
-    fn interaction(input: &str) -> IResult<&str, Interaction> {
-        alt((flip, combo_flip, battle, game_over))(input)
+    fn event(i: &str) -> IResult<&str, Event> {
+        alt((flip, combo_flip, battle, game_over))(i)
     }
 
-    let (input, _) = tag("place-card-ok")(input)?;
-    let (input, _) = take_while_m_n(0, 1, |c| c == ' ')(input)?;
-    let (input, interactions) = separated_list0(char(' '), interaction)(input)?;
-    let (input, _) = tag("\n")(input)?;
-    Ok((input, Response::PlaceCardOk { interactions }))
+    response("place-card-ok", |i| {
+        let (i, events) = atom(separated_list0(multispace1, event))(i)?;
+        Ok((i, Response::PlaceCardOk { events }))
+    })(i)
 }
 
-fn place_card_pick_battle(input: &str) -> IResult<&str, Response> {
-    let (input, _) = tag("place-card-pick-battle choices=")(input)?;
-    let (input, choices) = list1(',', hex_digits(1))(input)?;
-    let (input, _) = tag("\n")(input)?;
-    Ok((input, Response::PlaceCardPickBattle { choices }))
+fn place_card_pick_battle(i: &str) -> IResult<&str, Response> {
+    response("place-card-pick-battle", |i| {
+        let (i, choices) = prop("choices", array(hex_digit_1_n(1)))(i)?;
+        Ok((i, Response::PlaceCardPickBattle { choices }))
+    })(i)
 }
 
 #[cfg(test)]
@@ -308,84 +321,93 @@ mod tests {
     use test_case::test_case;
 
     use super::{
-        BattleSystem, BattleWinner, Battler, Digit, Interaction,
+        BattleSystem, BattleWinner, Battler, Digit,
+        Event::*,
         Response::{self, *},
     };
-    use crate::{Card, HandCandidate, Player};
+    use crate::{Card, HandCandidate, HandCandidates, Player};
 
     fn assert_eq<T: PartialEq + std::fmt::Debug>(expected: T) -> impl Fn(T) {
         move |actual| pretty_assertions::assert_eq!(actual, expected)
     }
 
     // note: first arg is used to differentiate names that generate with the same name types
-    #[test_case(0, "0P00@0" => using assert_eq(Card::physical(0, 0, 0, 0)))]
-    #[test_case(0, "0M00@0" => using assert_eq(Card::magical(0, 0, 0, 0)))]
-    #[test_case(0, "0X00@0" => using assert_eq(Card::exploit(0, 0, 0, 0)))]
-    #[test_case(0, "0A00@0" => using assert_eq(Card::assault(0, 0, 0, 0)))]
-    #[test_case(1, "0p00@0" => using assert_eq(Card::physical(0, 0, 0, 0)))]
-    #[test_case(1, "0m00@0" => using assert_eq(Card::magical(0, 0, 0, 0)))]
-    #[test_case(1, "0x00@0" => using assert_eq(Card::exploit(0, 0, 0, 0)))]
-    #[test_case(1, "0a00@0" => using assert_eq(Card::assault(0, 0, 0, 0)))]
-    #[test_case(1, "0B00@0" => panics)]
+    #[test_case(0, "0P00_0" => using assert_eq(Card::physical(0, 0, 0, 0)))]
+    #[test_case(0, "0M00_0" => using assert_eq(Card::magical(0, 0, 0, 0)))]
+    #[test_case(0, "0X00_0" => using assert_eq(Card::exploit(0, 0, 0, 0)))]
+    #[test_case(0, "0A00_0" => using assert_eq(Card::assault(0, 0, 0, 0)))]
+    #[test_case(1, "0p00_0" => using assert_eq(Card::physical(0, 0, 0, 0)))]
+    #[test_case(1, "0m00_0" => using assert_eq(Card::magical(0, 0, 0, 0)))]
+    #[test_case(1, "0x00_0" => using assert_eq(Card::exploit(0, 0, 0, 0)))]
+    #[test_case(1, "0a00_0" => using assert_eq(Card::assault(0, 0, 0, 0)))]
+    #[test_case(1, "0B00_0" => panics)]
     // stats
-    #[test_case(0, "1P23@0" => using assert_eq(Card::physical(1, 2, 3, 0)))]
-    #[test_case(0, "aPbc@0" => using assert_eq(Card::physical(0xa, 0xb, 0xc, 0)))]
-    #[test_case(1, "APBC@0" => using assert_eq(Card::physical(0xa, 0xb, 0xc, 0)))]
+    #[test_case(0, "1P23_0" => using assert_eq(Card::physical(1, 2, 3, 0)))]
+    #[test_case(0, "aPbc_0" => using assert_eq(Card::physical(0xa, 0xb, 0xc, 0)))]
+    #[test_case(1, "APBC_0" => using assert_eq(Card::physical(0xa, 0xb, 0xc, 0)))]
     // arrows
-    #[test_case(0, "0P00@1" => using assert_eq(Card::physical(0, 0, 0, 1)))]
-    #[test_case(0, "0P00@F" => using assert_eq(Card::physical(0, 0, 0, 0xf)))]
-    #[test_case(1, "0P00@f" => using assert_eq(Card::physical(0, 0, 0, 0xf)))]
-    #[test_case(0, "0P00@00" => using assert_eq(Card::physical(0, 0, 0, 0)))]
-    #[test_case(0, "0P00@0F" => using assert_eq(Card::physical(0, 0, 0, 0xf)))]
-    #[test_case(1, "0P00@0f" => using assert_eq(Card::physical(0, 0, 0, 0xf)))]
-    #[test_case(0, "0P00@f0" => using assert_eq(Card::physical(0, 0, 0, 0xf0)))]
-    #[test_case(1, "0P00@F0" => using assert_eq(Card::physical(0, 0, 0, 0xf0)))]
-    #[test_case(0, "0P00@fF" => using assert_eq(Card::physical(0, 0, 0, 0xff)))]
-    #[test_case(1, "0P00@ff" => using assert_eq(Card::physical(0, 0, 0, 0xff)))]
-    #[test_case(2, "0P00@FF" => using assert_eq(Card::physical(0, 0, 0, 0xff)))]
-    fn card_(_: u8, input: &str) -> Card {
-        super::card(input).unwrap().1
+    #[test_case(0, "0P00_1" => using assert_eq(Card::physical(0, 0, 0, 1)))]
+    #[test_case(0, "0P00_F" => using assert_eq(Card::physical(0, 0, 0, 0xf)))]
+    #[test_case(1, "0P00_f" => using assert_eq(Card::physical(0, 0, 0, 0xf)))]
+    #[test_case(0, "0P00_00" => using assert_eq(Card::physical(0, 0, 0, 0)))]
+    #[test_case(0, "0P00_0F" => using assert_eq(Card::physical(0, 0, 0, 0xf)))]
+    #[test_case(1, "0P00_0f" => using assert_eq(Card::physical(0, 0, 0, 0xf)))]
+    #[test_case(0, "0P00_f0" => using assert_eq(Card::physical(0, 0, 0, 0xf0)))]
+    #[test_case(1, "0P00_F0" => using assert_eq(Card::physical(0, 0, 0, 0xf0)))]
+    #[test_case(0, "0P00_fF" => using assert_eq(Card::physical(0, 0, 0, 0xff)))]
+    #[test_case(1, "0P00_ff" => using assert_eq(Card::physical(0, 0, 0, 0xff)))]
+    #[test_case(2, "0P00_FF" => using assert_eq(Card::physical(0, 0, 0, 0xff)))]
+    fn card_(_: u8, i: &str) -> Card {
+        super::card(i).unwrap().1
     }
 
     const C0P00: Card = Card::physical(0, 0, 0, 0);
     const C1X23: Card = Card::exploit(1, 2, 3, 0x45);
 
-    #[test_case("[0P00@0,0P00@0,0P00@0,0P00@0,1X23@45]" => using assert_eq([C0P00,C0P00,C0P00,C0P00,C1X23]))]
-    #[test_case("[0P00@0,0P00@0,0P00@0,1X23@45,0P00@0]" => using assert_eq([C0P00,C0P00,C0P00,C1X23,C0P00]))]
-    #[test_case("[0P00@0,0P00@0,1X23@45,0P00@0,0P00@0]" => using assert_eq([C0P00,C0P00,C1X23,C0P00,C0P00]))]
-    #[test_case("[0P00@0,1X23@45,0P00@0,0P00@0,0P00@0]" => using assert_eq([C0P00,C1X23,C0P00,C0P00,C0P00]))]
-    #[test_case("[1X23@45,0P00@0,0P00@0,0P00@0,0P00@0]" => using assert_eq([C1X23,C0P00,C0P00,C0P00,C0P00]))]
-    #[test_case("[0P00@0,0P00@0,0P00@0,0P00@0]" => panics)]
-    #[test_case("[]" => panics)]
+    #[test_case("(0P00_0 0P00_0 0P00_0 0P00_0 1X23_45)" => using assert_eq([C0P00,C0P00,C0P00,C0P00,C1X23]))]
+    #[test_case("(0P00_0 0P00_0 0P00_0 1X23_45 0P00_0)" => using assert_eq([C0P00,C0P00,C0P00,C1X23,C0P00]))]
+    #[test_case("(0P00_0 0P00_0 1X23_45 0P00_0 0P00_0)" => using assert_eq([C0P00,C0P00,C1X23,C0P00,C0P00]))]
+    #[test_case("(0P00_0 1X23_45 0P00_0 0P00_0 0P00_0)" => using assert_eq([C0P00,C1X23,C0P00,C0P00,C0P00]))]
+    #[test_case("(1X23_45 0P00_0 0P00_0 0P00_0 0P00_0)" => using assert_eq([C1X23,C0P00,C0P00,C0P00,C0P00]))]
+    #[test_case("(0P00_0 0P00_0 0P00_0 0P00_0)" => panics)]
+    #[test_case("()" => panics)]
     #[test_case(" " => panics; "empty string")]
-    fn hand_candidate(input: &str) -> HandCandidate {
-        super::hand_candidate(input).unwrap().1
+    fn hand(i: &str) -> HandCandidate {
+        super::hand(i).unwrap().1
     }
 
-    #[test_case("[]" => Vec::<u8>::new())]
-    #[test_case("[1]" => vec![1])]
-    #[test_case("[2,a,B,F]" => vec![2,0xa,0xb,0xf])]
-    #[test_case("[0,0,0,0,0,0,0]" => panics)]
-    #[test_case("[2a]" => panics)]
+    #[test_case("((0P00_0 0P00_0 0P00_0 0P00_0 1X23_45) (0P00_0 0P00_0 1X23_45 0P00_0 0P00_0) (1X23_45 0P00_0 0P00_0 0P00_0 0P00_0))" => using assert_eq([[C0P00,C0P00,C0P00,C0P00,C1X23], [C0P00,C0P00,C1X23,C0P00,C0P00], [C1X23,C0P00,C0P00,C0P00,C0P00]]))]
+    #[test_case("()" => panics)]
     #[test_case(" " => panics; "empty string")]
-    fn blocked_cells(input: &str) -> Vec<u8> {
-        super::blocked_cells(input).unwrap().1
+    fn hand_candidates(i: &str) -> HandCandidates {
+        super::hand_candidates(i).unwrap().1
+    }
+
+    #[test_case("()" => Vec::<u8>::new())]
+    #[test_case("(1)" => vec![1])]
+    #[test_case("(2 a B F)" => vec![2,0xa,0xb,0xf])]
+    #[test_case("(0 0 0 0 0 0 0)" => panics)]
+    #[test_case("(2a)" => panics)]
+    #[test_case(" " => panics; "empty string")]
+    fn blocked_cells(i: &str) -> Vec<u8> {
+        super::blocked_cells(i).unwrap().1
     }
 
     #[test_case("original" => BattleSystem::Original)]
     #[test_case("original-approx" => BattleSystem::OriginalApprox)]
-    #[test_case("dice(4)" => BattleSystem::Dice { sides: 4 })]
-    #[test_case("dice(11)" => BattleSystem::Dice { sides: 11 })]
-    #[test_case("dice()" => panics)]
+    #[test_case("dice 4" => BattleSystem::Dice { sides: 4 })]
+    #[test_case("dice A" => BattleSystem::Dice { sides: 10 })]
+    #[test_case("dice 11" => BattleSystem::Dice { sides: 17 })]
+    #[test_case("dice" => panics)]
     #[test_case("" => panics)]
-    fn battle_system(input: &str) -> BattleSystem {
-        super::battle_system(input).unwrap().1
+    fn battle_system(i: &str) -> BattleSystem {
+        super::battle_system(i).unwrap().1
     }
 
-    const BLOCKED_CELLS: &str = "[2,3,F]";
-    const HAND_CANDIDATES: &str = "[[0P00@0,0P00@0,0P00@0,0P00@0,0P00@0];[0P00@0,0P00@0,0P00@0,0P00@0,0P00@0];[0P00@0,0P00@0,0P00@0,0P00@0,0P00@0]]";
+    const BLOCKED_CELLS: &str = "(2 3 F)";
+    const HAND_CANDIDATES: &str = "((0P00_0 0P00_0 0P00_0 0P00_0 0P00_0) (0P00_0 0P00_0 0P00_0 0P00_0 0P00_0) (0P00_0 0P00_0 0P00_0 0P00_0 0P00_0))";
     #[test_case(
-        format!("setup-ok seed=123 battle_system=dice(9) blocked_cells={BLOCKED_CELLS} hand_candidates={HAND_CANDIDATES}\n")
+        format!("(setup-ok (seed 7B) (battle-system dice 9) (blocked-cells {BLOCKED_CELLS}) (hand-candidates {HAND_CANDIDATES}))\n")
         => SetupOk {
             seed: Some(123),
             battle_system: BattleSystem::Dice { sides: 9 },
@@ -398,7 +420,7 @@ mod tests {
         }
     )]
     #[test_case(
-        format!("setup-ok battle_system=dice(9) blocked_cells={BLOCKED_CELLS} hand_candidates={HAND_CANDIDATES}\n")
+        format!("(setup-ok (battle-system dice 9) (blocked-cells {BLOCKED_CELLS}) (hand-candidates {HAND_CANDIDATES}))\n")
         => SetupOk {
             seed: None,
             battle_system: BattleSystem::Dice { sides: 9 },
@@ -410,45 +432,45 @@ mod tests {
             ],
         }
     )]
-    fn setup_ok(input: String) -> Response {
-        Response::deserialize(&input).unwrap()
+    fn setup_ok(i: String) -> Response {
+        Response::deserialize(&i).unwrap()
     }
 
-    #[test_case("pick-hand-ok\n" => PickHandOk)]
-    fn pick_hand_ok(input: &str) -> Response {
-        Response::deserialize(input).unwrap()
+    #[test_case("(pick-hand-ok)\n" => PickHandOk)]
+    fn pick_hand_ok(i: &str) -> Response {
+        Response::deserialize(i).unwrap()
     }
 
-    #[test_case("pick-hand-err reason=\"oneword\"\n" => PickHandErr { reason: "oneword".into() })]
-    #[test_case("pick-hand-err reason=\"multiple words\"\n" => PickHandErr { reason: "multiple words".into() })]
-    #[test_case("pick-hand-err reason=\"escaped \\\" quote\"\n" => panics)]
-    fn pick_hand_err(input: &str) -> Response {
-        Response::deserialize(input).unwrap()
+    #[test_case("(pick-hand-err (reason \"oneword\"))\n" => PickHandErr { reason: "oneword".into() })]
+    #[test_case("(pick-hand-err (reason \"multiple words\"))\n" => PickHandErr { reason: "multiple words".into() })]
+    #[test_case("(pick-hand-err (reason \"escaped \\\" quote\"))\n" => panics)]
+    fn pick_hand_err(i: &str) -> Response {
+        Response::deserialize(i).unwrap()
     }
 
-    #[test_case("place-card-ok\n" => PlaceCardOk { interactions: vec![] })]
-    #[test_case("place-card-ok flip=4\n" => PlaceCardOk { interactions: vec![Interaction::Flip { cell: 4 }] })]
-    #[test_case("place-card-ok flip=2 flip=A flip=7\n" => PlaceCardOk { interactions: vec![
-        Interaction::Flip { cell: 2 }, Interaction::Flip { cell: 0xA }, Interaction::Flip { cell: 7 }] })]
-    #[test_case("place-card-ok combo-flip=A\n" => PlaceCardOk { interactions: vec![Interaction::ComboFlip { cell: 0xA }] })]
-    #[test_case("place-card-ok combo-flip=3 combo-flip=C\n" => PlaceCardOk { interactions: vec![
-        Interaction::ComboFlip { cell: 3 }, Interaction::ComboFlip { cell: 0xC }] })]
-    #[test_case("place-card-ok battle=(attacker=(1,att,D,2),defender=(8,mag,3,Cd),winner=attacker)\n" =>
-        PlaceCardOk { interactions: vec![Interaction::Battle {
+    #[test_case("(place-card-ok)\n" => PlaceCardOk { events: vec![] })]
+    #[test_case("(place-card-ok (flip 4))\n" => PlaceCardOk { events: vec![Flip { cell: 4 }] })]
+    #[test_case("(place-card-ok (flip 2) (flip A) (flip 7))\n" => PlaceCardOk { events: vec![
+        Flip { cell: 2 }, Flip { cell: 0xA }, Flip { cell: 7 }] })]
+    #[test_case("(place-card-ok (combo-flip A))\n" => PlaceCardOk { events: vec![ComboFlip { cell: 0xA }] })]
+    #[test_case("(place-card-ok (combo-flip 3) (combo-flip C))\n" => PlaceCardOk { events: vec![
+        ComboFlip { cell: 3 }, ComboFlip { cell: 0xC }] })]
+    #[test_case("(place-card-ok (battle (1 A D 2) (8 m 3 Cd) attacker))\n" =>
+        PlaceCardOk { events: vec![Battle {
             attacker: Battler { cell: 1, digit: Digit::Attack, value: 0xD, roll: 2 },
             defender: Battler { cell: 8, digit: Digit::MagicalDefense, value: 3, roll: 0xCD },
             winner: BattleWinner::Attacker,
         }] })]
-    #[test_case("place-card-ok game_over=player1\n" => PlaceCardOk { interactions: vec![Interaction::GameOver { winner: Some(Player::P1) }] })]
-    #[test_case("place-card-ok game_over=player2\n" => PlaceCardOk { interactions: vec![Interaction::GameOver { winner: Some(Player::P2) }] })]
-    #[test_case("place-card-ok game_over=draw\n" => PlaceCardOk { interactions: vec![Interaction::GameOver { winner: None }] })]
-    fn place_card_ok(input: &str) -> Response {
-        Response::deserialize(input).unwrap()
+    #[test_case("(place-card-ok (game-over player1))\n" => PlaceCardOk { events: vec![GameOver { winner: Some(Player::P1) }] })]
+    #[test_case("(place-card-ok (game-over player2))\n" => PlaceCardOk { events: vec![GameOver { winner: Some(Player::P2) }] })]
+    #[test_case("(place-card-ok (game-over draw))\n" => PlaceCardOk { events: vec![GameOver { winner: None }] })]
+    fn place_card_ok(i: &str) -> Response {
+        Response::deserialize(i).unwrap()
     }
 
-    #[test_case("place-card-pick-battle choices=[2,3,4]\n"
+    #[test_case("(place-card-pick-battle (choices (2 3 4)))\n"
         => PlaceCardPickBattle { choices: vec![2, 3, 4] })]
-    fn place_card_pick_battle(input: &str) -> Response {
-        Response::deserialize(input).unwrap()
+    fn place_card_pick_battle(i: &str) -> Response {
+        Response::deserialize(i).unwrap()
     }
 }

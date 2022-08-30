@@ -1,9 +1,9 @@
 use crate::{BattleSystem, Card, CardType, HandCandidates, Rng};
-use std::fmt::{Result, Write};
+use std::fmt::Result;
 
 #[derive(Debug)]
 pub(crate) enum Command {
-    Quit,
+    // Quit,
     Setup {
         rng: Option<Rng>,
         battle_system: Option<BattleSystem>,
@@ -11,7 +11,7 @@ pub(crate) enum Command {
         hand_candidates: Option<HandCandidates>,
     },
     PickHand {
-        index: usize,
+        hand: usize,
     },
     PlaceCard {
         card: usize,
@@ -24,66 +24,90 @@ pub(crate) enum Command {
 
 impl Command {
     pub(crate) fn serialize(self, out: &mut String) -> anyhow::Result<()> {
+        let mut o = Sexpr::new(out);
+
         match self {
-            Command::Quit => out.write_str("quit")?,
+            // Command::Quit => o.list(|o| o.atom("quit"))?,
             Command::Setup {
                 rng,
                 battle_system,
                 blocked_cells,
                 hand_candidates,
             } => {
-                out.write_str("setup")?;
-                if let Some(rng) = rng {
-                    write!(out, " rng=")?;
-                    write_rng(out, &rng)?;
-                }
-                if let Some(battle_system) = battle_system {
-                    write!(out, " battle_system=")?;
-                    write_battle_system(out, &battle_system)?;
-                }
-                if let Some(blocked_cells) = blocked_cells {
-                    write!(out, " blocked_cells=")?;
-                    write_blocked_cells(out, &blocked_cells)?;
-                }
-                if let Some(hand_candidates) = hand_candidates {
-                    write!(out, " hand_candidates=")?;
-                    write_hand_candidates(out, &hand_candidates)?;
-                }
-                out.write_char('\n')?;
+                o.list(|o| {
+                    o.atom("setup")?;
+
+                    if let Some(rng) = rng {
+                        o.list(|o| {
+                            o.atom("rng")?;
+                            match rng {
+                                Rng::Seeded { seed } => o.atoms(("seed", DisplayHex(seed))),
+                                Rng::External { rolls } => {
+                                    o.atom("external")?;
+                                    o.array(rolls, |o, roll| o.atom(DisplayHex(roll)))
+                                }
+                            }
+                        })?;
+                    }
+
+                    if let Some(battle_system) = battle_system {
+                        o.list(|o| {
+                            o.atom("battle-system")?;
+                            match battle_system {
+                                BattleSystem::Original => o.atom("original"),
+                                BattleSystem::OriginalApprox => o.atom("original-approx"),
+                                BattleSystem::Dice { sides } => {
+                                    o.atoms(("dice", DisplayHex(sides)))
+                                }
+                            }
+                        })?;
+                    }
+
+                    if let Some(blocked_cells) = blocked_cells {
+                        o.list(|o| {
+                            o.atom("blocked-cells")?;
+                            write_blocked_cells(o, &blocked_cells)
+                        })?;
+                    }
+
+                    if let Some(hand_candidates) = hand_candidates {
+                        o.list(|o| {
+                            o.atom("hand-candidates")?;
+                            write_hand_candidates(o, &hand_candidates)
+                        })?;
+                    }
+
+                    Ok(())
+                })?;
             }
-            Command::PickHand { index } => {
-                writeln!(out, "pick-hand index={index}")?;
+            Command::PickHand { hand } => {
+                o.list(|o| {
+                    o.atom("pick-hand")?;
+                    o.list(|o| o.atoms(("hand", hand)))
+                })?;
             }
             Command::PlaceCard { card, cell } => {
-                writeln!(out, "place-card card={card} cell={cell:X}")?;
+                o.list(|o| {
+                    o.atom("place-card")?;
+                    o.list(|o| o.atoms(("card", card)))?;
+                    o.list(|o| o.atoms(("cell", DisplayHex(cell))))
+                })?;
             }
             Command::PickBattle { cell } => {
-                writeln!(out, "pick-battle cell={cell:X}")?;
+                o.list(|o| {
+                    o.atom("pick-battle")?;
+                    o.list(|o| o.atoms(("cell", DisplayHex(cell))))
+                })?;
             }
         }
+
+        out.push('\n');
 
         Ok(())
     }
 }
 
-fn write_list<T>(
-    out: &mut String,
-    delimiter: char,
-    mut iter: impl Iterator<Item = T>,
-    write_item: impl Fn(&mut String, T) -> Result,
-) -> Result {
-    write!(out, "[")?;
-    if let Some(item) = iter.next() {
-        write_item(out, item)?;
-        for item in iter {
-            out.write_char(delimiter)?;
-            write_item(out, item)?;
-        }
-    }
-    write!(out, "]")
-}
-
-fn write_card(out: &mut String, card: Card) -> Result {
+fn write_card(o: &mut Sexpr, card: Card) -> Result {
     let att = card.attack;
     let phy = card.physical_defense;
     let mag = card.magical_defense;
@@ -94,44 +118,119 @@ fn write_card(out: &mut String, card: Card) -> Result {
         CardType::Assault => 'A',
     };
     let arr = card.arrows.0;
-    write!(out, "{att:X}{typ}{phy:X}{mag:X}@{arr:02X}")
+    o.atom_fmt(format_args!("{att:X}{typ}{phy:X}{mag:X}_{arr:X}"))
 }
 
-fn write_rng(out: &mut String, rng: &Rng) -> Result {
-    match rng {
-        Rng::Seeded { seed } => write!(out, "seed({seed})"),
-        Rng::External { rolls } => {
-            write!(out, "external")?;
-            write_list(out, ',', rolls.iter(), |out, v| write!(out, "{v}"))
+fn write_blocked_cells(o: &mut Sexpr, blocked_cells: &[u8]) -> Result {
+    o.array(blocked_cells, |o, cell| o.atom(DisplayHex(cell)))
+}
+
+fn write_hand_candidates(o: &mut Sexpr, hand_candidates: &HandCandidates) -> Result {
+    o.array(hand_candidates, |o, hand| {
+        o.array(hand, |o, card| write_card(o, *card))
+    })
+}
+
+struct DisplayHex<T>(T);
+
+impl<T: std::fmt::UpperHex> std::fmt::Display for DisplayHex<T> {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> Result {
+        write!(f, "{:X}", self.0)
+    }
+}
+
+use sexpr::Sexpr;
+mod sexpr {
+    use std::fmt::{Display, Result, Write};
+
+    pub struct Sexpr<'i> {
+        inner: &'i mut String,
+        is_list_empty: Vec<bool>,
+    }
+
+    impl<'i> Sexpr<'i> {
+        pub fn new(inner: &'i mut String) -> Self {
+            Self {
+                inner,
+                is_list_empty: vec![true],
+            }
+        }
+
+        pub fn list(&mut self, contents: impl FnOnce(&mut Self) -> Result) -> Result {
+            self.list_start()?;
+            contents(self)?;
+            self.list_end()
+        }
+
+        pub fn atom<T: Display>(&mut self, atom: T) -> Result {
+            self.space()?;
+            write!(self.inner, "{}", atom)
+        }
+
+        pub fn atoms<T: AtomTuple>(&mut self, tuple: T) -> Result {
+            tuple.atom_each(self)
+        }
+
+        pub fn atom_fmt(&mut self, args: std::fmt::Arguments) -> Result {
+            self.space()?;
+            self.inner.write_fmt(args)
+        }
+
+        pub fn array<T>(
+            &mut self,
+            items: impl IntoIterator<Item = T>,
+            f: impl Fn(&mut Self, T) -> Result,
+        ) -> Result {
+            self.list_start()?;
+            for item in items {
+                f(self, item)?;
+            }
+            self.list_end()
+        }
+
+        fn list_start(&mut self) -> Result {
+            self.space()?;
+            self.inner.write_char('(')?;
+            self.is_list_empty.push(true);
+            Ok(())
+        }
+
+        fn list_end(&mut self) -> Result {
+            self.is_list_empty.pop();
+            self.inner.write_char(')')
+        }
+
+        fn space(&mut self) -> Result {
+            let is_list_empty = self.is_list_empty.last_mut().unwrap();
+            if *is_list_empty {
+                *is_list_empty = false;
+                Ok(())
+            } else {
+                self.inner.write_char(' ')
+            }
         }
     }
-}
 
-fn write_battle_system(out: &mut String, battle_system: &BattleSystem) -> Result {
-    match battle_system {
-        BattleSystem::Original => write!(out, "original"),
-        BattleSystem::OriginalApprox => write!(out, "original-approx"),
-        BattleSystem::Dice { sides } => write!(out, "dice({sides})"),
+    pub trait AtomTuple {
+        fn atom_each(&self, o: &mut Sexpr) -> Result;
     }
-}
 
-fn write_blocked_cells(out: &mut String, blocked_cells: &[u8]) -> Result {
-    write_list(out, ',', blocked_cells.iter(), |out, v| {
-        write!(out, "{v:X}")
-    })
-}
-
-fn write_hand_candidates(out: &mut String, hand_candidates: &HandCandidates) -> Result {
-    write_list(out, ';', hand_candidates.iter(), |out, hand| {
-        write_list(out, ',', hand.iter(), |out, card| write_card(out, *card))
-    })
+    impl<A: Display, B: Display> AtomTuple for (A, B) {
+        fn atom_each(&self, o: &mut Sexpr) -> Result {
+            o.atom(&self.0)?;
+            o.atom(&self.1)
+        }
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use test_case::test_case;
 
-    use super::Command::{self, *};
+    use super::{
+        Command::{self, *},
+        Sexpr,
+    };
     use crate::{BattleSystem, Card, HandCandidates, Rng};
 
     fn assert_eq<T, U>(expected: T) -> impl Fn(U)
@@ -150,38 +249,38 @@ mod tests {
     const C0P00_A0: Card = Card::physical(0, 0, 0, 0xA0);
     const C0P00_FA: Card = Card::physical(0, 0, 0, 0xFA);
 
-    #[test_case(C1P23_4 => using assert_eq("1P23@04"))]
-    #[test_case(C5M67_8 => using assert_eq("5M67@08"))]
-    #[test_case(C9XAB_C => using assert_eq("9XAB@0C"))]
-    #[test_case(CDAEF_0 => using assert_eq("DAEF@00"))]
-    #[test_case(C0P00_0F => using assert_eq("0P00@0F"))]
-    #[test_case(C0P00_A0 => using assert_eq("0P00@A0"))]
-    #[test_case(C0P00_FA => using assert_eq("0P00@FA"))]
+    #[test_case(C1P23_4 => using assert_eq("1P23_4"))]
+    #[test_case(C5M67_8 => using assert_eq("5M67_8"))]
+    #[test_case(C9XAB_C => using assert_eq("9XAB_C"))]
+    #[test_case(CDAEF_0 => using assert_eq("DAEF_0"))]
+    #[test_case(C0P00_0F => using assert_eq("0P00_F"))]
+    #[test_case(C0P00_A0 => using assert_eq("0P00_A0"))]
+    #[test_case(C0P00_FA => using assert_eq("0P00_FA"))]
     fn write_card(input: Card) -> String {
-        let mut out = String::new();
-        super::write_card(&mut out, input).unwrap();
-        out
+        let mut o = String::new();
+        super::write_card(&mut Sexpr::new(&mut o), input).unwrap();
+        o
     }
 
-    #[test_case(Vec::<u8>::new() => using assert_eq("[]"))]
-    #[test_case(vec![1] => using assert_eq("[1]"))]
-    #[test_case(vec![0xa, 0xf, 3] => using assert_eq("[A,F,3]"))]
-    #[test_case(vec![1, 2, 3, 4, 5, 6] => using assert_eq("[1,2,3,4,5,6]"))]
+    #[test_case(vec![] => using assert_eq("()"))]
+    #[test_case(vec![1] => using assert_eq("(1)"))]
+    #[test_case(vec![0xa, 0xf, 3] => using assert_eq("(A F 3)"))]
+    #[test_case(vec![1, 2, 3, 4, 5, 6] => using assert_eq("(1 2 3 4 5 6)"))]
     fn write_blocked_cells(input: Vec<u8>) -> String {
-        let mut out = String::new();
-        super::write_blocked_cells(&mut out, &input).unwrap();
-        out
+        let mut o = String::new();
+        super::write_blocked_cells(&mut Sexpr::new(&mut o), &input).unwrap();
+        o
     }
 
     #[test_case([
         [C1P23_4, C5M67_8, C9XAB_C, CDAEF_0, C5M67_8],
         [C5M67_8, C1P23_4, CDAEF_0, C5M67_8, C9XAB_C],
         [CDAEF_0, C5M67_8, C9XAB_C, C5M67_8, C1P23_4],
-    ] => using assert_eq("[[1P23@04,5M67@08,9XAB@0C,DAEF@00,5M67@08];[5M67@08,1P23@04,DAEF@00,5M67@08,9XAB@0C];[DAEF@00,5M67@08,9XAB@0C,5M67@08,1P23@04]]"))]
+    ] => using assert_eq("((1P23_4 5M67_8 9XAB_C DAEF_0 5M67_8) (5M67_8 1P23_4 DAEF_0 5M67_8 9XAB_C) (DAEF_0 5M67_8 9XAB_C 5M67_8 1P23_4))"))]
     fn write_hand_candidates(input: HandCandidates) -> String {
-        let mut out = String::new();
-        super::write_hand_candidates(&mut out, &input).unwrap();
-        out
+        let mut o = String::new();
+        super::write_hand_candidates(&mut Sexpr::new(&mut o), &input).unwrap();
+        o
     }
 
     #[test_case(Setup {
@@ -189,49 +288,49 @@ mod tests {
         battle_system: None,
         blocked_cells: None,
         hand_candidates: None,
-    } => using assert_eq("setup\n"))]
+    } => using assert_eq("(setup)\n"))]
     #[test_case(Setup {
         rng: Some(Rng::Seeded{ seed: 123 }),
         battle_system: None,
         blocked_cells: None,
         hand_candidates: None,
-    } => using assert_eq("setup rng=seed(123)\n"))]
+    } => using assert_eq("(setup (rng seed 7B))\n"))]
     #[test_case(Setup {
-        rng: Some(Rng::External { rolls: vec![2, 3, 5, 2, 1, 3, 5, 2, 4] }),
+        rng: Some(Rng::External { rolls: vec![24, 3, 5, 2, 134, 3, 5, 2, 94, 4] }),
         battle_system: None,
         blocked_cells: None,
         hand_candidates: None,
-    } => using assert_eq("setup rng=external[2,3,5,2,1,3,5,2,4]\n"))]
+    } => using assert_eq("(setup (rng external (18 3 5 2 86 3 5 2 5E 4)))\n"))]
     #[test_case(Setup {
         rng: None,
         battle_system: Some(BattleSystem::Original),
         blocked_cells: None,
         hand_candidates: None,
-    } => using assert_eq("setup battle_system=original\n"))]
+    } => using assert_eq("(setup (battle-system original))\n"))]
     #[test_case(Setup {
         rng: None,
         battle_system: Some(BattleSystem::OriginalApprox),
         blocked_cells: None,
         hand_candidates: None,
-    } => using assert_eq("setup battle_system=original-approx\n"))]
+    } => using assert_eq("(setup (battle-system original-approx))\n"))]
     #[test_case(Setup {
         rng: None,
         battle_system: Some(BattleSystem::Dice { sides: 13 }),
         blocked_cells: None,
         hand_candidates: None,
-    } => using assert_eq("setup battle_system=dice(13)\n"))]
+    } => using assert_eq("(setup (battle-system dice D))\n"))]
     #[test_case(Setup {
         rng: None,
         battle_system: None,
         blocked_cells: Some(vec![]),
         hand_candidates: None,
-    } => using assert_eq("setup blocked_cells=[]\n"))]
+    } => using assert_eq("(setup (blocked-cells ()))\n"))]
     #[test_case(Setup {
         rng: None,
         battle_system: None,
-        blocked_cells: Some(vec![2]),
+        blocked_cells: Some(vec![2, 0xA]),
         hand_candidates: None,
-    } => using assert_eq("setup blocked_cells=[2]\n"))]
+    } => using assert_eq("(setup (blocked-cells (2 A)))\n"))]
     #[test_case(Setup {
         rng: None,
         battle_system: None,
@@ -241,7 +340,7 @@ mod tests {
             [C5M67_8, C1P23_4, CDAEF_0, C5M67_8, C9XAB_C],
             [CDAEF_0, C5M67_8, C9XAB_C, C5M67_8, C1P23_4],
         ]),
-    } => using assert_eq("setup hand_candidates=[[1P23@04,5M67@08,9XAB@0C,DAEF@00,5M67@08];[5M67@08,1P23@04,DAEF@00,5M67@08,9XAB@0C];[DAEF@00,5M67@08,9XAB@0C,5M67@08,1P23@04]]\n"))]
+    } => using assert_eq("(setup (hand-candidates ((1P23_4 5M67_8 9XAB_C DAEF_0 5M67_8) (5M67_8 1P23_4 DAEF_0 5M67_8 9XAB_C) (DAEF_0 5M67_8 9XAB_C 5M67_8 1P23_4))))\n"))]
     #[test_case(Setup {
         rng: Some(Rng::Seeded{ seed: 123 }),
         battle_system: Some(BattleSystem::Dice { sides: 8 }),
@@ -251,36 +350,35 @@ mod tests {
             [C5M67_8, C1P23_4, CDAEF_0, C5M67_8, C9XAB_C],
             [CDAEF_0, C5M67_8, C9XAB_C, C5M67_8, C1P23_4],
         ]),
-    } => using assert_eq("setup rng=seed(123) battle_system=dice(8) blocked_cells=[2,8,A] hand_candidates=[[1P23@04,5M67@08,9XAB@0C,DAEF@00,5M67@08];[5M67@08,1P23@04,DAEF@00,5M67@08,9XAB@0C];[DAEF@00,5M67@08,9XAB@0C,5M67@08,1P23@04]]\n")
-    )]
+    } => using assert_eq("(setup (rng seed 7B) (battle-system dice 8) (blocked-cells (2 8 A)) (hand-candidates ((1P23_4 5M67_8 9XAB_C DAEF_0 5M67_8) (5M67_8 1P23_4 DAEF_0 5M67_8 9XAB_C) (DAEF_0 5M67_8 9XAB_C 5M67_8 1P23_4))))\n"))]
     fn setup(input: Command) -> String {
-        let mut out = String::new();
-        input.serialize(&mut out).unwrap();
-        out
+        let mut o = String::new();
+        input.serialize(&mut o).unwrap();
+        o
     }
 
-    #[test_case(PickHand { index: 0 } => using assert_eq("pick-hand index=0\n"))]
-    #[test_case(PickHand { index: 1 } => using assert_eq("pick-hand index=1\n"))]
-    #[test_case(PickHand { index: 2 } => using assert_eq("pick-hand index=2\n"))]
+    #[test_case(PickHand { hand: 0 } => using assert_eq("(pick-hand (hand 0))\n"))]
+    #[test_case(PickHand { hand: 1 } => using assert_eq("(pick-hand (hand 1))\n"))]
+    #[test_case(PickHand { hand: 2 } => using assert_eq("(pick-hand (hand 2))\n"))]
     fn pick_hand(input: Command) -> String {
-        let mut out = String::new();
-        input.serialize(&mut out).unwrap();
-        out
+        let mut o = String::new();
+        input.serialize(&mut o).unwrap();
+        o
     }
 
-    #[test_case(PlaceCard { card: 0, cell: 0 } => using assert_eq("place-card card=0 cell=0\n"))]
-    #[test_case(PlaceCard { card: 3, cell: 0xA } => using assert_eq("place-card card=3 cell=A\n"))]
+    #[test_case(PlaceCard { card: 0, cell: 0 } => using assert_eq("(place-card (card 0) (cell 0))\n"))]
+    #[test_case(PlaceCard { card: 3, cell: 0xA } => using assert_eq("(place-card (card 3) (cell A))\n"))]
     fn place_card(input: Command) -> String {
-        let mut out = String::new();
-        input.serialize(&mut out).unwrap();
-        out
+        let mut o = String::new();
+        input.serialize(&mut o).unwrap();
+        o
     }
 
-    #[test_case(PickBattle { cell: 0 } => using assert_eq("pick-battle cell=0\n"))]
-    #[test_case(PickBattle { cell: 0xA } => using assert_eq("pick-battle cell=A\n"))]
+    #[test_case(PickBattle { cell: 0 } => using assert_eq("(pick-battle (cell 0))\n"))]
+    #[test_case(PickBattle { cell: 0xA } => using assert_eq("(pick-battle (cell A))\n"))]
     fn pick_battle(input: Command) -> String {
-        let mut out = String::new();
-        input.serialize(&mut out).unwrap();
-        out
+        let mut o = String::new();
+        input.serialize(&mut o).unwrap();
+        o
     }
 }

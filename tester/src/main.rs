@@ -155,7 +155,7 @@ struct Args {
 }
 
 fn main() -> anyhow::Result<()> {
-    use driver::{BattleWinner, Battler, Command, Digit, Interaction, Response};
+    use driver::{BattleWinner, Battler, Command, Digit, Event, Response};
     use pretty_assertions::{assert_eq, assert_ne};
     use test_harness::Harness;
 
@@ -301,7 +301,7 @@ fn main() -> anyhow::Result<()> {
             hand_candidates: Some(HAND_CANDIDATES),
         })?;
 
-        if let Response::PickHandOk = driver.send(Command::PickHand { index: 1 })? {
+        if let Response::PickHandOk = driver.send(Command::PickHand { hand: 1 })? {
             Ok(())
         } else {
             panic!("unexpected response");
@@ -317,7 +317,7 @@ fn main() -> anyhow::Result<()> {
             hand_candidates: Some(HAND_CANDIDATES),
         })?;
 
-        if let Response::PickHandErr { reason } = driver.send(Command::PickHand { index: 3 })? {
+        if let Response::PickHandErr { reason } = driver.send(Command::PickHand { hand: 3 })? {
             assert_eq!(reason, "Invalid Pick '3', expected a number from 0 to 2");
             Ok(())
         } else {
@@ -334,8 +334,8 @@ fn main() -> anyhow::Result<()> {
             hand_candidates: Some(HAND_CANDIDATES),
         })?;
 
-        driver.send(Command::PickHand { index: 0 })?;
-        if let Response::PickHandOk = driver.send(Command::PickHand { index: 1 })? {
+        driver.send(Command::PickHand { hand: 0 })?;
+        if let Response::PickHandOk = driver.send(Command::PickHand { hand: 1 })? {
             Ok(())
         } else {
             panic!("unexpected response");
@@ -351,8 +351,8 @@ fn main() -> anyhow::Result<()> {
             hand_candidates: Some(HAND_CANDIDATES),
         })?;
 
-        driver.send(Command::PickHand { index: 0 })?;
-        if let Response::PickHandErr { reason } = driver.send(Command::PickHand { index: 3 })? {
+        driver.send(Command::PickHand { hand: 0 })?;
+        if let Response::PickHandErr { reason } = driver.send(Command::PickHand { hand: 3 })? {
             assert_eq!(reason, "Invalid Pick '3', expected a number from 0 to 2");
             Ok(())
         } else {
@@ -369,8 +369,8 @@ fn main() -> anyhow::Result<()> {
             hand_candidates: Some(HAND_CANDIDATES),
         })?;
 
-        driver.send(Command::PickHand { index: 0 })?;
-        if let Response::PickHandErr { reason } = driver.send(Command::PickHand { index: 0 })? {
+        driver.send(Command::PickHand { hand: 0 })?;
+        if let Response::PickHandErr { reason } = driver.send(Command::PickHand { hand: 0 })? {
             assert_eq!(reason, "Hand 0 has already been picked");
             Ok(())
         } else {
@@ -388,8 +388,8 @@ fn main() -> anyhow::Result<()> {
             hand_candidates: Some(HAND_CANDIDATES),
         })?;
 
-        driver.send(Command::PickHand { index: 0 })?;
-        if let Response::PickHandErr { reason } = driver.send(Command::PickHand { index: 0 })? {
+        driver.send(Command::PickHand { hand: 0 })?;
+        if let Response::PickHandErr { reason } = driver.send(Command::PickHand { hand: 0 })? {
             assert_eq!(reason, "Hand 0 has already been picked");
             Ok(())
         } else {
@@ -410,13 +410,13 @@ fn main() -> anyhow::Result<()> {
             blocked_cells: Some(vec![]),
             hand_candidates: Some(hand_candidates),
         })?;
-        driver.send(Command::PickHand { index: 0 })?;
-        driver.send(Command::PickHand { index: 1 })?;
+        driver.send(Command::PickHand { hand: 0 })?;
+        driver.send(Command::PickHand { hand: 1 })?;
 
-        if let Response::PlaceCardOk { interactions } =
+        if let Response::PlaceCardOk { events } =
             driver.send(Command::PlaceCard { card: 1, cell: 5 })?
         {
-            assert_eq!(interactions, vec![]);
+            assert_eq!(events, vec![]);
             Ok(())
         } else {
             panic!("unexpected response");
@@ -438,14 +438,14 @@ fn main() -> anyhow::Result<()> {
             blocked_cells: Some(vec![]),
             hand_candidates: Some(hand_candidates),
         })?;
-        driver.send(Command::PickHand { index: 0 })?;
-        driver.send(Command::PickHand { index: 1 })?;
+        driver.send(Command::PickHand { hand: 0 })?;
+        driver.send(Command::PickHand { hand: 1 })?;
         driver.send(Command::PlaceCard { card: 2, cell: 1 })?;
 
-        if let Response::PlaceCardOk { interactions } =
+        if let Response::PlaceCardOk { events } =
             driver.send(Command::PlaceCard { card: 1, cell: 5 })?
         {
-            assert_eq!(interactions, vec![Interaction::Flip { cell: 1 }]);
+            assert_eq!(events, vec![Event::Flip { cell: 1 }]);
             Ok(())
         } else {
             panic!("unexpected response");
@@ -466,8 +466,8 @@ fn main() -> anyhow::Result<()> {
             blocked_cells: Some(vec![]),
             hand_candidates: Some(hand_candidates),
         })?;
-        driver.send(Command::PickHand { index: 0 })?;
-        driver.send(Command::PickHand { index: 1 })?;
+        driver.send(Command::PickHand { hand: 0 })?;
+        driver.send(Command::PickHand { hand: 1 })?;
 
         driver.send(Command::PlaceCard { card: 0, cell: 1 })?;
         driver.send(Command::PlaceCard { card: 0, cell: 2 })?; // att
@@ -477,20 +477,20 @@ fn main() -> anyhow::Result<()> {
         driver.send(Command::PlaceCard { card: 2, cell: 8 })?; // att
         driver.send(Command::PlaceCard { card: 3, cell: 0 })?;
 
-        if let Response::PlaceCardOk { mut interactions } =
+        if let Response::PlaceCardOk { mut events } =
             driver.send(Command::PlaceCard { card: 4, cell: 5 })?
         {
-            interactions.sort_unstable_by_key(|int| match int {
-                Interaction::Flip { cell } => *cell,
+            events.sort_unstable_by_key(|int| match int {
+                Event::Flip { cell } => *cell,
                 _ => unreachable!(),
             });
             assert_eq!(
-                interactions,
+                events,
                 vec![
-                    Interaction::Flip { cell: 0 },
-                    Interaction::Flip { cell: 1 },
-                    Interaction::Flip { cell: 4 },
-                    Interaction::Flip { cell: 6 },
+                    Event::Flip { cell: 0 },
+                    Event::Flip { cell: 1 },
+                    Event::Flip { cell: 4 },
+                    Event::Flip { cell: 6 },
                 ]
             );
             Ok(())
@@ -516,18 +516,18 @@ fn main() -> anyhow::Result<()> {
             blocked_cells: Some(vec![]),
             hand_candidates: Some(hand_candidates),
         })?;
-        driver.send(Command::PickHand { index: 0 })?;
-        driver.send(Command::PickHand { index: 1 })?;
+        driver.send(Command::PickHand { hand: 0 })?;
+        driver.send(Command::PickHand { hand: 1 })?;
 
         driver.send(Command::PlaceCard { card: 0, cell: 0 })?;
 
-        if let Response::PlaceCardOk { interactions } =
+        if let Response::PlaceCardOk { events } =
             driver.send(Command::PlaceCard { card: 0, cell: 1 })?
         {
             assert_eq!(
-                interactions,
+                events,
                 vec![
-                    Interaction::Battle {
+                    Event::Battle {
                         attacker: Battler {
                             cell: 1,
                             digit: Digit::Attack,
@@ -542,7 +542,7 @@ fn main() -> anyhow::Result<()> {
                         },
                         winner: BattleWinner::Attacker,
                     },
-                    Interaction::Flip { cell: 0 },
+                    Event::Flip { cell: 0 },
                 ]
             );
             Ok(())
@@ -568,18 +568,18 @@ fn main() -> anyhow::Result<()> {
             blocked_cells: Some(vec![]),
             hand_candidates: Some(hand_candidates),
         })?;
-        driver.send(Command::PickHand { index: 0 })?;
-        driver.send(Command::PickHand { index: 1 })?;
+        driver.send(Command::PickHand { hand: 0 })?;
+        driver.send(Command::PickHand { hand: 1 })?;
 
         driver.send(Command::PlaceCard { card: 0, cell: 0 })?;
 
-        if let Response::PlaceCardOk { interactions } =
+        if let Response::PlaceCardOk { events } =
             driver.send(Command::PlaceCard { card: 0, cell: 1 })?
         {
             assert_eq!(
-                interactions,
+                events,
                 vec![
-                    Interaction::Battle {
+                    Event::Battle {
                         attacker: Battler {
                             cell: 1,
                             digit: Digit::Attack,
@@ -594,7 +594,7 @@ fn main() -> anyhow::Result<()> {
                         },
                         winner: BattleWinner::Defender,
                     },
-                    Interaction::Flip { cell: 1 },
+                    Event::Flip { cell: 1 },
                 ]
             );
             Ok(())
@@ -620,18 +620,18 @@ fn main() -> anyhow::Result<()> {
             blocked_cells: Some(vec![]),
             hand_candidates: Some(hand_candidates),
         })?;
-        driver.send(Command::PickHand { index: 0 })?;
-        driver.send(Command::PickHand { index: 1 })?;
+        driver.send(Command::PickHand { hand: 0 })?;
+        driver.send(Command::PickHand { hand: 1 })?;
 
         driver.send(Command::PlaceCard { card: 0, cell: 0 })?;
 
-        if let Response::PlaceCardOk { interactions } =
+        if let Response::PlaceCardOk { events } =
             driver.send(Command::PlaceCard { card: 0, cell: 1 })?
         {
             assert_eq!(
-                interactions,
+                events,
                 vec![
-                    Interaction::Battle {
+                    Event::Battle {
                         attacker: Battler {
                             cell: 1,
                             digit: Digit::Attack,
@@ -646,7 +646,7 @@ fn main() -> anyhow::Result<()> {
                         },
                         winner: BattleWinner::None,
                     },
-                    Interaction::Flip { cell: 1 },
+                    Event::Flip { cell: 1 },
                 ]
             );
             Ok(())
@@ -672,20 +672,20 @@ fn main() -> anyhow::Result<()> {
             blocked_cells: Some(vec![]),
             hand_candidates: Some(hand_candidates),
         })?;
-        driver.send(Command::PickHand { index: 0 })?;
-        driver.send(Command::PickHand { index: 1 })?;
+        driver.send(Command::PickHand { hand: 0 })?;
+        driver.send(Command::PickHand { hand: 1 })?;
 
         driver.send(Command::PlaceCard { card: 0, cell: 5 })?; // defender
         driver.send(Command::PlaceCard { card: 1, cell: 0xF })?; // out of the way
         driver.send(Command::PlaceCard { card: 1, cell: 0 })?; // will be combo'd
 
-        if let Response::PlaceCardOk { interactions } =
+        if let Response::PlaceCardOk { events } =
             driver.send(Command::PlaceCard { card: 0, cell: 9 })?
         {
             assert_eq!(
-                interactions,
+                events,
                 vec![
-                    Interaction::Battle {
+                    Event::Battle {
                         attacker: Battler {
                             cell: 9,
                             digit: Digit::Attack,
@@ -700,8 +700,8 @@ fn main() -> anyhow::Result<()> {
                         },
                         winner: BattleWinner::Attacker,
                     },
-                    Interaction::Flip { cell: 5 },
-                    Interaction::ComboFlip { cell: 0 },
+                    Event::Flip { cell: 5 },
+                    Event::ComboFlip { cell: 0 },
                 ]
             );
             Ok(())
@@ -728,8 +728,8 @@ fn main() -> anyhow::Result<()> {
             blocked_cells: Some(vec![]),
             hand_candidates: Some(hand_candidates),
         })?;
-        driver.send(Command::PickHand { index: 0 })?;
-        driver.send(Command::PickHand { index: 1 })?;
+        driver.send(Command::PickHand { hand: 0 })?;
+        driver.send(Command::PickHand { hand: 1 })?;
 
         driver.send(Command::PlaceCard { card: 0, cell: 0 })?; // defender 1
         driver.send(Command::PlaceCard { card: 1, cell: 0xF })?; // out of the way
@@ -744,13 +744,11 @@ fn main() -> anyhow::Result<()> {
             panic!("unexpected response");
         }
 
-        if let Response::PlaceCardOk { interactions } =
-            driver.send(Command::PickBattle { cell: 8 })?
-        {
+        if let Response::PlaceCardOk { events } = driver.send(Command::PickBattle { cell: 8 })? {
             assert_eq!(
-                interactions,
+                events,
                 vec![
-                    Interaction::Battle {
+                    Event::Battle {
                         attacker: Battler {
                             cell: 4,
                             digit: Digit::Attack,
@@ -765,8 +763,8 @@ fn main() -> anyhow::Result<()> {
                         },
                         winner: BattleWinner::Attacker,
                     },
-                    Interaction::Flip { cell: 8 },
-                    Interaction::Battle {
+                    Event::Flip { cell: 8 },
+                    Event::Battle {
                         attacker: Battler {
                             cell: 4,
                             digit: Digit::Attack,
@@ -781,8 +779,8 @@ fn main() -> anyhow::Result<()> {
                         },
                         winner: BattleWinner::Defender,
                     },
-                    Interaction::Flip { cell: 4 },
-                    Interaction::ComboFlip { cell: 8 },
+                    Event::Flip { cell: 4 },
+                    Event::ComboFlip { cell: 8 },
                 ]
             );
             Ok(())
@@ -804,8 +802,8 @@ fn main() -> anyhow::Result<()> {
             blocked_cells: Some(vec![]),
             hand_candidates: Some(hand_candidates),
         })?;
-        driver.send(Command::PickHand { index: 0 })?;
-        driver.send(Command::PickHand { index: 1 })?;
+        driver.send(Command::PickHand { hand: 0 })?;
+        driver.send(Command::PickHand { hand: 1 })?;
 
         driver.send(Command::PlaceCard { card: 0, cell: 0 })?;
         driver.send(Command::PlaceCard { card: 0, cell: 1 })?;
@@ -821,10 +819,10 @@ fn main() -> anyhow::Result<()> {
 
         driver.send(Command::PlaceCard { card: 4, cell: 8 })?;
 
-        if let Response::PlaceCardOk { interactions } =
+        if let Response::PlaceCardOk { events } =
             driver.send(Command::PlaceCard { card: 4, cell: 9 })?
         {
-            assert_eq!(interactions, vec![Interaction::GameOver { winner: None }]);
+            assert_eq!(events, vec![Event::GameOver { winner: None }]);
             Ok(())
         } else {
             panic!("unexpected response");
@@ -845,8 +843,8 @@ fn main() -> anyhow::Result<()> {
             blocked_cells: Some(vec![]),
             hand_candidates: Some(hand_candidates),
         })?;
-        driver.send(Command::PickHand { index: 0 })?;
-        driver.send(Command::PickHand { index: 1 })?;
+        driver.send(Command::PickHand { hand: 0 })?;
+        driver.send(Command::PickHand { hand: 1 })?;
 
         driver.send(Command::PlaceCard { card: 0, cell: 0 })?;
         driver.send(Command::PlaceCard { card: 0, cell: 1 })?;
@@ -862,12 +860,12 @@ fn main() -> anyhow::Result<()> {
 
         driver.send(Command::PlaceCard { card: 4, cell: 8 })?;
 
-        if let Response::PlaceCardOk { interactions } =
+        if let Response::PlaceCardOk { events } =
             driver.send(Command::PlaceCard { card: 4, cell: 9 })?
         {
             assert_eq!(
-                interactions,
-                vec![Interaction::GameOver {
+                events,
+                vec![Event::GameOver {
                     winner: Some(Player::P1)
                 }]
             );
@@ -891,8 +889,8 @@ fn main() -> anyhow::Result<()> {
             blocked_cells: Some(vec![]),
             hand_candidates: Some(hand_candidates),
         })?;
-        driver.send(Command::PickHand { index: 0 })?;
-        driver.send(Command::PickHand { index: 1 })?;
+        driver.send(Command::PickHand { hand: 0 })?;
+        driver.send(Command::PickHand { hand: 1 })?;
 
         driver.send(Command::PlaceCard { card: 0, cell: 0 })?;
         driver.send(Command::PlaceCard { card: 0, cell: 1 })?;
@@ -908,12 +906,12 @@ fn main() -> anyhow::Result<()> {
 
         driver.send(Command::PlaceCard { card: 4, cell: 8 })?;
 
-        if let Response::PlaceCardOk { interactions } =
+        if let Response::PlaceCardOk { events } =
             driver.send(Command::PlaceCard { card: 4, cell: 9 })?
         {
             assert_eq!(
-                interactions,
-                vec![Interaction::GameOver {
+                events,
+                vec![Event::GameOver {
                     winner: Some(Player::P2)
                 }]
             );

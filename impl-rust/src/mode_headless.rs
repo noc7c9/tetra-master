@@ -1,7 +1,7 @@
 use crate::{
     logic, Arrows, BattleStat, BattleSystem, BattleWinner, Board, Card, CardType, Cell, Entry,
     GameInput, GameInputBattle, GameInputPlace, GameLog, GameState, GameStatus, HandCandidate,
-    HandCandidates, Player, PreGameInput, PreGameState, Rng, Seed,
+    HandCandidates, Player, PreGameInput, PreGameState, Rng, Seed, Sexpr, Token,
 };
 use std::fmt::Write;
 
@@ -76,8 +76,9 @@ pub(crate) fn run() -> std::result::Result<(), Box<dyn std::error::Error>> {
             panic!("Unexpected end of command input")
         }
 
-        let mut cmd = buf.split(' ');
-        let cmd_name = cmd.next().unwrap();
+        let mut cmd = Sexpr::new(&buf);
+        cmd.list_start();
+        let cmd_name = cmd.atom();
 
         if cmd_name == "quit" {
             return Ok(());
@@ -87,7 +88,7 @@ pub(crate) fn run() -> std::result::Result<(), Box<dyn std::error::Error>> {
         match current_state {
             HeadlessState::NotInGame => {
                 if cmd_name == "setup" {
-                    let setup = parse_setup(cmd)?;
+                    let setup = parse::setup(cmd)?;
 
                     let battle_system = setup.battle_system.unwrap_or(BattleSystem::Original);
 
@@ -114,7 +115,7 @@ pub(crate) fn run() -> std::result::Result<(), Box<dyn std::error::Error>> {
                     let hand_candidates = &state.hand_candidates;
 
                     buf.clear();
-                    write_setup_ok(
+                    write::setup_ok(
                         &mut buf,
                         seed,
                         &battle_system,
@@ -133,15 +134,15 @@ pub(crate) fn run() -> std::result::Result<(), Box<dyn std::error::Error>> {
             }
             HeadlessState::InPreGame(mut state, battle_system) => {
                 if cmd_name == "pick-hand" {
-                    let index = parse_pick_hand(cmd)?;
+                    let hand = parse::pick_hand(cmd)?;
 
                     buf.clear();
 
-                    let input = PreGameInput { pick: index };
+                    let input = PreGameInput { pick: hand };
                     if let Err(err) = logic::pre_game_next(&mut state, &mut log, input) {
-                        write_pick_hand_err(&mut buf, &err)?;
+                        write::pick_hand_err(&mut buf, &err)?;
                     } else {
-                        write_pick_hand_ok(&mut buf)?;
+                        write::pick_hand_ok(&mut buf)?;
                     }
                     out.write_all(buf.as_bytes())?;
                     out.flush()?;
@@ -160,10 +161,10 @@ pub(crate) fn run() -> std::result::Result<(), Box<dyn std::error::Error>> {
             }
             HeadlessState::InGame(mut state) => {
                 let input = if cmd_name == "place-card" {
-                    let (card, cell) = parse_place_card(cmd)?;
+                    let (card, cell) = parse::place_card(cmd)?;
                     GameInput::Place(GameInputPlace { card, cell })
                 } else if cmd_name == "pick-battle" {
-                    let cell = parse_pick_battle(cmd)?;
+                    let cell = parse::pick_battle(cmd)?;
                     GameInput::Battle(GameInputBattle { cell })
                 } else {
                     panic!("Unexpected command {buf}")
@@ -175,9 +176,9 @@ pub(crate) fn run() -> std::result::Result<(), Box<dyn std::error::Error>> {
                     todo!();
                     // write_pick_hand_err(&mut buf, &err)?;
                 } else if let GameStatus::WaitingBattle { choices, .. } = &state.status {
-                    write_place_card_pick_battle(&mut buf, choices)?;
+                    write::place_card_pick_battle(&mut buf, choices)?;
                 } else {
-                    write_place_card_ok(&mut buf, log.new_entries(), &state.status)?;
+                    write::place_card_ok(&mut buf, log.new_entries(), &state.status)?;
                 }
 
                 out.write_all(buf.as_bytes())?;
@@ -191,351 +192,350 @@ pub(crate) fn run() -> std::result::Result<(), Box<dyn std::error::Error>> {
     }
 }
 
-struct SetupFields {
-    rng: Option<Rng>,
-    battle_system: Option<BattleSystem>,
-    blocked_cells: Option<Vec<usize>>,
-    hand_candidates: Option<HandCandidates>,
-}
-fn parse_setup<'a>(cmd: impl Iterator<Item = &'a str>) -> Result<SetupFields> {
-    let mut rng = None;
-    let mut battle_system = None;
-    let mut blocked_cells: Option<Vec<usize>> = None;
-    let mut hand_candidates: Option<HandCandidates> = None;
-    for kv in cmd {
-        let mut kv = kv.split('=');
-        let k = kv.next().unwrap();
-        let v = kv.next().unwrap();
-        match k {
-            "rng" => {
-                rng = Some(parse_rng(v)?);
-            }
-            "battle_system" => {
-                battle_system = Some(parse_battle_system(v)?);
-            }
-            "blocked_cells" => {
-                blocked_cells = Some(parse_blocked_cells(v)?);
-            }
-            "hand_candidates" => {
-                hand_candidates = Some(parse_hand_candidates(v)?);
-            }
-            _ => panic!("Invalid arg {k}"),
+mod parse {
+    use super::*;
+
+    fn prop<T>(cmd: &mut Sexpr, expected_name: &'static str, f: impl FnOnce(&str) -> T) -> T {
+        cmd.list_start();
+        let name = cmd.atom();
+        if name == expected_name {
+            let value = f(cmd.atom());
+            cmd.list_end();
+            value
+        } else {
+            panic!("Invalid property: {name}")
         }
     }
-    Ok(SetupFields {
-        rng,
-        battle_system,
-        blocked_cells,
-        hand_candidates,
-    })
-}
 
-fn write_setup_ok(
-    o: &mut String,
-    seed: Option<Seed>,
-    battle_system: &BattleSystem,
-    blocked_cells: impl Iterator<Item = usize>,
-    hand_candidates: &HandCandidates,
-) -> Result {
-    write!(o, "setup-ok")?;
-    if let Some(seed) = seed {
-        write!(o, " seed={}", seed)?;
+    #[derive(Debug)]
+    pub(super) struct Setup {
+        pub(super) rng: Option<Rng>,
+        pub(super) battle_system: Option<BattleSystem>,
+        pub(super) blocked_cells: Option<Vec<usize>>,
+        pub(super) hand_candidates: Option<HandCandidates>,
     }
-    write!(o, " battle_system=")?;
-    write_battle_system(o, battle_system)?;
-    write!(o, " blocked_cells=")?;
-    write_blocked_cells(o, blocked_cells)?;
-    write!(o, " hand_candidates=")?;
-    write_hand_candidates(o, hand_candidates)?;
-    writeln!(o)?;
-    Ok(())
-}
-
-fn parse_pick_hand<'a>(mut cmd: impl Iterator<Item = &'a str>) -> Result<usize> {
-    let mut kv = cmd.next().unwrap().split('=');
-    let k = kv.next().unwrap();
-    if k == "index" {
-        Ok(kv.next().unwrap().parse()?)
-    } else {
-        panic!("Invalid arg {k}")
-    }
-}
-
-fn write_pick_hand_ok(o: &mut String) -> Result {
-    writeln!(o, "pick-hand-ok")?;
-    Ok(())
-}
-
-fn write_pick_hand_err(o: &mut String, err: &str) -> Result {
-    write!(o, "pick-hand-err")?;
-    writeln!(o, " reason=\"{err}\"")?;
-    Ok(())
-}
-
-fn parse_place_card<'a>(mut cmd: impl Iterator<Item = &'a str>) -> Result<(usize, usize)> {
-    let mut kv = cmd.next().unwrap().split('=');
-    let k = kv.next().unwrap();
-    let card = if k == "card" {
-        kv.next().unwrap().parse()?
-    } else {
-        panic!("Invalid arg {k}")
-    };
-
-    let mut kv = cmd.next().unwrap().split('=');
-    let k = kv.next().unwrap();
-    let cell = if k == "cell" {
-        usize::from_str_radix(kv.next().unwrap(), 16)?
-    } else {
-        panic!("Invalid arg {k}")
-    };
-
-    Ok((card, cell))
-}
-
-fn write_place_card_ok(o: &mut String, entries: &[Entry], status: &GameStatus) -> Result {
-    write!(o, "place-card-ok")?;
-
-    for entry in entries {
-        match entry {
-            Entry::FlipCard {
-                cell, via_combo, ..
-            } => {
-                if *via_combo {
-                    write!(o, " combo-flip={cell:X}")?;
-                } else {
-                    write!(o, " flip={cell:X}")?;
+    pub(super) fn setup(mut cmd: Sexpr) -> Result<Setup> {
+        let mut rng = None;
+        let mut battle_system = None;
+        let mut blocked_cells = None;
+        let mut hand_candidates = None;
+        loop {
+            match cmd.next() {
+                Some(Token::ListEnd) => break,
+                Some(Token::ListStart) => {
+                    let arg = cmd.atom();
+                    match arg {
+                        "rng" => {
+                            rng = Some(self::rng(&mut cmd)?);
+                        }
+                        "battle-system" => {
+                            battle_system = Some(self::battle_system(&mut cmd)?);
+                        }
+                        "blocked-cells" => {
+                            blocked_cells = Some(self::blocked_cells(&mut cmd)?);
+                        }
+                        "hand-candidates" => {
+                            hand_candidates = Some(self::hand_candidates(&mut cmd)?);
+                        }
+                        _ => panic!("Invalid arg {arg}"),
+                    }
+                    cmd.list_end();
                 }
+                _ => unreachable!(),
             }
-            Entry::Battle {
-                result,
-                attacker_cell,
-                defender_cell,
-                ..
-            } => {
-                write!(o, " battle=")?;
+        }
+        Ok(Setup {
+            rng,
+            battle_system,
+            blocked_cells,
+            hand_candidates,
+        })
+    }
 
-                write!(o, "(attacker=(")?;
-                write_battler(o, *attacker_cell, result.attack_stat)?;
-                write!(o, ")")?;
+    pub(super) fn pick_hand(mut cmd: Sexpr) -> Result<usize> {
+        let hand = prop(&mut cmd, "hand", |v| v.parse())?;
+        Ok(hand)
+    }
 
-                write!(o, ",defender=(")?;
-                write_battler(o, *defender_cell, result.defense_stat)?;
-                write!(o, ")")?;
+    pub(super) fn place_card(mut cmd: Sexpr) -> Result<(usize, usize)> {
+        let card = prop(&mut cmd, "card", |v| v.parse())?;
+        let cell = prop(&mut cmd, "cell", |v| usize::from_str_radix(v, 16))?;
+        Ok((card, cell))
+    }
 
-                write!(o, ",winner=")?;
-                write_battle_winner(o, result.winner)?;
-                write!(o, ")")?;
+    pub(super) fn pick_battle(mut cmd: Sexpr) -> Result<usize> {
+        let cell = prop(&mut cmd, "cell", |v| usize::from_str_radix(v, 16))?;
+        Ok(cell)
+    }
+
+    fn rng(cmd: &mut Sexpr) -> Result<Rng> {
+        let kind = cmd.atom();
+        match kind {
+            "seed" => {
+                let seed = u64::from_str_radix(cmd.atom(), 16)?;
+                Ok(Rng::with_seed(seed))
             }
-            _ => {}
+            "external" => {
+                cmd.list_start();
+                let mut rolls = std::collections::VecDeque::new();
+                while let Some(Token::Atom(v)) = cmd.next() {
+                    rolls.push_back(u8::from_str_radix(v, 16)?);
+                }
+                Ok(Rng::new_external(rolls))
+            }
+            _ => Err(Error::InvalidRng { input: kind.into() }),
         }
     }
 
-    if let GameStatus::GameOver { winner } = status {
-        write!(o, " game_over=")?;
+    fn battle_system(cmd: &mut Sexpr) -> Result<BattleSystem> {
+        let kind = cmd.atom();
+        match kind {
+            "original" => Ok(BattleSystem::Original),
+            "original-approx" => Ok(BattleSystem::OriginalApprox),
+            "dice" => {
+                let sides = u8::from_str_radix(cmd.atom(), 16)?;
+                Ok(BattleSystem::Dice { sides })
+            }
+            _ => Err(Error::InvalidBattleSystem { input: kind.into() }),
+        }
+    }
+
+    fn blocked_cells(cmd: &mut Sexpr) -> Result<Vec<usize>> {
+        cmd.list_start();
+        let mut cells = Vec::new();
+        while let Some(Token::Atom(v)) = cmd.next() {
+            cells.push(usize::from_str_radix(v, 16)?);
+        }
+        Ok(cells)
+    }
+
+    fn card(cmd: &mut Sexpr) -> Result<Card> {
+        let s = cmd.atom();
+        let attack = u8::from_str_radix(&s[0..1], 16)?;
+        let card_type = &s[1..2];
+        let card_type = match card_type {
+            "p" | "P" => CardType::Physical,
+            "m" | "M" => CardType::Magical,
+            "x" | "X" => CardType::Exploit,
+            "a" | "A" => CardType::Assault,
+            _ => {
+                return Err(Error::InvalidCardType {
+                    input: card_type.into(),
+                })
+            }
+        };
+        let physical_defense = u8::from_str_radix(&s[2..3], 16)?;
+        let magical_defense = u8::from_str_radix(&s[3..4], 16)?;
+        let arrows = Arrows(u8::from_str_radix(&s[5..], 16)?);
+        Ok(Card {
+            card_type,
+            attack,
+            physical_defense,
+            magical_defense,
+            arrows,
+        })
+    }
+
+    fn hand_candidate(cmd: &mut Sexpr) -> Result<HandCandidate> {
+        cmd.list_start();
+        let hand_candidate = [card(cmd)?, card(cmd)?, card(cmd)?, card(cmd)?, card(cmd)?];
+        cmd.list_end();
+        Ok(hand_candidate)
+    }
+
+    fn hand_candidates(cmd: &mut Sexpr) -> Result<HandCandidates> {
+        cmd.list_start();
+        let hand_candidates = [
+            hand_candidate(cmd)?,
+            hand_candidate(cmd)?,
+            hand_candidate(cmd)?,
+        ];
+        cmd.list_end();
+        Ok(hand_candidates)
+    }
+}
+
+mod write {
+    use super::*;
+
+    pub(super) fn setup_ok(
+        o: &mut String,
+        seed: Option<Seed>,
+        battle_system: &BattleSystem,
+        blocked_cells: impl Iterator<Item = usize>,
+        hand_candidates: &HandCandidates,
+    ) -> Result {
+        write!(o, "(setup-ok")?;
+
+        if let Some(seed) = seed {
+            write!(o, " (seed {seed:X})")?;
+        }
+
+        write!(o, " (battle-system ")?;
+        write::battle_system(o, battle_system)?;
+
+        write!(o, ") (blocked-cells ")?;
+        write::blocked_cells(o, blocked_cells)?;
+
+        write!(o, ") (hand-candidates ")?;
+        write::hand_candidates(o, hand_candidates)?;
+
+        writeln!(o, "))")?;
+        Ok(())
+    }
+
+    pub(super) fn pick_hand_ok(o: &mut String) -> Result {
+        writeln!(o, "(pick-hand-ok)")?;
+        Ok(())
+    }
+
+    pub(super) fn pick_hand_err(o: &mut String, err: &str) -> Result {
+        writeln!(o, "(pick-hand-err (reason {err:?}))")?;
+        Ok(())
+    }
+
+    pub(super) fn place_card_ok(o: &mut String, entries: &[Entry], status: &GameStatus) -> Result {
+        write!(o, "(place-card-ok")?;
+
+        for entry in entries {
+            match entry {
+                Entry::FlipCard {
+                    cell, via_combo, ..
+                } => {
+                    if *via_combo {
+                        write!(o, " (combo-flip {cell:X})")?;
+                    } else {
+                        write!(o, " (flip {cell:X})")?;
+                    }
+                }
+                Entry::Battle {
+                    result,
+                    attacker_cell,
+                    defender_cell,
+                    ..
+                } => {
+                    write!(o, " (battle ")?;
+                    battler(o, *attacker_cell, result.attack_stat)?;
+                    write!(o, " ")?;
+                    battler(o, *defender_cell, result.defense_stat)?;
+                    write!(o, " ")?;
+                    battle_winner(o, result.winner)?;
+                    write!(o, ")")?;
+                }
+                _ => {}
+            }
+        }
+
+        if let GameStatus::GameOver { winner } = status {
+            write!(o, " (game-over ")?;
+            let winner = match winner {
+                Some(Player::P1) => "player1",
+                Some(Player::P2) => "player2",
+                None => "draw",
+            };
+            write!(o, "{winner})")?;
+        }
+
+        writeln!(o, ")")?;
+        Ok(())
+    }
+
+    pub(super) fn place_card_pick_battle(o: &mut String, choices: &[(usize, Card)]) -> Result {
+        write!(o, "(place-card-pick-battle (choices (")?;
+        let mut choices = choices.iter();
+        if let Some((choice, _)) = choices.next() {
+            write!(o, "{choice:X}")?;
+            for (choice, _) in choices {
+                write!(o, " {choice:X}")?;
+            }
+        }
+        writeln!(o, ")))")?;
+        Ok(())
+    }
+
+    fn battle_system(o: &mut String, battle_system: &BattleSystem) -> Result {
+        match battle_system {
+            BattleSystem::Original => write!(o, "original")?,
+            BattleSystem::OriginalApprox => write!(o, "original-approx")?,
+            BattleSystem::Dice { sides } => write!(o, "dice {sides:X}")?,
+        }
+        Ok(())
+    }
+
+    fn blocked_cells(o: &mut String, mut blocked_cells: impl Iterator<Item = usize>) -> Result {
+        write!(o, "(")?;
+        if let Some(cell) = blocked_cells.next() {
+            write!(o, "{cell:X}")?;
+            for cell in blocked_cells {
+                write!(o, " {cell:X}")?;
+            }
+        }
+        write!(o, ")")?;
+        Ok(())
+    }
+
+    fn card(o: &mut String, card: Card) -> Result {
+        let att = card.attack;
+        let phy = card.physical_defense;
+        let mag = card.magical_defense;
+        let typ = match card.card_type {
+            CardType::Physical => 'P',
+            CardType::Magical => 'M',
+            CardType::Exploit => 'X',
+            CardType::Assault => 'A',
+        };
+        let arr = card.arrows.0;
+        write!(o, "{att:X}{typ}{phy:X}{mag:X}_{arr:X}")?;
+        Ok(())
+    }
+
+    fn hand_candidate(o: &mut String, hand_candidate: &HandCandidate) -> Result {
+        write!(o, "(")?;
+        let mut hand_candidate = hand_candidate.iter();
+        if let Some(card) = hand_candidate.next() {
+            self::card(o, *card)?;
+            for card in hand_candidate {
+                write!(o, " ")?;
+                self::card(o, *card)?;
+            }
+        }
+        write!(o, ")")?;
+        Ok(())
+    }
+
+    fn hand_candidates(o: &mut String, hand_candidates: &HandCandidates) -> Result {
+        write!(o, "(")?;
+        let mut hand_candidates = hand_candidates.iter();
+        if let Some(hand) = hand_candidates.next() {
+            hand_candidate(o, hand)?;
+            for hand in hand_candidates {
+                write!(o, " ")?;
+                hand_candidate(o, hand)?;
+            }
+        }
+        write!(o, ")")?;
+        Ok(())
+    }
+
+    fn battler(o: &mut String, cell: usize, stat: BattleStat) -> Result {
+        let BattleStat { digit, value, roll } = stat;
+        let digit = match digit {
+            0 => "A",
+            2 => "P",
+            3 => "M",
+            _ => unreachable!(),
+        };
+        write!(o, "({cell:X} {digit} {value:X} {roll:X})")?;
+        Ok(())
+    }
+
+    fn battle_winner(o: &mut String, winner: BattleWinner) -> Result {
         let winner = match winner {
-            Some(Player::P1) => "player1",
-            Some(Player::P2) => "player2",
-            None => "draw",
+            BattleWinner::Attacker => "attacker",
+            BattleWinner::Defender => "defender",
+            BattleWinner::None => "none",
         };
         write!(o, "{winner}")?;
+        Ok(())
     }
-
-    writeln!(o)?;
-    Ok(())
-}
-
-fn parse_pick_battle<'a>(mut cmd: impl Iterator<Item = &'a str>) -> Result<usize> {
-    let mut kv = cmd.next().unwrap().split('=');
-    let k = kv.next().unwrap();
-    let cell = if k == "cell" {
-        usize::from_str_radix(kv.next().unwrap(), 16)?
-    } else {
-        panic!("Invalid arg {k}")
-    };
-    Ok(cell)
-}
-
-fn write_place_card_pick_battle(o: &mut String, choices: &[(usize, Card)]) -> Result {
-    write!(o, "place-card-pick-battle choices=[")?;
-    let mut choices = choices.iter();
-    if let Some((choice, _)) = choices.next() {
-        write!(o, "{choice:X}")?;
-        for (choice, _) in choices {
-            write!(o, ",{choice:X}")?;
-        }
-    }
-    writeln!(o, "]")?;
-    Ok(())
-}
-
-fn parse_rng(s: &str) -> Result<Rng> {
-    if &s[..4] == "seed" {
-        let seed = s[5..s.len() - 1].parse()?;
-        Ok(Rng::with_seed(seed))
-    } else if &s[..8] == "external" {
-        let rolls = s[9..s.len() - 1]
-            .split(',')
-            .map(|v| -> Result<_> { Ok(v.parse()?) })
-            .collect::<Result<_>>()?;
-        Ok(Rng::new_external(rolls))
-    } else {
-        Err(Error::InvalidRng { input: s.into() })
-    }
-}
-
-fn parse_battle_system(s: &str) -> Result<BattleSystem> {
-    if s == "original" {
-        Ok(BattleSystem::Original)
-    } else if s == "original-approx" {
-        Ok(BattleSystem::OriginalApprox)
-    } else if &s[..4] == "dice" {
-        let sides = s[5..s.len() - 1].parse()?;
-        Ok(BattleSystem::Dice { sides })
-    } else {
-        Err(Error::InvalidBattleSystem { input: s.into() })
-    }
-}
-
-fn parse_blocked_cells(s: &str) -> Result<Vec<usize>> {
-    let s = &s[1..s.len() - 1]; // remove brackets
-    if s.is_empty() {
-        return Ok(vec![]);
-    }
-    s.split(',')
-        .map(|v| -> Result<_> { Ok(usize::from_str_radix(v, 16)?) })
-        .collect::<Result<Vec<_>>>()
-}
-
-fn write_battle_system(o: &mut String, battle_system: &BattleSystem) -> Result {
-    match battle_system {
-        BattleSystem::Original => write!(o, "original")?,
-        BattleSystem::OriginalApprox => write!(o, "original-approx")?,
-        BattleSystem::Dice { sides } => write!(o, "dice({sides})")?,
-    }
-    Ok(())
-}
-
-fn write_blocked_cells(o: &mut String, mut blocked_cells: impl Iterator<Item = usize>) -> Result {
-    write!(o, "[")?;
-    if let Some(cell) = blocked_cells.next() {
-        write!(o, "{cell:X}")?;
-        for cell in blocked_cells {
-            write!(o, ",{cell:X}")?;
-        }
-    }
-    write!(o, "]")?;
-    Ok(())
-}
-
-fn parse_card(s: &str) -> Result<Card> {
-    let attack = u8::from_str_radix(&s[0..1], 16)?;
-    let card_type = &s[1..2];
-    let card_type = match card_type {
-        "p" | "P" => CardType::Physical,
-        "m" | "M" => CardType::Magical,
-        "x" | "X" => CardType::Exploit,
-        "a" | "A" => CardType::Assault,
-        _ => {
-            return Err(Error::InvalidCardType {
-                input: card_type.into(),
-            })
-        }
-    };
-    let physical_defense = u8::from_str_radix(&s[2..3], 16)?;
-    let magical_defense = u8::from_str_radix(&s[3..4], 16)?;
-    let arrows = Arrows(u8::from_str_radix(&s[5..], 16)?);
-    Ok(Card {
-        card_type,
-        attack,
-        physical_defense,
-        magical_defense,
-        arrows,
-    })
-}
-
-fn write_card(o: &mut String, card: Card) -> Result {
-    let att = card.attack;
-    let phy = card.physical_defense;
-    let mag = card.magical_defense;
-    let typ = match card.card_type {
-        CardType::Physical => 'P',
-        CardType::Magical => 'M',
-        CardType::Exploit => 'X',
-        CardType::Assault => 'A',
-    };
-    let arr = card.arrows.0;
-    write!(o, "{att:X}{typ}{phy:X}{mag:X}@{arr:X}")?;
-    Ok(())
-}
-
-fn parse_hand_candidate(s: &str) -> Result<HandCandidate> {
-    let s = &s[1..s.len() - 1]; // remove brackets
-    let mut iter = s.split(',').map(parse_card);
-    Ok([
-        iter.next().ok_or(Error::HandCandidateTooShort)??,
-        iter.next().ok_or(Error::HandCandidateTooShort)??,
-        iter.next().ok_or(Error::HandCandidateTooShort)??,
-        iter.next().ok_or(Error::HandCandidateTooShort)??,
-        iter.next().ok_or(Error::HandCandidateTooShort)??,
-    ])
-}
-
-fn write_hand_candidate(o: &mut String, hand_candidate: &HandCandidate) -> Result {
-    write!(o, "[")?;
-    let mut hand_candidate = hand_candidate.iter();
-    if let Some(card) = hand_candidate.next() {
-        write_card(o, *card)?;
-        for card in hand_candidate {
-            write!(o, ",")?;
-            write_card(o, *card)?;
-        }
-    }
-    write!(o, "]")?;
-    Ok(())
-}
-
-fn parse_hand_candidates(s: &str) -> Result<HandCandidates> {
-    let s = &s[1..s.len() - 1]; // remove brackets
-    let mut iter = s.split(';').map(parse_hand_candidate);
-    Ok([
-        iter.next().ok_or(Error::HandCandidatesTooShort)??,
-        iter.next().ok_or(Error::HandCandidatesTooShort)??,
-        iter.next().ok_or(Error::HandCandidatesTooShort)??,
-    ])
-}
-
-fn write_hand_candidates(o: &mut String, hand_candidates: &HandCandidates) -> Result {
-    write!(o, "[")?;
-    let mut hand_candidates = hand_candidates.iter();
-    if let Some(hand) = hand_candidates.next() {
-        write_hand_candidate(o, hand)?;
-        for hand in hand_candidates {
-            write!(o, ";")?;
-            write_hand_candidate(o, hand)?;
-        }
-    }
-    write!(o, "]")?;
-    Ok(())
-}
-
-fn write_battler(o: &mut String, cell: usize, stat: BattleStat) -> Result {
-    let BattleStat { digit, value, roll } = stat;
-    let digit = match digit {
-        0 => "att",
-        2 => "phy",
-        3 => "mag",
-        _ => unreachable!(),
-    };
-    write!(o, "{cell:X},{digit},{value:X},{roll:X}")?;
-    Ok(())
-}
-
-fn write_battle_winner(o: &mut String, winner: BattleWinner) -> Result {
-    let winner = match winner {
-        BattleWinner::Attacker => "attacker",
-        BattleWinner::Defender => "defender",
-        BattleWinner::None => "none",
-    };
-    write!(o, "{winner}")?;
-    Ok(())
 }

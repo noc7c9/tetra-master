@@ -6,9 +6,11 @@ mod mode_tui;
 mod render;
 mod render_simple;
 mod rng;
+mod sexpr;
 
 use game_log::{Entry, GameLog};
 use rng::{Rng, Seed};
+use sexpr::{Sexpr, Token};
 
 const MAX_NUMBER_OF_BLOCKS: u8 = 6;
 const HAND_CANDIDATES: usize = 3;
@@ -232,6 +234,7 @@ impl PreGameState {
     }
 }
 
+#[derive(Debug)]
 struct PreGameStateBuilder {
     rng: Option<Rng>,
     board: Option<Board>,
