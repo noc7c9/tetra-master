@@ -11,14 +11,14 @@ pub(crate) enum Command {
         hand_candidates: Option<HandCandidates>,
     },
     PickHand {
-        hand: usize,
+        hand: u8,
     },
     PlaceCard {
-        card: usize,
-        cell: usize,
+        card: u8,
+        cell: u8,
     },
     PickBattle {
-        cell: usize,
+        cell: u8,
     },
 }
 

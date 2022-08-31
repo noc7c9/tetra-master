@@ -19,15 +19,15 @@ impl Command {
         }
     }
 
-    pub(super) fn pick_hand(hand: usize) -> Self {
+    pub(super) fn pick_hand(hand: u8) -> Self {
         Command::PickHand { hand }
     }
 
-    pub(super) fn place_card(card: usize, cell: usize) -> Self {
+    pub(super) fn place_card(card: u8, cell: u8) -> Self {
         Command::PlaceCard { card, cell }
     }
 
-    pub(super) fn pick_battle(cell: usize) -> Self {
+    pub(super) fn pick_battle(cell: u8) -> Self {
         Command::PickBattle { cell }
     }
 
