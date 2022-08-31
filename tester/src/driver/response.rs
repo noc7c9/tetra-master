@@ -10,7 +10,7 @@ use nom::{
     IResult, Parser,
 };
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub(crate) enum Response {
     SetupOk {
         seed: Option<Seed>,
@@ -30,7 +30,7 @@ pub(crate) enum Response {
     },
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub(crate) enum Event {
     Flip {
         cell: u8,

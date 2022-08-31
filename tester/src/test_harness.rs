@@ -72,6 +72,8 @@ impl<'a> Harness<'a> {
         let mut passed = 0;
         let mut failed = 0;
 
+        println!("Running tests...\n");
+
         for test in self.tests {
             total += 1;
 
