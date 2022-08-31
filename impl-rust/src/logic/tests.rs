@@ -920,8 +920,8 @@ fn combo_flip_cards_that_are_pointed_to_by_defender_if_they_lose() {
             ),
             &Entry::flip_card(OwnedCard::p2(card_points_all), 5, Player::P1, false),
             &Entry::flip_card(OwnedCard::p2(card_points_none), 1, Player::P1, true),
-            &Entry::flip_card(OwnedCard::p2(card_points_none), 6, Player::P1, true),
             &Entry::flip_card(OwnedCard::p2(card_points_none), 4, Player::P1, true),
+            &Entry::flip_card(OwnedCard::p2(card_points_none), 6, Player::P1, true),
             &Entry::next_turn(Player::P2),
         ]
     );
@@ -974,8 +974,8 @@ fn combo_flip_cards_that_are_pointed_to_by_attacker_if_they_lose() {
             ),
             &Entry::flip_card(OwnedCard::p1(card_points_all), 5, Player::P2, false),
             &Entry::flip_card(OwnedCard::p1(card_points_none), 1, Player::P2, true),
-            &Entry::flip_card(OwnedCard::p1(card_points_none), 6, Player::P2, true),
             &Entry::flip_card(OwnedCard::p1(card_points_none), 4, Player::P2, true),
+            &Entry::flip_card(OwnedCard::p1(card_points_none), 6, Player::P2, true),
             &Entry::next_turn(Player::P2),
         ]
     );

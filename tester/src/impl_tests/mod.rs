@@ -187,11 +187,7 @@ pub(crate) fn run(implementation: String) {
         driver.send(Command::place_card(2, 8))?; // att
         driver.send(Command::place_card(3, 0))?;
 
-        let mut events = driver.send(Command::place_card(4, 5))?.place_card_ok();
-        events.sort_unstable_by_key(|int| match int {
-            Event::Flip { cell } => *cell,
-            _ => unreachable!(),
-        });
+        let events = driver.send(Command::place_card(4, 5))?.place_card_ok();
 
         assert_eq!(
             events,
@@ -200,6 +196,49 @@ pub(crate) fn run(implementation: String) {
                 Event::flip(1),
                 Event::flip(4),
                 Event::flip(6)
+            ]
+        );
+    });
+
+    test!("flips events should be ordered by increasing cell number" {
+        let mut driver = new_driver();
+        let flipper = Card::physical(0, 0, 0, Arrows::ALL.0);
+        let hand_candidates = [
+            [CARD, CARD.arrows(Arrows::LEFT), CARD.arrows(Arrows::UP), CARD.arrows(Arrows::RIGHT), CARD.arrows(Arrows::RIGHT)],
+            [CARD, CARD, CARD, CARD, flipper],
+            [CARD, CARD, CARD, CARD, CARD],
+        ];
+        driver.send(setup_default().hand_candidates(&hand_candidates))?;
+        driver.send(Command::pick_hand(0))?;
+        driver.send(Command::pick_hand(1))?;
+
+        driver.send(Command::place_card(0, 0x1))?;
+        driver.send(Command::place_card(0, 0x2))?;
+        driver.send(Command::place_card(1, 0x3))?; // flip card on 1
+        driver.send(Command::place_card(1, 0x7))?;
+        driver.send(Command::place_card(2, 0xB))?; // flip card on 6
+        driver.send(Command::place_card(2, 0xA))?;
+        driver.send(Command::place_card(3, 0x9))?; // flip card on 9
+        driver.send(Command::place_card(3, 0x5))?;
+        driver.send(Command::place_card(4, 0x4))?; // flip card on 5
+
+        // all cards on board now belong to P1
+
+        // flip 8 surrounding cards
+        let events = driver.send(Command::place_card(4, 6))?.place_card_ok();
+
+        assert_eq!(
+            events,
+            vec![
+                Event::flip(0x1),
+                Event::flip(0x2),
+                Event::flip(0x3),
+                Event::flip(0x5),
+                Event::flip(0x7),
+                Event::flip(0x9),
+                Event::flip(0xA),
+                Event::flip(0xB),
+                Event::game_over(Some(Player::P2))
             ]
         );
     });

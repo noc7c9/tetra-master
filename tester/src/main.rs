@@ -44,6 +44,8 @@ impl Arrows {
     const ALL: Arrows = Arrows(0b1111_1111);
 
     const UP: Arrows = Arrows(0b1000_0000);
+    const RIGHT: Arrows = Arrows(0b0010_0000);
+    const LEFT: Arrows = Arrows(0b0000_0010);
 
     const fn new(bitset: u8) -> Self {
         Self(bitset)
