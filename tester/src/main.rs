@@ -89,66 +89,6 @@ impl Card {
     }
 }
 
-struct ImplementationDriver {
-    proc: std::process::Child,
-    driver: driver::Driver<std::io::BufReader<std::process::ChildStdout>, std::process::ChildStdin>,
-    _stderr_thread_handle: std::thread::JoinHandle<()>,
-}
-
-impl ImplementationDriver {
-    fn send(&mut self, cmd: driver::Command) -> anyhow::Result<driver::Response> {
-        self.driver.send(cmd)
-    }
-
-    #[allow(dead_code)]
-    fn toggle_logging(&mut self) {
-        self.driver.toggle_logging()
-    }
-}
-
-impl Drop for ImplementationDriver {
-    fn drop(&mut self) {
-        // if killing the child fails, just ignore it
-        // the OS should clean up after the tester process closes
-        let _ = self.proc.kill();
-    }
-}
-
-fn implementation_driver(implementation: &str) -> ImplementationDriver {
-    use std::process::{Command, Stdio};
-
-    let mut proc = Command::new(implementation)
-        .args(["--headless"])
-        .stdin(Stdio::piped())
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
-        .spawn()
-        .unwrap();
-    let stdin = proc.stdin.take().unwrap();
-
-    let stdout = proc.stdout.take().unwrap();
-    let stdout = std::io::BufReader::new(stdout);
-
-    // manually handle letting stderr passthrough to ensure output from the driver and the
-    // implementation don't get mixed up (at least in the middle of a line)
-    let stderr = proc.stderr.take().unwrap();
-    let stderr = std::io::BufReader::new(stderr);
-    let handle = std::thread::spawn(move || {
-        use std::io::BufRead;
-        for line in stderr.lines() {
-            eprintln!("{}", line.unwrap());
-        }
-    });
-
-    let driver = driver::Driver::new(stdout, stdin);
-
-    ImplementationDriver {
-        proc,
-        driver,
-        _stderr_thread_handle: handle,
-    }
-}
-
 #[derive(Debug, clap::Parser)]
 struct Args {
     implementation: String,
@@ -163,6 +103,8 @@ fn main() -> anyhow::Result<()> {
         use clap::Parser;
         Args::parse()
     };
+
+    let new_driver = || driver::ImplementationDriver::new(&args.implementation);
 
     let mut harness = Harness::new();
 
@@ -182,7 +124,7 @@ fn main() -> anyhow::Result<()> {
 
     // setup process
     harness.test("Setup without args", || {
-        let mut driver = implementation_driver(&args.implementation);
+        let mut driver = new_driver();
         let first = driver.send(Command::Setup {
             rng: None,
             battle_system: None,
@@ -190,7 +132,7 @@ fn main() -> anyhow::Result<()> {
             hand_candidates: None,
         })?;
 
-        let mut driver = implementation_driver(&args.implementation);
+        let mut driver = new_driver();
         let second = driver.send(Command::Setup {
             rng: None,
             battle_system: None,
@@ -204,7 +146,7 @@ fn main() -> anyhow::Result<()> {
     });
 
     harness.test("Setup with set seed", || {
-        let mut driver = implementation_driver(&args.implementation);
+        let mut driver = new_driver();
         let first = driver.send(Command::Setup {
             rng: None,
             battle_system: None,
@@ -221,7 +163,7 @@ fn main() -> anyhow::Result<()> {
             panic!("unexpected response");
         };
 
-        let mut driver = implementation_driver(&args.implementation);
+        let mut driver = new_driver();
         let second = driver.send(Command::Setup {
             rng: Some(Rng::Seeded { seed }),
             battle_system: None,
@@ -235,7 +177,7 @@ fn main() -> anyhow::Result<()> {
     });
 
     harness.test("Setup with set blocked_cells", || {
-        let mut driver = implementation_driver(&args.implementation);
+        let mut driver = new_driver();
 
         if let Response::SetupOk {
             mut blocked_cells, ..
@@ -254,7 +196,7 @@ fn main() -> anyhow::Result<()> {
     });
 
     harness.test("Setup with set blocked_cells to nothing", || {
-        let mut driver = implementation_driver(&args.implementation);
+        let mut driver = new_driver();
 
         if let Response::SetupOk {
             mut blocked_cells, ..
@@ -274,7 +216,7 @@ fn main() -> anyhow::Result<()> {
 
     harness.test("Setup with set hand candidates", || {
         let expected = HAND_CANDIDATES;
-        let mut driver = implementation_driver(&args.implementation);
+        let mut driver = new_driver();
 
         if let Response::SetupOk {
             hand_candidates, ..
@@ -293,7 +235,7 @@ fn main() -> anyhow::Result<()> {
 
     // pre-game
     harness.test("P1 hand selection, ok", || {
-        let mut driver = implementation_driver(&args.implementation);
+        let mut driver = new_driver();
         driver.send(Command::Setup {
             rng: None,
             battle_system: None,
@@ -309,7 +251,7 @@ fn main() -> anyhow::Result<()> {
     });
 
     harness.test("P1 hand selection, invalid number", || {
-        let mut driver = implementation_driver(&args.implementation);
+        let mut driver = new_driver();
         driver.send(Command::Setup {
             rng: None,
             battle_system: None,
@@ -326,7 +268,7 @@ fn main() -> anyhow::Result<()> {
     });
 
     harness.test("P2 hand selection, ok", || {
-        let mut driver = implementation_driver(&args.implementation);
+        let mut driver = new_driver();
         driver.send(Command::Setup {
             rng: None,
             battle_system: None,
@@ -343,7 +285,7 @@ fn main() -> anyhow::Result<()> {
     });
 
     harness.test("P2 hand selection, invalid number", || {
-        let mut driver = implementation_driver(&args.implementation);
+        let mut driver = new_driver();
         driver.send(Command::Setup {
             rng: None,
             battle_system: None,
@@ -361,7 +303,7 @@ fn main() -> anyhow::Result<()> {
     });
 
     harness.test("P2 hand selection, hand already selected", || {
-        let mut driver = implementation_driver(&args.implementation);
+        let mut driver = new_driver();
         driver.send(Command::Setup {
             rng: None,
             battle_system: None,
@@ -380,7 +322,7 @@ fn main() -> anyhow::Result<()> {
 
     // game proper
     harness.test("place card on empty board", || {
-        let mut driver = implementation_driver(&args.implementation);
+        let mut driver = new_driver();
         driver.send(Command::Setup {
             rng: None,
             battle_system: None,
@@ -398,7 +340,7 @@ fn main() -> anyhow::Result<()> {
     });
 
     harness.test("place card with no interaction", || {
-        let mut driver = implementation_driver(&args.implementation);
+        let mut driver = new_driver();
         let hand_candidates = [
             [C0P00_0, C0P00_0, C0P00_0, C0P00_0, C0P00_0],
             [C0P00_0, C0P00_0, C0P00_0, C0P00_0, C0P00_0],
@@ -424,7 +366,7 @@ fn main() -> anyhow::Result<()> {
     });
 
     harness.test("place card that flips one other card", || {
-        let mut driver = implementation_driver(&args.implementation);
+        let mut driver = new_driver();
         let defender = Card::physical(0, 0, 0, 0);
         let attacker = Card::physical(0, 0, 0, Arrows::UP.0);
         let hand_candidates = [
@@ -453,7 +395,7 @@ fn main() -> anyhow::Result<()> {
     });
 
     harness.test("place card that flips multiple other cards", || {
-        let mut driver = implementation_driver(&args.implementation);
+        let mut driver = new_driver();
         let attacker = Card::physical(0, 0, 0, Arrows::ALL.0);
         let hand_candidates = [
             [C0P00_0, C0P00_0, C0P00_0, C0P00_0, C0P00_0],
@@ -500,7 +442,7 @@ fn main() -> anyhow::Result<()> {
     });
 
     harness.test("place card that results in a battle, attacker wins", || {
-        let mut driver = implementation_driver(&args.implementation);
+        let mut driver = new_driver();
         let defender = Card::physical(0, 3, 7, Arrows::ALL.0);
         let attacker = Card::exploit(0xC, 0, 0, Arrows::ALL.0);
         let hand_candidates = [
@@ -552,7 +494,7 @@ fn main() -> anyhow::Result<()> {
     });
 
     harness.test("place card that results in a battle, defender wins", || {
-        let mut driver = implementation_driver(&args.implementation);
+        let mut driver = new_driver();
         let defender = Card::physical(0, 3, 7, Arrows::ALL.0);
         let attacker = Card::exploit(0xC, 0, 0, Arrows::ALL.0);
         let hand_candidates = [
@@ -604,7 +546,7 @@ fn main() -> anyhow::Result<()> {
     });
 
     harness.test("place card that results in a battle, draw", || {
-        let mut driver = implementation_driver(&args.implementation);
+        let mut driver = new_driver();
         let defender = Card::physical(0, 3, 7, Arrows::ALL.0);
         let attacker = Card::exploit(0x3, 0, 0, Arrows::ALL.0);
         let hand_candidates = [
@@ -656,7 +598,7 @@ fn main() -> anyhow::Result<()> {
     });
 
     harness.test("place card that results in a combo", || {
-        let mut driver = implementation_driver(&args.implementation);
+        let mut driver = new_driver();
         let defender = Card::physical(0, 3, 7, Arrows::ALL.0);
         let attacker = Card::exploit(0xC, 0, 0, Arrows::ALL.0);
         let hand_candidates = [
@@ -711,7 +653,7 @@ fn main() -> anyhow::Result<()> {
     });
 
     harness.test("place card that results in a choice", || {
-        let mut driver = implementation_driver(&args.implementation);
+        let mut driver = new_driver();
         let defender1 = Card::physical(0, 3, 7, Arrows::ALL.0);
         let defender2 = Card::physical(0, 9, 4, Arrows::ALL.0);
         let attacker = Card::exploit(0xC, 0, 0, Arrows::ALL.0);
@@ -790,7 +732,7 @@ fn main() -> anyhow::Result<()> {
     });
 
     harness.test("place card that ends the game in a draw", || {
-        let mut driver = implementation_driver(&args.implementation);
+        let mut driver = new_driver();
         let hand_candidates = [
             [C0P00_0, C0P00_0, C0P00_0, C0P00_0, C0P00_0],
             [C0P00_0, C0P00_0, C0P00_0, C0P00_0, C0P00_0],
@@ -830,7 +772,7 @@ fn main() -> anyhow::Result<()> {
     });
 
     harness.test("place card that ends the game in player 1 drawing", || {
-        let mut driver = implementation_driver(&args.implementation);
+        let mut driver = new_driver();
         let attacker = Card::physical(0, 0, 0, Arrows::ALL.0);
         let hand_candidates = [
             [C0P00_0, C0P00_0, C0P00_0, C0P00_0, attacker],
@@ -876,7 +818,7 @@ fn main() -> anyhow::Result<()> {
     });
 
     harness.test("place card that ends the game in player 2 drawing", || {
-        let mut driver = implementation_driver(&args.implementation);
+        let mut driver = new_driver();
         let attacker = Card::physical(0, 0, 0, Arrows::ALL.0);
         let hand_candidates = [
             [C0P00_0, C0P00_0, C0P00_0, C0P00_0, C0P00_0],
