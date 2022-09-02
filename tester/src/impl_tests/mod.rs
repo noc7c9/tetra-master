@@ -1,70 +1,46 @@
-use pretty_assertions::assert_eq;
+use pretty_assertions::{assert_eq, assert_ne};
 
 use crate::{
-    driver::{BattleWinner, Battler, Command, Digit, Event, ImplementationDriver, Response},
-    test_harness::Harness,
+    driver::{BattleWinner, Battler, Command, Digit, Event, Response},
+    harness::{Harness, Suite},
     Arrows, BattleSystem, Card, Player,
 };
 
 mod helpers;
+use helpers::*;
 
-pub(crate) fn run(implementation: String) {
-    use helpers::*;
-
-    let new_driver = || ImplementationDriver::new(&implementation);
-
-    let mut harness = Harness::new();
-
-    macro_rules! test {
-        ($method:ident; $name:literal $test:block) => {{
-            harness.$method($name, || {
-                $test;
-                Ok(())
-            })
-        }};
-        ($name:literal $test:block) => { test!(test; $name $test) };
-    }
-    #[allow(unused_macros)]
-    macro_rules! focustest {
-        ($name:literal $test:block) => { test!(test_focus; $name $test) };
-    }
-    #[allow(unused_macros)]
-    macro_rules! skiptest {
-        ($name:literal $test:block) => { test!(test_skip; $name $test) };
-    }
-
-    // game setup tests
-    test!("Setup without args should use random initialization" {
-        let first = new_driver().send(Command::setup())?;
-        let second = new_driver().send(Command::setup())?;
+fn game_setup_tests(s: &mut Suite<Ctx>) {
+    test!(s "Setup without args should use random initialization"; |ctx| {
+        let first = ctx.new_driver().send(Command::setup())?;
+        let second = ctx.new_driver().send(Command::setup())?;
 
         assert_ne!(first, second);
     });
 
-    test!("Setup with set seed should use random initialization with given seed" {
-        let first = new_driver().send(Command::setup())?;
+    test!(s "Setup with set seed should use random initialization with given seed"; |ctx| {
+        let first = ctx.new_driver().send(Command::setup())?;
         let seed = first.clone().setup_ok().seed.unwrap();
 
-        let second = new_driver().send(Command::setup().seed(seed))?;
+        let second = ctx.new_driver().send(Command::setup().seed(seed))?;
 
         assert_eq!(first, second);
     });
 
-    test!("Setup with set blocked_cells" {
-        let res = new_driver().send(Command::setup().blocked_cells(&[6u8, 3, 0xC]))?;
+    test!(s "Setup with set blocked_cells"; |ctx| {
+        let res = ctx.new_driver().send(Command::setup().blocked_cells(&[6u8, 3, 0xC]))?;
         let blocked_cells = res.setup_ok().blocked_cells;
 
         assert_eq!(blocked_cells, vec![3, 6, 0xC]);
     });
 
-    test!("Setup with set blocked_cells to nothing" {
-        let res = new_driver().send(Command::setup().blocked_cells(&[]))?;
+    test!(s "Setup with set blocked_cells to nothing"; |ctx| {
+        let res = ctx.new_driver().send(Command::setup().blocked_cells(&[]))?;
         let blocked_cells = res.setup_ok().blocked_cells;
 
         assert_eq!(blocked_cells, vec![]);
     });
 
-    test!("Setup with set hand candidates" {
+    test!(s "Setup with set hand candidates"; |ctx| {
         const C1P23_4: Card = Card::physical(1, 2, 3, 4);
         const C5M67_8: Card = Card::magical(5, 6, 7, 8);
         const C9XAB_C: Card = Card::exploit(9, 0xA, 0xB, 0xC);
@@ -74,23 +50,24 @@ pub(crate) fn run(implementation: String) {
             [C1P23_4, C5M67_8, C9XAB_C, CDAEF_0, C5M67_8],
             [C1P23_4, C5M67_8, CDAEF_0, C5M67_8, C9XAB_C],
         ];
-        let res = new_driver().send(Command::setup().hand_candidates(&expected))?;
+        let res = ctx.new_driver().send(Command::setup().hand_candidates(&expected))?;
         let actual = res.setup_ok().hand_candidates;
 
         assert_eq!(actual, expected);
     });
+}
 
-    // pre-game tests
-    test!("P1 hand selection, ok" {
-        let mut driver = new_driver();
+fn pre_game_tests(s: &mut Suite<Ctx>) {
+    test!(s "P1 hand selection, ok"; |ctx| {
+        let mut driver = ctx.new_driver();
         driver.send(Command::setup().hand_candidates(&HAND_CANDIDATES))?;
         let res = driver.send(Command::pick_hand(1))?; // shouldn't error
 
         assert!(matches!(res, Response::PickHandOk));
     });
 
-    test!("P1 hand selection, invalid number" {
-        let mut driver = new_driver();
+    test!(s "P1 hand selection, invalid number"; |ctx| {
+        let mut driver = ctx.new_driver();
         driver.send(Command::setup().hand_candidates(&HAND_CANDIDATES))?;
 
         let reason = driver.send(Command::pick_hand(3))?.pick_hand_err();
@@ -98,8 +75,8 @@ pub(crate) fn run(implementation: String) {
         assert_eq!(reason, "Invalid Pick '3', expected a number from 0 to 2");
     });
 
-    test!("P2 hand selection, ok" {
-        let mut driver = new_driver();
+    test!(s "P2 hand selection, ok"; |ctx| {
+        let mut driver = ctx.new_driver();
         driver.send(Command::setup().hand_candidates(&HAND_CANDIDATES))?;
         driver.send(Command::pick_hand(0))?;
 
@@ -108,8 +85,8 @@ pub(crate) fn run(implementation: String) {
         assert!(matches!(res, Response::PickHandOk));
     });
 
-    test!("P2 hand selection, invalid number" {
-        let mut driver = new_driver();
+    test!(s "P2 hand selection, invalid number"; |ctx| {
+        let mut driver = ctx.new_driver();
         driver.send(Command::setup().hand_candidates(&HAND_CANDIDATES))?;
         driver.send(Command::pick_hand(0))?;
 
@@ -118,8 +95,8 @@ pub(crate) fn run(implementation: String) {
         assert_eq!(reason, "Invalid Pick '3', expected a number from 0 to 2");
     });
 
-    test!("P2 hand selection, hand already selected" {
-        let mut driver = new_driver();
+    test!(s "P2 hand selection, hand already selected"; |ctx| {
+        let mut driver = ctx.new_driver();
         driver.send(Command::setup().hand_candidates(&HAND_CANDIDATES))?;
         driver.send(Command::pick_hand(0))?;
 
@@ -127,8 +104,9 @@ pub(crate) fn run(implementation: String) {
 
         assert_eq!(reason, "Hand 0 has already been picked");
     });
+}
 
-    // in-game tests
+fn in_game_tests(s: &mut Suite<Ctx>) {
     fn setup_default() -> Command {
         Command::setup()
             .seed(0)
@@ -137,8 +115,8 @@ pub(crate) fn run(implementation: String) {
             .hand_candidates(&HAND_CANDIDATES)
     }
 
-    test!("place card with no interaction" {
-        let mut driver = new_driver();
+    test!(s "place card with no interaction"; |ctx| {
+        let mut driver = ctx.new_driver();
         driver.send(setup_default())?;
         driver.send(Command::pick_hand(0))?;
         driver.send(Command::pick_hand(1))?;
@@ -148,8 +126,8 @@ pub(crate) fn run(implementation: String) {
         assert_eq!(events, vec![]);
     });
 
-    test!("place card that flips one other card" {
-        let mut driver = new_driver();
+    test!(s "place card that flips one other card"; |ctx| {
+        let mut driver = ctx.new_driver();
         let defender = Card::physical(0, 0, 0, 0);
         let attacker = Card::physical(0, 0, 0, Arrows::UP.0);
         let hand_candidates = [
@@ -167,8 +145,8 @@ pub(crate) fn run(implementation: String) {
         assert_eq!(events, vec![Event::flip(1)]);
     });
 
-    test!("place card that flips multiple other cards" {
-        let mut driver = new_driver();
+    test!(s "place card that flips multiple other cards"; |ctx| {
+        let mut driver = ctx.new_driver();
         let attacker = Card::physical(0, 0, 0, Arrows::ALL.0);
         let hand_candidates = [
             [CARD, CARD, CARD, CARD, CARD],
@@ -200,8 +178,8 @@ pub(crate) fn run(implementation: String) {
         );
     });
 
-    test!("flips events should be ordered by increasing cell number" {
-        let mut driver = new_driver();
+    test!(s "flips events should be ordered by increasing cell number"; |ctx| {
+        let mut driver = ctx.new_driver();
         let flipper = Card::physical(0, 0, 0, Arrows::ALL.0);
         let hand_candidates = [
             [CARD, CARD.arrows(Arrows::LEFT), CARD.arrows(Arrows::UP), CARD.arrows(Arrows::RIGHT), CARD.arrows(Arrows::RIGHT)],
@@ -243,8 +221,8 @@ pub(crate) fn run(implementation: String) {
         );
     });
 
-    test!("place card that results in a battle, attacker wins" {
-        let mut driver = new_driver();
+    test!(s "place card that results in a battle, attacker wins"; |ctx| {
+        let mut driver = ctx.new_driver();
         let defender = Card::physical(0, 3, 7, Arrows::ALL.0);
         let attacker = Card::exploit(0xC, 0, 0, Arrows::ALL.0);
         let hand_candidates = [
@@ -277,8 +255,8 @@ pub(crate) fn run(implementation: String) {
         );
     });
 
-    test!("place card that results in a battle, defender wins" {
-        let mut driver = new_driver();
+    test!(s "place card that results in a battle, defender wins"; |ctx| {
+        let mut driver = ctx.new_driver();
         let defender = Card::physical(0, 3, 7, Arrows::ALL.0);
         let attacker = Card::exploit(0xC, 0, 0, Arrows::ALL.0);
         let hand_candidates = [
@@ -311,8 +289,8 @@ pub(crate) fn run(implementation: String) {
         );
     });
 
-    test!("place card that results in a battle, draw" {
-        let mut driver = new_driver();
+    test!(s "place card that results in a battle, draw"; |ctx| {
+        let mut driver = ctx.new_driver();
         let defender = Card::physical(0, 3, 7, Arrows::ALL.0);
         let attacker = Card::exploit(0x3, 0, 0, Arrows::ALL.0);
         let hand_candidates = [
@@ -345,8 +323,8 @@ pub(crate) fn run(implementation: String) {
         );
     });
 
-    test!("place card that results in a combo" {
-        let mut driver = new_driver();
+    test!(s "place card that results in a combo"; |ctx| {
+        let mut driver = ctx.new_driver();
         let defender = Card::physical(0, 3, 7, Arrows::ALL.0);
         let attacker = Card::exploit(0xC, 0, 0, Arrows::ALL.0);
         let hand_candidates = [
@@ -382,8 +360,8 @@ pub(crate) fn run(implementation: String) {
         );
     });
 
-    test!("place card that results in a choice" {
-        let mut driver = new_driver();
+    test!(s "place card that results in a choice"; |ctx| {
+        let mut driver = ctx.new_driver();
         let defender1 = Card::physical(0, 3, 7, Arrows::ALL.0);
         let defender2 = Card::physical(0, 9, 4, Arrows::ALL.0);
         let attacker = Card::exploit(0xC, 0, 0, Arrows::ALL.0);
@@ -432,8 +410,8 @@ pub(crate) fn run(implementation: String) {
         );
     });
 
-    test!("place card that ends the game in a draw" {
-        let mut driver = new_driver();
+    test!(s "place card that ends the game in a draw"; |ctx| {
+        let mut driver = ctx.new_driver();
         driver.send(setup_default())?;
         driver.send(Command::pick_hand(0))?;
         driver.send(Command::pick_hand(1))?;
@@ -457,8 +435,8 @@ pub(crate) fn run(implementation: String) {
         assert_eq!(events, vec![Event::GameOver { winner: None }]);
     });
 
-    test!("place card that ends the game in player 1 drawing" {
-        let mut driver = new_driver();
+    test!(s "place card that ends the game in player 1 drawing"; |ctx| {
+        let mut driver = ctx.new_driver();
         let attacker = Card::physical(0, 0, 0, Arrows::ALL.0);
         let hand_candidates = [
             [CARD, CARD, CARD, CARD, attacker],
@@ -488,8 +466,8 @@ pub(crate) fn run(implementation: String) {
         assert_eq!(events, vec![Event::game_over(Some(Player::P1))]);
     });
 
-    test!("place card that ends the game in player 2 drawing" {
-        let mut driver = new_driver();
+    test!(s "place card that ends the game in player 2 drawing"; |ctx| {
+        let mut driver = ctx.new_driver();
         let attacker = Card::physical(0, 0, 0, Arrows::ALL.0);
         let hand_candidates = [
             [CARD, CARD, CARD, CARD, CARD],
@@ -518,6 +496,16 @@ pub(crate) fn run(implementation: String) {
 
         assert_eq!(events, vec![Event::game_over(Some(Player::P2))]);
     });
+}
+
+pub(crate) fn run(implementation: String) {
+    let mut harness = Harness::new(Ctx { implementation });
+
+    game_setup_tests(suite!(harness "Game Setup"));
+
+    pre_game_tests(suite!(harness "Pre-Game"));
+
+    in_game_tests(suite!(harness "In-Game"));
 
     harness.run();
 }

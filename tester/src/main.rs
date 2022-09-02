@@ -1,5 +1,6 @@
 mod driver;
-mod test_harness;
+#[macro_use]
+mod harness;
 
 mod impl_tests;
 

@@ -1,5 +1,5 @@
 use crate::{
-    driver::{BattleWinner, Battler, Command, Digit, Event, Response},
+    driver::{BattleWinner, Battler, Command, Digit, Event, ImplementationDriver, Response},
     Arrows, BattleSystem, Card, HandCandidate, HandCandidates, Player, Rng, Seed,
 };
 
@@ -8,6 +8,16 @@ pub(super) const HAND_CANDIDATES: HandCandidates = {
     const HAND: HandCandidate = [CARD, CARD, CARD, CARD, CARD];
     [HAND, HAND, HAND]
 };
+
+pub(super) struct Ctx {
+    pub(super) implementation: String,
+}
+
+impl Ctx {
+    pub(super) fn new_driver(&self) -> ImplementationDriver {
+        ImplementationDriver::new(&self.implementation)
+    }
+}
 
 impl Command {
     pub(super) fn setup() -> Self {
