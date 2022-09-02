@@ -123,7 +123,7 @@ fn in_game_tests(s: &mut Suite<Ctx>) {
 
         let events = driver.send(Command::place_card(1, 5))?.place_card_ok();
 
-        assert_eq!(events, vec![]);
+        assert_eq!(events, vec![Event::turn_p2()]);
     });
 
     test!(s "place card that flips one other card"; |ctx| {
@@ -142,7 +142,7 @@ fn in_game_tests(s: &mut Suite<Ctx>) {
 
         let events = driver.send(Command::place_card(1, 5))?.place_card_ok();
 
-        assert_eq!(events, vec![Event::flip(1)]);
+        assert_eq!(events, vec![Event::flip(1), Event::turn_p1()]);
     });
 
     test!(s "place card that flips multiple other cards"; |ctx| {
@@ -173,7 +173,8 @@ fn in_game_tests(s: &mut Suite<Ctx>) {
                 Event::flip(0),
                 Event::flip(1),
                 Event::flip(4),
-                Event::flip(6)
+                Event::flip(6),
+                Event::turn_p1(),
             ]
         );
     });
@@ -216,7 +217,7 @@ fn in_game_tests(s: &mut Suite<Ctx>) {
                 Event::flip(0x9),
                 Event::flip(0xA),
                 Event::flip(0xB),
-                Event::game_over(Some(Player::P2))
+                Event::game_over(Some(Player::P2)),
             ]
         );
     });
@@ -251,6 +252,7 @@ fn in_game_tests(s: &mut Suite<Ctx>) {
                     BattleWinner::Attacker,
                 ),
                 Event::flip(0),
+                Event::turn_p1(),
             ]
         );
     });
@@ -285,6 +287,7 @@ fn in_game_tests(s: &mut Suite<Ctx>) {
                     BattleWinner::Defender,
                 ),
                 Event::flip(1),
+                Event::turn_p1(),
             ]
         );
     });
@@ -319,6 +322,7 @@ fn in_game_tests(s: &mut Suite<Ctx>) {
                     BattleWinner::None,
                 ),
                 Event::flip(1),
+                Event::turn_p1(),
             ]
         );
     });
@@ -356,6 +360,7 @@ fn in_game_tests(s: &mut Suite<Ctx>) {
                 ),
                 Event::flip(5),
                 Event::combo_flip(0),
+                Event::turn_p1(),
             ]
         );
     });
@@ -406,6 +411,7 @@ fn in_game_tests(s: &mut Suite<Ctx>) {
                 ),
                 Event::flip(4),
                 Event::combo_flip(8),
+                Event::turn_p1(),
             ]
         );
     });

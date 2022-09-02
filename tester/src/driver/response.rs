@@ -32,6 +32,9 @@ pub(crate) enum Response {
 
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) enum Event {
+    NextTurn {
+        to: Player,
+    },
     Flip {
         cell: u8,
     },
@@ -140,6 +143,13 @@ impl FromStrHex for u64 {
     }
 }
 
+fn player(i: &str) -> IResult<&str, Player> {
+    alt((
+        map(ident("player1"), |_| Player::P1),
+        map(ident("player2"), |_| Player::P2),
+    ))(i)
+}
+
 fn card(i: &str) -> IResult<&str, Card> {
     let (i, attack) = hex_digit_1_n(1)(i)?;
     let (i, card_type) = map(one_of("PMXApmxa"), |ch| match ch {
@@ -231,6 +241,11 @@ fn pick_hand_err(i: &str) -> IResult<&str, Response> {
 }
 
 fn place_card_ok(i: &str) -> IResult<&str, Response> {
+    fn next_turn(i: &str) -> IResult<&str, Event> {
+        let (i, to) = prop("next-turn", player)(i)?;
+        Ok((i, Event::NextTurn { to }))
+    }
+
     fn flip(i: &str) -> IResult<&str, Event> {
         let (i, cell) = prop("flip", hex_digit_1_n(1))(i)?;
         Ok((i, Event::Flip { cell }))
@@ -290,17 +305,13 @@ fn place_card_ok(i: &str) -> IResult<&str, Response> {
     fn game_over(i: &str) -> IResult<&str, Event> {
         let (i, winner) = prop(
             "game-over",
-            alt((
-                map(tag("player1"), |_| Some(Player::P1)),
-                map(tag("player2"), |_| Some(Player::P2)),
-                map(tag("draw"), |_| None),
-            )),
+            alt((map(player, Some), map(tag("draw"), |_| None))),
         )(i)?;
         Ok((i, Event::GameOver { winner }))
     }
 
     fn event(i: &str) -> IResult<&str, Event> {
-        alt((flip, combo_flip, battle, game_over))(i)
+        alt((next_turn, flip, combo_flip, battle, game_over))(i)
     }
 
     response("place-card-ok", |i| {
@@ -449,6 +460,10 @@ mod tests {
     }
 
     #[test_case("(place-card-ok)\n" => PlaceCardOk { events: vec![] })]
+    #[test_case("(place-card-ok (next-turn player1))\n" =>
+        PlaceCardOk { events: vec![NextTurn { to: Player::P1 }] })]
+    #[test_case("(place-card-ok (next-turn player2))\n" =>
+        PlaceCardOk { events: vec![NextTurn { to: Player::P2 }] })]
     #[test_case("(place-card-ok (flip 4))\n" => PlaceCardOk { events: vec![Flip { cell: 4 }] })]
     #[test_case("(place-card-ok (flip 2) (flip A) (flip 7))\n" => PlaceCardOk { events: vec![
         Flip { cell: 2 }, Flip { cell: 0xA }, Flip { cell: 7 }] })]

@@ -72,6 +72,7 @@ impl Entry {
     }
 }
 
+#[derive(Debug)]
 pub(crate) struct GameLog {
     entries: Vec<Entry>,
     last_new_entries_idx: usize,
@@ -91,7 +92,7 @@ impl GameLog {
 
     pub(crate) fn new_entries(&mut self) -> &[Entry] {
         let idx = self.last_new_entries_idx;
-        self.last_new_entries_idx = self.entries.len() - 1;
+        self.last_new_entries_idx = self.entries.len();
         &self.entries[idx..]
     }
 

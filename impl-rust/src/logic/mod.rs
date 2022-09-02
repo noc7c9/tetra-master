@@ -129,10 +129,10 @@ fn handle_waiting_battle(
         resolve_interactions(state, log, attacker_cell);
     } else {
         // next turn
-        state.turn = state.turn.opposite();
-        log.append(Entry::next_turn(state.turn));
-
-        check_for_game_over(state);
+        if !check_for_game_over(state) {
+            state.turn = state.turn.opposite();
+            log.append(Entry::next_turn(state.turn));
+        }
     }
 
     Ok(())
@@ -195,13 +195,13 @@ fn resolve_interactions(state: &mut GameState, log: &mut GameLog, attacker_cell:
     }
 
     // next turn
-    state.turn = state.turn.opposite();
-    log.append(Entry::next_turn(state.turn));
-
-    check_for_game_over(state);
+    if !check_for_game_over(state) {
+        state.turn = state.turn.opposite();
+        log.append(Entry::next_turn(state.turn));
+    }
 }
 
-fn check_for_game_over(state: &mut GameState) {
+fn check_for_game_over(state: &mut GameState) -> bool {
     if state.p1_hand.iter().all(Option::is_none) && state.p2_hand.iter().all(Option::is_none) {
         let mut p1_cards = 0;
         let mut p2_cards = 0;
@@ -223,8 +223,12 @@ fn check_for_game_over(state: &mut GameState) {
         };
 
         state.status = GameStatus::GameOver { winner };
+
+        true
     } else {
         state.status = GameStatus::WaitingPlace;
+
+        false
     }
 }
 

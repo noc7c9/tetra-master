@@ -148,6 +148,9 @@ pub(crate) fn run() -> std::result::Result<(), Box<dyn std::error::Error>> {
                     out.flush()?;
 
                     if state.is_complete() {
+                        // consume entries added by pre-game
+                        log.new_entries();
+
                         let state = GameState::from_pre_game_state(state, battle_system);
                         current_state = HeadlessState::InGame(state);
                     } else {
@@ -399,6 +402,11 @@ mod write {
 
         for entry in entries {
             match entry {
+                Entry::NextTurn { turn } => {
+                    write!(o, " (next-turn ")?;
+                    player(o, *turn)?;
+                    write!(o, ")")?;
+                }
                 Entry::FlipCard {
                     cell, via_combo, ..
                 } => {
@@ -428,12 +436,11 @@ mod write {
 
         if let GameStatus::GameOver { winner } = status {
             write!(o, " (game-over ")?;
-            let winner = match winner {
-                Some(Player::P1) => "player1",
-                Some(Player::P2) => "player2",
-                None => "draw",
+            match winner {
+                Some(p) => player(o, *p)?,
+                None => write!(o, "draw")?,
             };
-            write!(o, "{winner})")?;
+            write!(o, ")")?;
         }
 
         writeln!(o, ")")?;
@@ -471,6 +478,14 @@ mod write {
             }
         }
         write!(o, ")")?;
+        Ok(())
+    }
+
+    fn player(o: &mut String, player: Player) -> Result {
+        match player {
+            Player::P1 => write!(o, "player1")?,
+            Player::P2 => write!(o, "player2")?,
+        }
         Ok(())
     }
 

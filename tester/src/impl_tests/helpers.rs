@@ -161,6 +161,14 @@ impl Response {
 }
 
 impl Event {
+    pub(super) fn turn_p1() -> Self {
+        Event::NextTurn { to: Player::P1 }
+    }
+
+    pub(super) fn turn_p2() -> Self {
+        Event::NextTurn { to: Player::P2 }
+    }
+
     pub(super) fn flip(cell: u8) -> Self {
         Event::Flip { cell }
     }
