@@ -106,7 +106,7 @@ fn reject_input_if_the_card_has_already_been_played() {
 
     let res = game_next(&mut state, &mut log, GameInput::place(2, 0));
 
-    assert_eq!(res, Err("Card 2 has already been played".into()));
+    assert_eq!(res, Err(Error::CardAlreadyPlayed { card: 2 }));
 }
 
 #[test]
@@ -119,7 +119,7 @@ fn reject_input_if_the_cell_played_on_is_blocked() {
 
     let res = game_next(&mut state, &mut log, GameInput::place(0, 0xB));
 
-    assert_eq!(res, Err("Cell B is not empty".into()));
+    assert_eq!(res, Err(Error::CellIsNotEmpty { cell: 0xB }));
 }
 
 #[test]
@@ -132,7 +132,7 @@ fn reject_input_if_the_cell_played_on_already_has_a_card_placed() {
 
     let res = game_next(&mut state, &mut log, GameInput::place(0, 3));
 
-    assert_eq!(res, Err("Cell 3 is not empty".into()));
+    assert_eq!(res, Err(Error::CellIsNotEmpty { cell: 3 }));
 }
 
 #[test]
@@ -783,7 +783,7 @@ fn reject_input_if_the_choice_isnt_valid() {
     game_next(&mut state, &mut log, GameInput::place(0, 4)).unwrap();
     let res = game_next(&mut state, &mut log, GameInput::battle(4));
 
-    assert_eq!(res, Err("Cell 4 is not a valid choice".into()));
+    assert_eq!(res, Err(Error::InvalidBattlePick { cell: 4 }));
 }
 
 #[test]

@@ -4,7 +4,7 @@ use crate::{
     PreGameInput, PreGameState, PreGameStatus, Rng,
 };
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub(crate) enum Error {
     InvalidHandPick { hand: usize },
     HandAlreadyPicked { hand: usize },
