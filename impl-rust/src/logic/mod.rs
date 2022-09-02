@@ -8,6 +8,9 @@ use crate::{
 pub(crate) enum Error {
     InvalidHandPick { hand: usize },
     HandAlreadyPicked { hand: usize },
+    CellIsNotEmpty { cell: usize },
+    CardAlreadyPlayed { card: usize },
+    InvalidBattlePick { cell: usize },
 }
 
 pub(crate) fn pre_game_next(
@@ -51,7 +54,7 @@ pub(crate) fn game_next(
     state: &mut GameState,
     log: &mut GameLog,
     input: GameInput,
-) -> Result<(), String> {
+) -> Result<(), Error> {
     match (&state.status, input) {
         (GameStatus::WaitingPlace, GameInput::Place(input)) => {
             handle_waiting_place(state, log, input)
@@ -67,7 +70,7 @@ fn handle_waiting_place(
     state: &mut GameState,
     log: &mut GameLog,
     input: GameInputPlace,
-) -> Result<(), String> {
+) -> Result<(), Error> {
     let hand_index = input.card;
     let attacker_cell = input.cell;
 
@@ -78,13 +81,15 @@ fn handle_waiting_place(
 
     // ensure cell being placed is empty
     if !matches!(state.board[attacker_cell], Cell::Empty) {
-        return Err(format!("Cell {:X} is not empty", attacker_cell));
+        return Err(Error::CellIsNotEmpty {
+            cell: attacker_cell,
+        });
     }
 
     // remove the card from the hand
     let attacker = match hand[hand_index].take() {
         None => {
-            return Err(format!("Card {} has already been played", hand_index));
+            return Err(Error::CardAlreadyPlayed { card: hand_index });
         }
         Some(card) => OwnedCard {
             owner: state.turn,
@@ -105,7 +110,7 @@ fn handle_waiting_battle(
     state: &mut GameState,
     log: &mut GameLog,
     input: GameInputBattle,
-) -> Result<(), String> {
+) -> Result<(), Error> {
     let defender_cell = input.cell;
 
     let (attacker_cell, choices) = match &state.status {
@@ -118,7 +123,9 @@ fn handle_waiting_battle(
 
     // ensure input cell is a valid choice
     if choices.iter().all(|&(cell, _)| cell != defender_cell) {
-        return Err(format!("Cell {:X} is not a valid choice", attacker_cell));
+        return Err(Error::InvalidBattlePick {
+            cell: attacker_cell,
+        });
     }
 
     let winner = battle(state, log, attacker_cell, defender_cell);

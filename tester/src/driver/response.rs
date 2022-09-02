@@ -32,6 +32,9 @@ pub(crate) enum Response {
 pub(crate) enum ErrorResponse {
     InvalidHandPick { hand: u8 },
     HandAlreadyPicked { hand: u8 },
+    CellIsNotEmpty { cell: u8 },
+    CardAlreadyPlayed { card: u8 },
+    InvalidBattlePick { cell: u8 },
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -227,8 +230,32 @@ fn error(i: &str) -> IResult<&str, Response> {
         Ok((i, HandAlreadyPicked { hand }))
     }
 
+    fn cell_is_not_empty(i: &str) -> IResult<&str, ErrorResponse> {
+        let (i, _) = ident("CellIsNotEmpty")(i)?;
+        let (i, cell) = prop("cell", hex_digit_1_n(1))(i)?;
+        Ok((i, CellIsNotEmpty { cell }))
+    }
+
+    fn card_already_played(i: &str) -> IResult<&str, ErrorResponse> {
+        let (i, _) = ident("CardAlreadyPlayed")(i)?;
+        let (i, card) = prop("card", hex_digit_1_n(1))(i)?;
+        Ok((i, CardAlreadyPlayed { card }))
+    }
+
+    fn invalid_battle_pick(i: &str) -> IResult<&str, ErrorResponse> {
+        let (i, _) = ident("InvalidBattlePick")(i)?;
+        let (i, cell) = prop("cell", hex_digit_1_n(1))(i)?;
+        Ok((i, InvalidBattlePick { cell }))
+    }
+
     response("error", |i| {
-        let (i, inner) = alt((invalid_hand_pick, already_picked_hand))(i)?;
+        let (i, inner) = alt((
+            invalid_hand_pick,
+            already_picked_hand,
+            cell_is_not_empty,
+            card_already_played,
+            invalid_battle_pick,
+        ))(i)?;
         Ok((i, Response::Error(inner)))
     })(i)
 }
@@ -431,6 +458,9 @@ mod tests {
 
     #[test_case("(error InvalidHandPick (hand 1))\n" => Error(InvalidHandPick { hand: 1 }))]
     #[test_case("(error HandAlreadyPicked (hand 2))\n" => Error(HandAlreadyPicked { hand: 2 }))]
+    #[test_case("(error CellIsNotEmpty (cell 2))\n" => Error(CellIsNotEmpty { cell: 2 }))]
+    #[test_case("(error CardAlreadyPlayed (card 2))\n" => Error(CardAlreadyPlayed { card: 2 }))]
+    #[test_case("(error InvalidBattlePick (cell 2))\n" => Error(InvalidBattlePick { cell: 2 }))]
     fn error(i: &str) -> Response {
         Response::deserialize(i).unwrap()
     }

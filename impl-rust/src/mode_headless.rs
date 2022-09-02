@@ -17,6 +17,9 @@ enum Error {
     // logic errors
     InvalidHandPick { hand: usize },
     HandAlreadyPicked { hand: usize },
+    CellIsNotEmpty { cell: usize },
+    CardAlreadyPlayed { card: usize },
+    InvalidBattlePick { cell: usize },
 
     WriteErr(std::fmt::Error),
 }
@@ -38,6 +41,9 @@ impl std::fmt::Display for Error {
                 write!(f, "invalid pick '{hand}', expected a number from 0 to 2")
             }
             HandAlreadyPicked { hand } => write!(f, "hand '{hand}' has already been picked"),
+            CellIsNotEmpty { cell } => write!(f, "cell '{cell:X}' is not empty"),
+            CardAlreadyPlayed { card } => write!(f, "card '{card}' has already been played"),
+            InvalidBattlePick { cell } => write!(f, "cell '{cell:X}' is not a valid choice"),
 
             WriteErr(inner) => inner.fmt(f),
         }
@@ -61,6 +67,9 @@ impl From<logic::Error> for Error {
         match err {
             logic::Error::InvalidHandPick { hand } => Error::InvalidHandPick { hand },
             logic::Error::HandAlreadyPicked { hand } => Error::HandAlreadyPicked { hand },
+            logic::Error::CellIsNotEmpty { cell } => Error::CellIsNotEmpty { cell },
+            logic::Error::CardAlreadyPlayed { card } => Error::CardAlreadyPlayed { card },
+            logic::Error::InvalidBattlePick { cell } => Error::InvalidBattlePick { cell },
         }
     }
 }
@@ -386,6 +395,9 @@ mod write {
         match err {
             Error::InvalidHandPick { hand } => write!(o, "InvalidHandPick (hand {hand})")?,
             Error::HandAlreadyPicked { hand } => write!(o, "HandAlreadyPicked (hand {hand})")?,
+            Error::CellIsNotEmpty { cell } => write!(o, "CellIsNotEmpty (cell {cell})")?,
+            Error::CardAlreadyPlayed { card } => write!(o, "CardAlreadyPlayed (card {card})")?,
+            Error::InvalidBattlePick { cell } => write!(o, "InvalidBattlePick (cell {cell})")?,
             _ => todo!(),
         }
         writeln!(o, ")")?;
