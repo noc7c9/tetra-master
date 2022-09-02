@@ -13,6 +13,11 @@ enum Error {
     InvalidBattleSystem { input: String },
     InvalidCardType { input: String },
     InvalidHexNumber(std::num::ParseIntError),
+
+    // logic errors
+    InvalidHandPick { hand: usize },
+    HandAlreadyPicked { hand: usize },
+
     WriteErr(std::fmt::Error),
 }
 
@@ -28,6 +33,12 @@ impl std::fmt::Display for Error {
             InvalidBattleSystem { input } => write!(f, "'{input}' is not a valid battle system"),
             InvalidCardType { input } => write!(f, "'{input}' is not a valid card type"),
             InvalidHexNumber(inner) => inner.fmt(f),
+
+            InvalidHandPick { hand } => {
+                write!(f, "invalid pick '{hand}', expected a number from 0 to 2")
+            }
+            HandAlreadyPicked { hand } => write!(f, "hand '{hand}' has already been picked"),
+
             WriteErr(inner) => inner.fmt(f),
         }
     }
@@ -42,6 +53,15 @@ impl From<std::num::ParseIntError> for Error {
 impl From<std::fmt::Error> for Error {
     fn from(inner: std::fmt::Error) -> Self {
         Error::WriteErr(inner)
+    }
+}
+
+impl From<logic::Error> for Error {
+    fn from(err: logic::Error) -> Self {
+        match err {
+            logic::Error::InvalidHandPick { hand } => Error::InvalidHandPick { hand },
+            logic::Error::HandAlreadyPicked { hand } => Error::HandAlreadyPicked { hand },
+        }
     }
 }
 
@@ -140,7 +160,7 @@ pub(crate) fn run() -> std::result::Result<(), Box<dyn std::error::Error>> {
 
                     let input = PreGameInput { pick: hand };
                     if let Err(err) = logic::pre_game_next(&mut state, &mut log, input) {
-                        write::pick_hand_err(&mut buf, &err)?;
+                        write::error(&mut buf, err.into())?;
                     } else {
                         write::pick_hand_ok(&mut buf)?;
                     }
@@ -361,6 +381,17 @@ mod parse {
 mod write {
     use super::*;
 
+    pub(super) fn error(o: &mut String, err: Error) -> Result {
+        write!(o, "(error ")?;
+        match err {
+            Error::InvalidHandPick { hand } => write!(o, "InvalidHandPick (hand {hand})")?,
+            Error::HandAlreadyPicked { hand } => write!(o, "HandAlreadyPicked (hand {hand})")?,
+            _ => todo!(),
+        }
+        writeln!(o, ")")?;
+        Ok(())
+    }
+
     pub(super) fn setup_ok(
         o: &mut String,
         seed: Option<Seed>,
@@ -389,11 +420,6 @@ mod write {
 
     pub(super) fn pick_hand_ok(o: &mut String) -> Result {
         writeln!(o, "(pick-hand-ok)")?;
-        Ok(())
-    }
-
-    pub(super) fn pick_hand_err(o: &mut String, err: &str) -> Result {
-        writeln!(o, "(pick-hand-err (reason {err:?}))")?;
         Ok(())
     }
 

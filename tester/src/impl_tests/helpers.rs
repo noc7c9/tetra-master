@@ -1,5 +1,7 @@
 use crate::{
-    driver::{BattleWinner, Battler, Command, Digit, Event, ImplementationDriver, Response},
+    driver::{
+        BattleWinner, Battler, Command, Digit, ErrorResponse, Event, ImplementationDriver, Response,
+    },
     Arrows, BattleSystem, Card, HandCandidate, HandCandidates, Player, Rng, Seed,
 };
 
@@ -108,6 +110,14 @@ pub(super) struct SetupOk {
 }
 
 impl Response {
+    pub(super) fn error(self) -> ErrorResponse {
+        if let Response::Error(inner) = self {
+            inner
+        } else {
+            panic!("Expected Response::Error, found {self:?}")
+        }
+    }
+
     pub(super) fn setup_ok(self) -> SetupOk {
         if let Response::SetupOk {
             seed,
@@ -134,14 +144,6 @@ impl Response {
     //         panic!("Expected Response::PickHandOk, found {self:?}")
     //     }
     // }
-
-    pub(super) fn pick_hand_err(self) -> String {
-        if let Response::PickHandErr { reason } = self {
-            reason
-        } else {
-            panic!("Expected Response::PickHandErr, found {self:?}")
-        }
-    }
 
     pub(super) fn place_card_ok(self) -> Vec<Event> {
         if let Response::PlaceCardOk { events } = self {

@@ -1,7 +1,7 @@
 use pretty_assertions::{assert_eq, assert_ne};
 
 use crate::{
-    driver::{BattleWinner, Battler, Command, Digit, Event, Response},
+    driver::{BattleWinner, Battler, Command, Digit, ErrorResponse, Event, Response},
     harness::{Harness, Suite},
     Arrows, BattleSystem, Card, Player,
 };
@@ -70,9 +70,9 @@ fn pre_game_tests(s: &mut Suite<Ctx>) {
         let mut driver = ctx.new_driver();
         driver.send(Command::setup().hand_candidates(&HAND_CANDIDATES))?;
 
-        let reason = driver.send(Command::pick_hand(3))?.pick_hand_err();
+        let error = driver.send(Command::pick_hand(3))?.error();
 
-        assert_eq!(reason, "Invalid Pick '3', expected a number from 0 to 2");
+        assert_eq!(error, ErrorResponse::InvalidHandPick { hand: 3 });
     });
 
     test!(s "P2 hand selection, ok"; |ctx| {
@@ -90,9 +90,9 @@ fn pre_game_tests(s: &mut Suite<Ctx>) {
         driver.send(Command::setup().hand_candidates(&HAND_CANDIDATES))?;
         driver.send(Command::pick_hand(0))?;
 
-        let reason = driver.send(Command::pick_hand(3))?.pick_hand_err();
+        let error = driver.send(Command::pick_hand(7))?.error();
 
-        assert_eq!(reason, "Invalid Pick '3', expected a number from 0 to 2");
+        assert_eq!(error, ErrorResponse::InvalidHandPick { hand: 7 });
     });
 
     test!(s "P2 hand selection, hand already selected"; |ctx| {
@@ -100,9 +100,9 @@ fn pre_game_tests(s: &mut Suite<Ctx>) {
         driver.send(Command::setup().hand_candidates(&HAND_CANDIDATES))?;
         driver.send(Command::pick_hand(0))?;
 
-        let reason = driver.send(Command::pick_hand(0))?.pick_hand_err();
+        let error = driver.send(Command::pick_hand(0))?.error();
 
-        assert_eq!(reason, "Hand 0 has already been picked");
+        assert_eq!(error, ErrorResponse::HandAlreadyPicked { hand: 0 });
     });
 }
 

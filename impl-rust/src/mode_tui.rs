@@ -46,7 +46,7 @@ pub(crate) fn run(args: crate::Args) -> Result<(), Box<dyn std::error::Error>> {
             };
 
             if let Err(err) = logic::pre_game_next(&mut state, &mut log, input) {
-                println!("ERR: {}", err);
+                println!("ERR: {err:?}");
             } else {
                 // input was correctly evaluated, break input loop
                 break;

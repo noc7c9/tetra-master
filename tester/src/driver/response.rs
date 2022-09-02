@@ -1,7 +1,7 @@
 use crate::{Arrows, BattleSystem, Card, CardType, HandCandidate, HandCandidates, Player, Seed};
 use nom::{
     branch::alt,
-    bytes::complete::{is_not, tag, take_while_m_n},
+    bytes::complete::{tag, take_while_m_n},
     character::complete::{char, multispace0, multispace1, one_of},
     combinator::{map, map_res, opt, verify},
     error::Error,
@@ -12,6 +12,7 @@ use nom::{
 
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) enum Response {
+    Error(ErrorResponse),
     SetupOk {
         seed: Option<Seed>,
         battle_system: BattleSystem,
@@ -19,15 +20,18 @@ pub(crate) enum Response {
         hand_candidates: HandCandidates,
     },
     PickHandOk,
-    PickHandErr {
-        reason: String,
-    },
     PlaceCardOk {
         events: Vec<Event>,
     },
     PlaceCardPickBattle {
         choices: Vec<u8>,
     },
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub(crate) enum ErrorResponse {
+    InvalidHandPick { hand: u8 },
+    HandAlreadyPicked { hand: u8 },
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -76,9 +80,9 @@ pub(crate) enum BattleWinner {
 impl Response {
     pub(crate) fn deserialize(i: &str) -> anyhow::Result<Self> {
         let (_, res) = alt((
+            error,
             setup_ok,
             pick_hand_ok,
-            pick_hand_err,
             place_card_ok,
             place_card_pick_battle,
         ))(i)
@@ -114,11 +118,6 @@ fn array_verify<'a, T>(
     predicate: impl Fn(&Vec<T>) -> bool,
 ) -> impl FnMut(&'a str) -> IResult<&'a str, Vec<T>> {
     verify(array(inner), predicate)
-}
-
-fn string(i: &str) -> IResult<&str, String> {
-    let (i, string) = delimited(char('"'), is_not("\""), char('"'))(i)?;
-    Ok((i, string.into()))
 }
 
 fn hex_digit_1_n<'a, T: FromStrHex>(n: usize) -> impl FnMut(&'a str) -> IResult<&str, T> {
@@ -213,6 +212,27 @@ fn prop<'a, T>(
     preceded(multispace0, list(preceded(ident(name), inner)))
 }
 
+fn error(i: &str) -> IResult<&str, Response> {
+    use ErrorResponse::*;
+
+    fn invalid_hand_pick(i: &str) -> IResult<&str, ErrorResponse> {
+        let (i, _) = ident("InvalidHandPick")(i)?;
+        let (i, hand) = prop("hand", hex_digit_1_n(1))(i)?;
+        Ok((i, InvalidHandPick { hand }))
+    }
+
+    fn already_picked_hand(i: &str) -> IResult<&str, ErrorResponse> {
+        let (i, _) = ident("HandAlreadyPicked")(i)?;
+        let (i, hand) = prop("hand", hex_digit_1_n(1))(i)?;
+        Ok((i, HandAlreadyPicked { hand }))
+    }
+
+    response("error", |i| {
+        let (i, inner) = alt((invalid_hand_pick, already_picked_hand))(i)?;
+        Ok((i, Response::Error(inner)))
+    })(i)
+}
+
 fn setup_ok(i: &str) -> IResult<&str, Response> {
     response("setup-ok", |i| {
         let (i, seed) = opt(prop("seed", hex_digit_1_n(16)))(i)?;
@@ -231,13 +251,6 @@ fn setup_ok(i: &str) -> IResult<&str, Response> {
 
 fn pick_hand_ok(i: &str) -> IResult<&str, Response> {
     response("pick-hand-ok", |i| Ok((i, Response::PickHandOk)))(i)
-}
-
-fn pick_hand_err(i: &str) -> IResult<&str, Response> {
-    response("pick-hand-err", |i| {
-        let (i, reason) = prop("reason", string)(i)?;
-        Ok((i, Response::PickHandErr { reason }))
-    })(i)
 }
 
 fn place_card_ok(i: &str) -> IResult<&str, Response> {
@@ -333,6 +346,7 @@ mod tests {
 
     use super::{
         BattleSystem, BattleWinner, Battler, Digit,
+        ErrorResponse::*,
         Event::*,
         Response::{self, *},
     };
@@ -415,6 +429,12 @@ mod tests {
         super::battle_system(i).unwrap().1
     }
 
+    #[test_case("(error InvalidHandPick (hand 1))\n" => Error(InvalidHandPick { hand: 1 }))]
+    #[test_case("(error HandAlreadyPicked (hand 2))\n" => Error(HandAlreadyPicked { hand: 2 }))]
+    fn error(i: &str) -> Response {
+        Response::deserialize(i).unwrap()
+    }
+
     const BLOCKED_CELLS: &str = "(2 3 F)";
     const HAND_CANDIDATES: &str = "((0P00_0 0P00_0 0P00_0 0P00_0 0P00_0) (0P00_0 0P00_0 0P00_0 0P00_0 0P00_0) (0P00_0 0P00_0 0P00_0 0P00_0 0P00_0))";
     #[test_case(
@@ -449,13 +469,6 @@ mod tests {
 
     #[test_case("(pick-hand-ok)\n" => PickHandOk)]
     fn pick_hand_ok(i: &str) -> Response {
-        Response::deserialize(i).unwrap()
-    }
-
-    #[test_case("(pick-hand-err (reason \"oneword\"))\n" => PickHandErr { reason: "oneword".into() })]
-    #[test_case("(pick-hand-err (reason \"multiple words\"))\n" => PickHandErr { reason: "multiple words".into() })]
-    #[test_case("(pick-hand-err (reason \"escaped \\\" quote\"))\n" => panics)]
-    fn pick_hand_err(i: &str) -> Response {
         Response::deserialize(i).unwrap()
     }
 
