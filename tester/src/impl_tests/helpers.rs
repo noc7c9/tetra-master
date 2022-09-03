@@ -138,12 +138,12 @@ impl Response {
         }
     }
 
-    // pub(super) fn pick_hand_ok(self) {
-    //     if let Response::PickHandOk = self {
-    //     } else {
-    //         panic!("Expected Response::PickHandOk, found {self:?}")
-    //     }
-    // }
+    pub(super) fn pick_hand_ok(self) {
+        if let Response::PickHandOk = self {
+        } else {
+            panic!("Expected Response::PickHandOk, found {self:?}")
+        }
+    }
 
     pub(super) fn place_card_ok(self) -> (Vec<u8>, Vec<Event>) {
         if let Response::PlaceCardOk {

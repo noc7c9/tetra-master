@@ -10,6 +10,7 @@ use nom::{
     IResult, Parser,
 };
 
+#[must_use]
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) enum Response {
     Error(ErrorResponse),
