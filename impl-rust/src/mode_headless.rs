@@ -7,8 +7,8 @@ use std::fmt::Write;
 
 #[derive(Debug)]
 enum Error {
-    HandCandidatesTooShort,
-    HandCandidateTooShort,
+    // HandCandidatesTooShort,
+    // HandCandidateTooShort,
     InvalidRng { input: String },
     InvalidBattleSystem { input: String },
     InvalidCardType { input: String },
@@ -30,8 +30,8 @@ impl std::fmt::Display for Error {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         use Error::*;
         match self {
-            HandCandidatesTooShort => f.write_str("hand candidates list too short"),
-            HandCandidateTooShort => f.write_str("hand candidate list too short"),
+            // HandCandidatesTooShort => f.write_str("hand candidates list too short"),
+            // HandCandidateTooShort => f.write_str("hand candidate list too short"),
             InvalidRng { input } => write!(f, "'{input}' is not a valid rng"),
             InvalidBattleSystem { input } => write!(f, "'{input}' is not a valid battle system"),
             InvalidCardType { input } => write!(f, "'{input}' is not a valid card type"),
@@ -204,9 +204,8 @@ pub(crate) fn run() -> std::result::Result<(), Box<dyn std::error::Error>> {
 
                 buf.clear();
 
-                if let Err(_err) = logic::game_next(&mut state, &mut log, input) {
-                    todo!();
-                    // write_pick_hand_err(&mut buf, &err)?;
+                if let Err(err) = logic::game_next(&mut state, &mut log, input) {
+                    write::error(&mut buf, err.into())?;
                 } else if let GameStatus::WaitingBattle { choices, .. } = &state.status {
                     write::place_card_pick_battle(&mut buf, choices)?;
                 } else {
@@ -395,9 +394,9 @@ mod write {
         match err {
             Error::InvalidHandPick { hand } => write!(o, "InvalidHandPick (hand {hand})")?,
             Error::HandAlreadyPicked { hand } => write!(o, "HandAlreadyPicked (hand {hand})")?,
-            Error::CellIsNotEmpty { cell } => write!(o, "CellIsNotEmpty (cell {cell})")?,
+            Error::CellIsNotEmpty { cell } => write!(o, "CellIsNotEmpty (cell {cell:X})")?,
             Error::CardAlreadyPlayed { card } => write!(o, "CardAlreadyPlayed (card {card})")?,
-            Error::InvalidBattlePick { cell } => write!(o, "InvalidBattlePick (cell {cell})")?,
+            Error::InvalidBattlePick { cell } => write!(o, "InvalidBattlePick (cell {cell:X})")?,
             _ => todo!(),
         }
         writeln!(o, ")")?;

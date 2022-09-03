@@ -124,7 +124,7 @@ fn handle_waiting_battle(
     // ensure input cell is a valid choice
     if choices.iter().all(|&(cell, _)| cell != defender_cell) {
         return Err(Error::InvalidBattlePick {
-            cell: attacker_cell,
+            cell: defender_cell,
         });
     }
 

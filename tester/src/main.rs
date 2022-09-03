@@ -46,10 +46,20 @@ impl Arrows {
 
     const UP: Arrows = Arrows(0b1000_0000);
     const RIGHT: Arrows = Arrows(0b0010_0000);
+    const DOWN: Arrows = Arrows(0b0000_1000);
     const LEFT: Arrows = Arrows(0b0000_0010);
+    const UP_LEFT: Arrows = Arrows(0b0000_0001);
 
     const fn new(bitset: u8) -> Self {
         Self(bitset)
+    }
+}
+
+impl std::ops::BitOr for Arrows {
+    type Output = Self;
+
+    fn bitor(self, rhs: Self) -> Self {
+        Arrows(self.0 | rhs.0)
     }
 }
 
