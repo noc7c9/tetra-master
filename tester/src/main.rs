@@ -41,18 +41,20 @@ enum CardType {
 #[derive(Debug, Clone, Copy, PartialEq)]
 struct Arrows(u8);
 
+#[allow(dead_code)]
 impl Arrows {
+    const NONE: Arrows = Arrows(0b0000_0000);
     const ALL: Arrows = Arrows(0b1111_1111);
 
+    // clockwise from the top
     const UP: Arrows = Arrows(0b1000_0000);
+    const UP_RIGHT: Arrows = Arrows(0b0100_0000);
     const RIGHT: Arrows = Arrows(0b0010_0000);
+    const DOWN_RIGHT: Arrows = Arrows(0b0001_0000);
     const DOWN: Arrows = Arrows(0b0000_1000);
+    const DOWN_LEFT: Arrows = Arrows(0b0000_0100);
     const LEFT: Arrows = Arrows(0b0000_0010);
     const UP_LEFT: Arrows = Arrows(0b0000_0001);
-
-    const fn new(bitset: u8) -> Self {
-        Self(bitset)
-    }
 }
 
 impl std::ops::BitOr for Arrows {
@@ -90,17 +92,17 @@ impl Card {
     }
 
     // shortcut constructors
-    const fn physical(att: u8, phy: u8, mag: u8, arrows: u8) -> Self {
-        Self::new(att, CardType::Physical, phy, mag, Arrows::new(arrows))
+    const fn physical(att: u8, phy: u8, mag: u8, arrows: Arrows) -> Self {
+        Self::new(att, CardType::Physical, phy, mag, arrows)
     }
-    const fn magical(att: u8, phy: u8, mag: u8, arrows: u8) -> Self {
-        Self::new(att, CardType::Magical, phy, mag, Arrows::new(arrows))
+    const fn magical(att: u8, phy: u8, mag: u8, arrows: Arrows) -> Self {
+        Self::new(att, CardType::Magical, phy, mag, arrows)
     }
-    const fn exploit(att: u8, phy: u8, mag: u8, arrows: u8) -> Self {
-        Self::new(att, CardType::Exploit, phy, mag, Arrows::new(arrows))
+    const fn exploit(att: u8, phy: u8, mag: u8, arrows: Arrows) -> Self {
+        Self::new(att, CardType::Exploit, phy, mag, arrows)
     }
-    const fn assault(att: u8, phy: u8, mag: u8, arrows: u8) -> Self {
-        Self::new(att, CardType::Assault, phy, mag, Arrows::new(arrows))
+    const fn assault(att: u8, phy: u8, mag: u8, arrows: Arrows) -> Self {
+        Self::new(att, CardType::Assault, phy, mag, arrows)
     }
 }
 

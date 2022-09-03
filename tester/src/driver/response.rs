@@ -377,50 +377,55 @@ mod tests {
         Event::*,
         Response::{self, *},
     };
-    use crate::{Card, HandCandidate, HandCandidates, Player};
+    use crate::{Arrows, Card, HandCandidate, HandCandidates, Player};
 
     fn assert_eq<T: PartialEq + std::fmt::Debug>(expected: T) -> impl Fn(T) {
         move |actual| pretty_assertions::assert_eq!(actual, expected)
     }
 
     // note: first arg is used to differentiate names that generate with the same name types
-    #[test_case(0, "0P00_0" => using assert_eq(Card::physical(0, 0, 0, 0)))]
-    #[test_case(0, "0M00_0" => using assert_eq(Card::magical(0, 0, 0, 0)))]
-    #[test_case(0, "0X00_0" => using assert_eq(Card::exploit(0, 0, 0, 0)))]
-    #[test_case(0, "0A00_0" => using assert_eq(Card::assault(0, 0, 0, 0)))]
-    #[test_case(1, "0p00_0" => using assert_eq(Card::physical(0, 0, 0, 0)))]
-    #[test_case(1, "0m00_0" => using assert_eq(Card::magical(0, 0, 0, 0)))]
-    #[test_case(1, "0x00_0" => using assert_eq(Card::exploit(0, 0, 0, 0)))]
-    #[test_case(1, "0a00_0" => using assert_eq(Card::assault(0, 0, 0, 0)))]
+    #[test_case(0, "0P00_0" => using assert_eq(Card::physical(0, 0, 0, Arrows(0))))]
+    #[test_case(0, "0M00_0" => using assert_eq(Card::magical(0, 0, 0, Arrows(0))))]
+    #[test_case(0, "0X00_0" => using assert_eq(Card::exploit(0, 0, 0, Arrows(0))))]
+    #[test_case(0, "0A00_0" => using assert_eq(Card::assault(0, 0, 0, Arrows(0))))]
+    #[test_case(1, "0p00_0" => using assert_eq(Card::physical(0, 0, 0, Arrows(0))))]
+    #[test_case(1, "0m00_0" => using assert_eq(Card::magical(0, 0, 0, Arrows(0))))]
+    #[test_case(1, "0x00_0" => using assert_eq(Card::exploit(0, 0, 0, Arrows(0))))]
+    #[test_case(1, "0a00_0" => using assert_eq(Card::assault(0, 0, 0, Arrows(0))))]
     #[test_case(1, "0B00_0" => panics)]
     // stats
-    #[test_case(0, "1P23_0" => using assert_eq(Card::physical(1, 2, 3, 0)))]
-    #[test_case(0, "aPbc_0" => using assert_eq(Card::physical(0xa, 0xb, 0xc, 0)))]
-    #[test_case(1, "APBC_0" => using assert_eq(Card::physical(0xa, 0xb, 0xc, 0)))]
+    #[test_case(0, "1P23_0" => using assert_eq(Card::physical(1, 2, 3, Arrows(0))))]
+    #[test_case(0, "aPbc_0" => using assert_eq(Card::physical(0xa, 0xb, 0xc, Arrows(0))))]
+    #[test_case(1, "APBC_0" => using assert_eq(Card::physical(0xa, 0xb, 0xc, Arrows(0))))]
     // arrows
-    #[test_case(0, "0P00_1" => using assert_eq(Card::physical(0, 0, 0, 1)))]
-    #[test_case(0, "0P00_F" => using assert_eq(Card::physical(0, 0, 0, 0xf)))]
-    #[test_case(1, "0P00_f" => using assert_eq(Card::physical(0, 0, 0, 0xf)))]
-    #[test_case(0, "0P00_00" => using assert_eq(Card::physical(0, 0, 0, 0)))]
-    #[test_case(0, "0P00_0F" => using assert_eq(Card::physical(0, 0, 0, 0xf)))]
-    #[test_case(1, "0P00_0f" => using assert_eq(Card::physical(0, 0, 0, 0xf)))]
-    #[test_case(0, "0P00_f0" => using assert_eq(Card::physical(0, 0, 0, 0xf0)))]
-    #[test_case(1, "0P00_F0" => using assert_eq(Card::physical(0, 0, 0, 0xf0)))]
-    #[test_case(0, "0P00_fF" => using assert_eq(Card::physical(0, 0, 0, 0xff)))]
-    #[test_case(1, "0P00_ff" => using assert_eq(Card::physical(0, 0, 0, 0xff)))]
-    #[test_case(2, "0P00_FF" => using assert_eq(Card::physical(0, 0, 0, 0xff)))]
+    #[test_case(0, "0P00_1" => using assert_eq(Card::physical(0, 0, 0, Arrows(1))))]
+    #[test_case(0, "0P00_F" => using assert_eq(Card::physical(0, 0, 0, Arrows(0xf))))]
+    #[test_case(1, "0P00_f" => using assert_eq(Card::physical(0, 0, 0, Arrows(0xf))))]
+    #[test_case(0, "0P00_00" => using assert_eq(Card::physical(0, 0, 0, Arrows(0))))]
+    #[test_case(0, "0P00_0F" => using assert_eq(Card::physical(0, 0, 0, Arrows(0xf))))]
+    #[test_case(1, "0P00_0f" => using assert_eq(Card::physical(0, 0, 0, Arrows(0xf))))]
+    #[test_case(0, "0P00_f0" => using assert_eq(Card::physical(0, 0, 0, Arrows(0xf0))))]
+    #[test_case(1, "0P00_F0" => using assert_eq(Card::physical(0, 0, 0, Arrows(0xf0))))]
+    #[test_case(0, "0P00_fF" => using assert_eq(Card::physical(0, 0, 0, Arrows(0xff))))]
+    #[test_case(1, "0P00_ff" => using assert_eq(Card::physical(0, 0, 0, Arrows(0xff))))]
+    #[test_case(2, "0P00_FF" => using assert_eq(Card::physical(0, 0, 0, Arrows(0xff))))]
     fn card_(_: u8, i: &str) -> Card {
         super::card(i).unwrap().1
     }
 
-    const C0P00: Card = Card::physical(0, 0, 0, 0);
-    const C1X23: Card = Card::exploit(1, 2, 3, 0x45);
+    const C0P00: Card = Card::physical(0, 0, 0, Arrows(0));
+    const C1X23: Card = Card::exploit(1, 2, 3, Arrows(0x45));
 
-    #[test_case("(0P00_0 0P00_0 0P00_0 0P00_0 1X23_45)" => using assert_eq([C0P00,C0P00,C0P00,C0P00,C1X23]))]
-    #[test_case("(0P00_0 0P00_0 0P00_0 1X23_45 0P00_0)" => using assert_eq([C0P00,C0P00,C0P00,C1X23,C0P00]))]
-    #[test_case("(0P00_0 0P00_0 1X23_45 0P00_0 0P00_0)" => using assert_eq([C0P00,C0P00,C1X23,C0P00,C0P00]))]
-    #[test_case("(0P00_0 1X23_45 0P00_0 0P00_0 0P00_0)" => using assert_eq([C0P00,C1X23,C0P00,C0P00,C0P00]))]
-    #[test_case("(1X23_45 0P00_0 0P00_0 0P00_0 0P00_0)" => using assert_eq([C1X23,C0P00,C0P00,C0P00,C0P00]))]
+    #[test_case("(0P00_0 0P00_0 0P00_0 0P00_0 1X23_45)"
+        => using assert_eq([C0P00,C0P00,C0P00,C0P00,C1X23]))]
+    #[test_case("(0P00_0 0P00_0 0P00_0 1X23_45 0P00_0)"
+        => using assert_eq([C0P00,C0P00,C0P00,C1X23,C0P00]))]
+    #[test_case("(0P00_0 0P00_0 1X23_45 0P00_0 0P00_0)"
+        => using assert_eq([C0P00,C0P00,C1X23,C0P00,C0P00]))]
+    #[test_case("(0P00_0 1X23_45 0P00_0 0P00_0 0P00_0)"
+        => using assert_eq([C0P00,C1X23,C0P00,C0P00,C0P00]))]
+    #[test_case("(1X23_45 0P00_0 0P00_0 0P00_0 0P00_0)"
+        => using assert_eq([C1X23,C0P00,C0P00,C0P00,C0P00]))]
     #[test_case("(0P00_0 0P00_0 0P00_0 0P00_0)" => panics)]
     #[test_case("()" => panics)]
     #[test_case(" " => panics; "empty string")]
@@ -428,7 +433,11 @@ mod tests {
         super::hand(i).unwrap().1
     }
 
-    #[test_case("((0P00_0 0P00_0 0P00_0 0P00_0 1X23_45) (0P00_0 0P00_0 1X23_45 0P00_0 0P00_0) (1X23_45 0P00_0 0P00_0 0P00_0 0P00_0))" => using assert_eq([[C0P00,C0P00,C0P00,C0P00,C1X23], [C0P00,C0P00,C1X23,C0P00,C0P00], [C1X23,C0P00,C0P00,C0P00,C0P00]]))]
+    #[test_case(concat!("((0P00_0 0P00_0 0P00_0 0P00_0 1X23_45)",
+                        " (0P00_0 0P00_0 1X23_45 0P00_0 0P00_0)",
+                        " (1X23_45 0P00_0 0P00_0 0P00_0 0P00_0))")
+        => using assert_eq([[C0P00,C0P00,C0P00,C0P00,C1X23], [C0P00,C0P00,C1X23,C0P00,C0P00],
+                            [C1X23,C0P00,C0P00,C0P00,C0P00]]))]
     #[test_case("()" => panics)]
     #[test_case(" " => panics; "empty string")]
     fn hand_candidates(i: &str) -> HandCandidates {
@@ -466,9 +475,14 @@ mod tests {
     }
 
     const BLOCKED_CELLS: &str = "(2 3 F)";
-    const HAND_CANDIDATES: &str = "((0P00_0 0P00_0 0P00_0 0P00_0 0P00_0) (0P00_0 0P00_0 0P00_0 0P00_0 0P00_0) (0P00_0 0P00_0 0P00_0 0P00_0 0P00_0))";
+    const HAND_CANDIDATES: &str = concat!(
+        "((0P00_0 0P00_0 0P00_0 0P00_0 0P00_0)",
+        " (0P00_0 0P00_0 0P00_0 0P00_0 0P00_0)",
+        " (0P00_0 0P00_0 0P00_0 0P00_0 0P00_0))"
+    );
     #[test_case(
-        format!("(setup-ok (seed 7B) (battle-system dice 9) (blocked-cells {BLOCKED_CELLS}) (hand-candidates {HAND_CANDIDATES}))\n")
+        format!(concat!("(setup-ok (seed 7B) (battle-system dice 9) (blocked-cells {})",
+                                 " (hand-candidates {}))\n"), BLOCKED_CELLS, HAND_CANDIDATES)
         => SetupOk {
             seed: Some(123),
             battle_system: BattleSystem::Dice { sides: 9 },
@@ -481,7 +495,8 @@ mod tests {
         }
     )]
     #[test_case(
-        format!("(setup-ok (battle-system dice 9) (blocked-cells {BLOCKED_CELLS}) (hand-candidates {HAND_CANDIDATES}))\n")
+        format!("(setup-ok (battle-system dice 9) (blocked-cells {}) (hand-candidates {}))\n",
+                BLOCKED_CELLS, HAND_CANDIDATES)
         => SetupOk {
             seed: None,
             battle_system: BattleSystem::Dice { sides: 9 },
@@ -503,25 +518,29 @@ mod tests {
     }
 
     #[test_case("(place-card-ok)\n" => PlaceCardOk { events: vec![] })]
-    #[test_case("(place-card-ok (next-turn player1))\n" =>
-        PlaceCardOk { events: vec![NextTurn { to: Player::P1 }] })]
-    #[test_case("(place-card-ok (next-turn player2))\n" =>
-        PlaceCardOk { events: vec![NextTurn { to: Player::P2 }] })]
+    #[test_case("(place-card-ok (next-turn player1))\n"
+        => PlaceCardOk { events: vec![NextTurn { to: Player::P1 }] })]
+    #[test_case("(place-card-ok (next-turn player2))\n"
+        => PlaceCardOk { events: vec![NextTurn { to: Player::P2 }] })]
     #[test_case("(place-card-ok (flip 4))\n" => PlaceCardOk { events: vec![Flip { cell: 4 }] })]
-    #[test_case("(place-card-ok (flip 2) (flip A) (flip 7))\n" => PlaceCardOk { events: vec![
-        Flip { cell: 2 }, Flip { cell: 0xA }, Flip { cell: 7 }] })]
-    #[test_case("(place-card-ok (combo-flip A))\n" => PlaceCardOk { events: vec![ComboFlip { cell: 0xA }] })]
-    #[test_case("(place-card-ok (combo-flip 3) (combo-flip C))\n" => PlaceCardOk { events: vec![
-        ComboFlip { cell: 3 }, ComboFlip { cell: 0xC }] })]
-    #[test_case("(place-card-ok (battle (1 A D 2) (8 m 3 Cd) attacker))\n" =>
-        PlaceCardOk { events: vec![Battle {
+    #[test_case("(place-card-ok (flip 2) (flip A) (flip 7))\n"
+        => PlaceCardOk { events: vec![Flip { cell: 2 }, Flip { cell: 0xA }, Flip { cell: 7 }] })]
+    #[test_case("(place-card-ok (combo-flip A))\n"
+        => PlaceCardOk { events: vec![ComboFlip { cell: 0xA }] })]
+    #[test_case("(place-card-ok (combo-flip 3) (combo-flip C))\n"
+        => PlaceCardOk { events: vec![ComboFlip { cell: 3 }, ComboFlip { cell: 0xC }] })]
+    #[test_case("(place-card-ok (battle (1 A D 2) (8 m 3 Cd) attacker))\n"
+        => PlaceCardOk { events: vec![Battle {
             attacker: Battler { cell: 1, digit: Digit::Attack, value: 0xD, roll: 2 },
             defender: Battler { cell: 8, digit: Digit::MagicalDefense, value: 3, roll: 0xCD },
             winner: BattleWinner::Attacker,
         }] })]
-    #[test_case("(place-card-ok (game-over player1))\n" => PlaceCardOk { events: vec![GameOver { winner: Some(Player::P1) }] })]
-    #[test_case("(place-card-ok (game-over player2))\n" => PlaceCardOk { events: vec![GameOver { winner: Some(Player::P2) }] })]
-    #[test_case("(place-card-ok (game-over draw))\n" => PlaceCardOk { events: vec![GameOver { winner: None }] })]
+    #[test_case("(place-card-ok (game-over player1))\n"
+        => PlaceCardOk { events: vec![GameOver { winner: Some(Player::P1) }] })]
+    #[test_case("(place-card-ok (game-over player2))\n"
+        => PlaceCardOk { events: vec![GameOver { winner: Some(Player::P2) }] })]
+    #[test_case("(place-card-ok (game-over draw))\n"
+        => PlaceCardOk { events: vec![GameOver { winner: None }] })]
     fn place_card_ok(i: &str) -> Response {
         Response::deserialize(i).unwrap()
     }

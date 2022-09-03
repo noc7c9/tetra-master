@@ -21,7 +21,7 @@ macro_rules! test {
 
 #[allow(unused_macros)]
 #[macro_export]
-macro_rules! focustest {
+macro_rules! focus_test {
     ($harness:ident $name:literal; |_| $test:expr) => {
         test!(@$harness.test_focus; $name; |_| $test)
     };
@@ -32,7 +32,7 @@ macro_rules! focustest {
 
 #[allow(unused_macros)]
 #[macro_export]
-macro_rules! skiptest {
+macro_rules! skip_test {
     ($harness:ident $name:literal; |_| $test:expr) => {
         test!(@$harness.test_skip; $name; |_| $test)
     };
@@ -49,13 +49,13 @@ macro_rules! suite {
 
 #[allow(unused_macros)]
 #[macro_export]
-macro_rules! focussuite {
+macro_rules! focus_suite {
     ($harness:ident $name:literal) => { suite!(@$harness.suite_focus; $name) };
 }
 
 #[allow(unused_macros)]
 #[macro_export]
-macro_rules! skipsuite {
+macro_rules! skip_suite {
     ($harness:ident $name:literal) => { suite!(@$harness.suite_skip; $name) };
 }
 
@@ -423,9 +423,9 @@ mod tests {
         let mut h = Harness::new(vec![]);
 
         test!(h "a"; |m| m.push("a"));
-        skiptest!(h "b"; |m| m.push("b"));
+        skip_test!(h "b"; |m| m.push("b"));
         test!(h "c"; |m| m.push("c"));
-        skiptest!(h "d"; |m| m.push("d"));
+        skip_test!(h "d"; |m| m.push("d"));
 
         assert_eq!(h.run(), vec!["a", "c"]);
     }
@@ -435,7 +435,7 @@ mod tests {
         let mut h = Harness::new(vec![]);
 
         test!(h "a"; |m| m.push("a"));
-        focustest!(h "b"; |m| m.push("b"));
+        focus_test!(h "b"; |m| m.push("b"));
         test!(h "c"; |m| m.push("c"));
 
         assert_eq!(h.run(), vec!["b"]);
@@ -446,10 +446,10 @@ mod tests {
         let mut h = Harness::new(vec![]);
 
         test!(h "a"; |m| m.push("a"));
-        focustest!(h "b"; |m| m.push("b"));
+        focus_test!(h "b"; |m| m.push("b"));
         test!(h "c"; |m| m.push("c"));
         test!(h "d"; |m| m.push("d"));
-        focustest!(h "e"; |m| m.push("e"));
+        focus_test!(h "e"; |m| m.push("e"));
 
         assert_eq!(h.run(), vec!["b", "e"]);
     }
@@ -458,11 +458,11 @@ mod tests {
     fn focused_and_skipped_tests_at_root() {
         let mut h = Harness::new(vec![]);
 
-        skiptest!(h "a"; |m| m.push("a"));
-        focustest!(h "b"; |m| m.push("b"));
+        skip_test!(h "a"; |m| m.push("a"));
+        focus_test!(h "b"; |m| m.push("b"));
         test!(h "c"; |m| m.push("c"));
         test!(h "d"; |m| m.push("d"));
-        skiptest!(h "e"; |m| m.push("e"));
+        skip_test!(h "e"; |m| m.push("e"));
 
         assert_eq!(h.run(), vec!["b"]);
     }
@@ -494,9 +494,9 @@ mod tests {
         {
             let s = suite!(h "S");
             test!(s "S a"; |m| m.push("S a"));
-            skiptest!(s "S b"; |m| m.push("S b"));
+            skip_test!(s "S b"; |m| m.push("S b"));
             test!(s "S c"; |m| m.push("S c"));
-            skiptest!(s "S d"; |m| m.push("S d"));
+            skip_test!(s "S d"; |m| m.push("S d"));
         }
 
         test!(h "b"; |m| m.push("b"));
@@ -513,7 +513,7 @@ mod tests {
         {
             let s = suite!(h "S");
             test!(s "S a"; |m| m.push("S a"));
-            focustest!(s "S b"; |m| m.push("S b"));
+            focus_test!(s "S b"; |m| m.push("S b"));
             test!(s "S c"; |m| m.push("S c"));
         }
 
@@ -530,10 +530,10 @@ mod tests {
 
         {
             let s = suite!(h "S");
-            focustest!(s "S b"; |m| m.push("S b"));
+            focus_test!(s "S b"; |m| m.push("S b"));
             test!(s "S c"; |m| m.push("S c"));
             test!(s "S d"; |m| m.push("S d"));
-            focustest!(s "S e"; |m| m.push("S e"));
+            focus_test!(s "S e"; |m| m.push("S e"));
         }
 
         test!(h "b"; |m| m.push("b"));
@@ -549,11 +549,11 @@ mod tests {
 
         {
             let s = suite!(h "S");
-            skiptest!(s "S a"; |m| m.push("S a"));
-            focustest!(s "S b"; |m| m.push("S b"));
+            skip_test!(s "S a"; |m| m.push("S a"));
+            focus_test!(s "S b"; |m| m.push("S b"));
             test!(s "S c"; |m| m.push("S c"));
             test!(s "S d"; |m| m.push("S d"));
-            skiptest!(s "S e"; |m| m.push("S e"));
+            skip_test!(s "S e"; |m| m.push("S e"));
         }
 
         test!(h "b"; |m| m.push("b"));
@@ -565,21 +565,21 @@ mod tests {
     fn multiple_focused_tests_in_nested_suites() {
         let mut h = Harness::new(vec![]);
 
-        focustest!(h "a"; |m| m.push("a"));
+        focus_test!(h "a"; |m| m.push("a"));
 
         {
             let s = suite!(h "S");
             test!(s "S a"; |m| m.push("S a"));
-            focustest!(s "S b"; |m| m.push("S b"));
+            focus_test!(s "S b"; |m| m.push("S b"));
 
             {
                 let ss = suite!(s "SS");
-                focustest!(ss "SS a"; |m| m.push("SS a"));
+                focus_test!(ss "SS a"; |m| m.push("SS a"));
                 test!(ss "SS b"; |m| m.push("SS b"));
-                focustest!(ss "SS c"; |m| m.push("SS c"));
+                focus_test!(ss "SS c"; |m| m.push("SS c"));
             }
 
-            focustest!(s "S c"; |m| m.push("S c"));
+            focus_test!(s "S c"; |m| m.push("S c"));
         }
 
         assert_eq!(h.run(), vec!["a", "S b", "SS a", "SS c", "S c"]);
@@ -604,7 +604,7 @@ mod tests {
                         test!(ssss "SSSS a"; |m| m.push("SSSS a"));
                         {
                             let sssss = suite!(ssss "SSSSS");
-                            focustest!(sssss "SSSSS focused"; |m| m.push("SSSSS focused"));
+                            focus_test!(sssss "SSSSS focused"; |m| m.push("SSSSS focused"));
                         }
                         test!(ssss "SSSS b"; |m| m.push("SSSS b"));
                     }
@@ -626,7 +626,7 @@ mod tests {
         test!(h "a"; |m| m.push("a"));
 
         {
-            let s = skipsuite!(h "S");
+            let s = skip_suite!(h "S");
             test!(s "S a"; |m| m.push("S a"));
             test!(s "S b"; |m| m.push("S b"));
             test!(s "S c"; |m| m.push("S c"));
@@ -644,7 +644,7 @@ mod tests {
         test!(h "a"; |m| m.push("a"));
 
         {
-            let s = focussuite!(h "S");
+            let s = focus_suite!(h "S");
             test!(s "S a"; |m| m.push("S a"));
             test!(s "S b"; |m| m.push("S b"));
             test!(s "S c"; |m| m.push("S c"));
@@ -662,9 +662,9 @@ mod tests {
         test!(h "a"; |m| m.push("a"));
 
         {
-            let s = focussuite!(h "S");
+            let s = focus_suite!(h "S");
             test!(s "S a"; |m| m.push("S a"));
-            skiptest!(s "S b"; |m| m.push("S b"));
+            skip_test!(s "S b"; |m| m.push("S b"));
             test!(s "S c"; |m| m.push("S c"));
         }
 
@@ -680,9 +680,9 @@ mod tests {
         test!(h "a"; |m| m.push("a"));
 
         {
-            let s = skipsuite!(h "S");
+            let s = skip_suite!(h "S");
             test!(s "S a"; |m| m.push("S a"));
-            focustest!(s "S b"; |m| m.push("S b"));
+            focus_test!(s "S b"; |m| m.push("S b"));
             test!(s "S c"; |m| m.push("S c"));
         }
 
@@ -697,14 +697,14 @@ mod tests {
 
         test!(h "a"; |m| m.push("a"));
 
-        let s = skipsuite!(h "S");
+        let s = skip_suite!(h "S");
         test!(s "S a"; |m| m.push("S a"));
         {
             let ss = suite!(s "SS");
             test!(ss "SS a"; |m| m.push("SS a"));
             {
                 let sss = suite!(ss "SSS");
-                focustest!(sss "SSS b"; |m| m.push("SSS b"));
+                focus_test!(sss "SSS b"; |m| m.push("SSS b"));
             }
             test!(ss "SS b"; |m| m.push("SS b"));
         }
@@ -722,10 +722,10 @@ mod tests {
         test!(h "a"; |m| m.push("a"));
 
         {
-            let s = focussuite!(h "S");
+            let s = focus_suite!(h "S");
             test!(s "S a"; |m| m.push("S a"));
             {
-                let ss = skipsuite!(s "SS");
+                let ss = skip_suite!(s "SS");
                 test!(ss "SS a"; |m| m.push("SS a"));
                 test!(ss "SS b"; |m| m.push("SS b"));
                 test!(ss "SS c"; |m| m.push("SS c"));
@@ -745,10 +745,10 @@ mod tests {
         test!(h "a"; |m| m.push("a"));
 
         {
-            let s = skipsuite!(h "S");
+            let s = skip_suite!(h "S");
             test!(s "S a"; |m| m.push("S a"));
             {
-                let ss = focussuite!(s "SS");
+                let ss = focus_suite!(s "SS");
                 test!(ss "SS a"; |m| m.push("SS a"));
                 test!(ss "SS b"; |m| m.push("SS b"));
                 test!(ss "SS c"; |m| m.push("SS c"));
@@ -767,16 +767,16 @@ mod tests {
 
         test!(h "a"; |m| m.push("a"));
 
-        let s = skipsuite!(h "S");
+        let s = skip_suite!(h "S");
         test!(s "S a"; |m| m.push("S a"));
         {
             let ss = suite!(s "SS");
             test!(ss "SS a"; |m| m.push("SS a"));
             {
                 let sss = suite!(ss "SSS");
-                focustest!(sss "SSS b"; |m| m.push("SSS b"));
+                focus_test!(sss "SSS b"; |m| m.push("SSS b"));
                 {
-                    let ssss = focussuite!(sss "SSSS");
+                    let ssss = focus_suite!(sss "SSSS");
                     test!(ssss "SSSS a"; |m| m.push("SSSS a"));
                     test!(ssss "SSSS b"; |m| m.push("SSSS b"));
                     test!(ssss "SSSS c"; |m| m.push("SSSS c"));

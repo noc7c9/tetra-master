@@ -20,7 +20,7 @@ where
     Rx: BufRead,
     Tx: Write,
 {
-    pub(crate) fn new(receiver: Rx, transmitter: Tx) -> Self {
+    fn new(receiver: Rx, transmitter: Tx) -> Self {
         Self {
             receiver,
             transmitter,
@@ -29,14 +29,9 @@ where
         }
     }
 
-    pub(crate) fn send(&mut self, cmd: Command) -> anyhow::Result<Response> {
+    fn send(&mut self, cmd: Command) -> anyhow::Result<Response> {
         self.tx(cmd)?;
         self.rx()
-    }
-
-    #[allow(dead_code)]
-    pub(crate) fn toggle_logging(&mut self) {
-        self.logging = !self.logging;
     }
 
     fn tx(&mut self, cmd: Command) -> anyhow::Result<()> {
@@ -78,8 +73,9 @@ impl ImplementationDriver {
     }
 
     #[allow(dead_code)]
-    pub(crate) fn toggle_logging(&mut self) {
-        self.driver.toggle_logging()
+    pub(crate) fn log(mut self) -> Self {
+        self.driver.logging = true;
+        self
     }
 }
 

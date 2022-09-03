@@ -231,7 +231,7 @@ mod tests {
         Command::{self, *},
         Sexpr,
     };
-    use crate::{BattleSystem, Card, HandCandidates, Rng};
+    use crate::{Arrows, BattleSystem, Card, HandCandidates, Rng};
 
     fn assert_eq<T, U>(expected: T) -> impl Fn(U)
     where
@@ -241,13 +241,13 @@ mod tests {
         move |actual| pretty_assertions::assert_eq!(actual, expected)
     }
 
-    const C1P23_4: Card = Card::physical(1, 2, 3, 4);
-    const C5M67_8: Card = Card::magical(5, 6, 7, 8);
-    const C9XAB_C: Card = Card::exploit(9, 0xA, 0xB, 0xC);
-    const CDAEF_0: Card = Card::assault(0xD, 0xE, 0xF, 0);
-    const C0P00_0F: Card = Card::physical(0, 0, 0, 0xF);
-    const C0P00_A0: Card = Card::physical(0, 0, 0, 0xA0);
-    const C0P00_FA: Card = Card::physical(0, 0, 0, 0xFA);
+    const C1P23_4: Card = Card::physical(1, 2, 3, Arrows(4));
+    const C5M67_8: Card = Card::magical(5, 6, 7, Arrows(8));
+    const C9XAB_C: Card = Card::exploit(9, 0xA, 0xB, Arrows(0xC));
+    const CDAEF_0: Card = Card::assault(0xD, 0xE, 0xF, Arrows(0));
+    const C0P00_0F: Card = Card::physical(0, 0, 0, Arrows(0xF));
+    const C0P00_A0: Card = Card::physical(0, 0, 0, Arrows(0xA0));
+    const C0P00_FA: Card = Card::physical(0, 0, 0, Arrows(0xFA));
 
     #[test_case(C1P23_4 => using assert_eq("1P23_4"))]
     #[test_case(C5M67_8 => using assert_eq("5M67_8"))]
@@ -276,7 +276,9 @@ mod tests {
         [C1P23_4, C5M67_8, C9XAB_C, CDAEF_0, C5M67_8],
         [C5M67_8, C1P23_4, CDAEF_0, C5M67_8, C9XAB_C],
         [CDAEF_0, C5M67_8, C9XAB_C, C5M67_8, C1P23_4],
-    ] => using assert_eq("((1P23_4 5M67_8 9XAB_C DAEF_0 5M67_8) (5M67_8 1P23_4 DAEF_0 5M67_8 9XAB_C) (DAEF_0 5M67_8 9XAB_C 5M67_8 1P23_4))"))]
+    ] => using assert_eq(concat!("((1P23_4 5M67_8 9XAB_C DAEF_0 5M67_8)",
+                                 " (5M67_8 1P23_4 DAEF_0 5M67_8 9XAB_C)",
+                                 " (DAEF_0 5M67_8 9XAB_C 5M67_8 1P23_4))")))]
     fn write_hand_candidates(input: HandCandidates) -> String {
         let mut o = String::new();
         super::write_hand_candidates(&mut Sexpr::new(&mut o), &input).unwrap();
@@ -340,7 +342,10 @@ mod tests {
             [C5M67_8, C1P23_4, CDAEF_0, C5M67_8, C9XAB_C],
             [CDAEF_0, C5M67_8, C9XAB_C, C5M67_8, C1P23_4],
         ]),
-    } => using assert_eq("(setup (hand-candidates ((1P23_4 5M67_8 9XAB_C DAEF_0 5M67_8) (5M67_8 1P23_4 DAEF_0 5M67_8 9XAB_C) (DAEF_0 5M67_8 9XAB_C 5M67_8 1P23_4))))\n"))]
+    } => using assert_eq(concat!("(setup (hand-candidates",
+                                         " ((1P23_4 5M67_8 9XAB_C DAEF_0 5M67_8)",
+                                         " (5M67_8 1P23_4 DAEF_0 5M67_8 9XAB_C)",
+                                         " (DAEF_0 5M67_8 9XAB_C 5M67_8 1P23_4))))\n")))]
     #[test_case(Setup {
         rng: Some(Rng::Seeded{ seed: 123 }),
         battle_system: Some(BattleSystem::Dice { sides: 8 }),
@@ -350,7 +355,12 @@ mod tests {
             [C5M67_8, C1P23_4, CDAEF_0, C5M67_8, C9XAB_C],
             [CDAEF_0, C5M67_8, C9XAB_C, C5M67_8, C1P23_4],
         ]),
-    } => using assert_eq("(setup (rng seed 7B) (battle-system dice 8) (blocked-cells (2 8 A)) (hand-candidates ((1P23_4 5M67_8 9XAB_C DAEF_0 5M67_8) (5M67_8 1P23_4 DAEF_0 5M67_8 9XAB_C) (DAEF_0 5M67_8 9XAB_C 5M67_8 1P23_4))))\n"))]
+    } => using assert_eq(concat!("(setup (rng seed 7B) (battle-system dice 8)",
+                                       " (blocked-cells (2 8 A))",
+                                       " (hand-candidates ",
+                                          "((1P23_4 5M67_8 9XAB_C DAEF_0 5M67_8)",
+                                          " (5M67_8 1P23_4 DAEF_0 5M67_8 9XAB_C)",
+                                          " (DAEF_0 5M67_8 9XAB_C 5M67_8 1P23_4))))\n")))]
     fn setup(input: Command) -> String {
         let mut o = String::new();
         input.serialize(&mut o).unwrap();
@@ -366,8 +376,10 @@ mod tests {
         o
     }
 
-    #[test_case(PlaceCard { card: 0, cell: 0 } => using assert_eq("(place-card (card 0) (cell 0))\n"))]
-    #[test_case(PlaceCard { card: 3, cell: 0xA } => using assert_eq("(place-card (card 3) (cell A))\n"))]
+    #[test_case(PlaceCard { card: 0, cell: 0 }
+        => using assert_eq("(place-card (card 0) (cell 0))\n"))]
+    #[test_case(PlaceCard { card: 3, cell: 0xA }
+        => using assert_eq("(place-card (card 3) (cell A))\n"))]
     fn place_card(input: Command) -> String {
         let mut o = String::new();
         input.serialize(&mut o).unwrap();

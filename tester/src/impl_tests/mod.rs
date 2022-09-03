@@ -41,10 +41,10 @@ fn game_setup_tests(s: &mut Suite<Ctx>) {
     });
 
     test!(s "Setup with set hand candidates"; |ctx| {
-        const C1P23_4: Card = Card::physical(1, 2, 3, 4);
-        const C5M67_8: Card = Card::magical(5, 6, 7, 8);
-        const C9XAB_C: Card = Card::exploit(9, 0xA, 0xB, 0xC);
-        const CDAEF_0: Card = Card::assault(0xD, 0xE, 0xF, 0);
+        const C1P23_4: Card = Card::physical(1, 2, 3, Arrows(4));
+        const C5M67_8: Card = Card::magical(5, 6, 7, Arrows(8));
+        const C9XAB_C: Card = Card::exploit(9, 0xA, 0xB, Arrows(0xC));
+        const CDAEF_0: Card = Card::assault(0xD, 0xE, 0xF, Arrows(0));
         let expected = [
             [C5M67_8, CDAEF_0, C9XAB_C, C5M67_8, C1P23_4],
             [C1P23_4, C5M67_8, C9XAB_C, CDAEF_0, C5M67_8],
@@ -165,7 +165,7 @@ fn in_game_tests(s: &mut Suite<Ctx>) {
 
     test!(s "place card that flips one other card"; |ctx| {
         let mut driver = ctx.new_driver();
-        let attacker = Card::physical(0, 0, 0, (Arrows::UP | Arrows::RIGHT).0);
+        let attacker = Card::physical(0, 0, 0, Arrows::UP | Arrows::RIGHT);
         let hand_candidates = [
             [CARD, CARD, CARD, CARD, CARD],
             [CARD, attacker, CARD, CARD, CARD],
@@ -186,7 +186,7 @@ fn in_game_tests(s: &mut Suite<Ctx>) {
 
     test!(s "place card that flips multiple other cards"; |ctx| {
         let mut driver = ctx.new_driver();
-        let attacker = Card::physical(0, 0, 0, Arrows::ALL.0);
+        let attacker = Card::physical(0, 0, 0, Arrows::ALL);
         let hand_candidates = [
             [CARD, CARD, CARD, CARD, CARD],
             [CARD, CARD, CARD, CARD, attacker],
@@ -220,12 +220,15 @@ fn in_game_tests(s: &mut Suite<Ctx>) {
 
     test!(s "flips events should be ordered by increasing cell number"; |ctx| {
         let mut driver = ctx.new_driver();
-        let flipper = Card::physical(0, 0, 0, Arrows::ALL.0);
-        let hand_candidates = [
-            [CARD, CARD.arrows(Arrows::LEFT), CARD.arrows(Arrows::UP), CARD.arrows(Arrows::RIGHT), CARD.arrows(Arrows::RIGHT)],
-            [CARD, CARD, CARD, CARD, flipper],
-            [CARD, CARD, CARD, CARD, CARD],
-        ];
+        let flipper = Card::physical(0, 0, 0, Arrows::ALL);
+        let hand_candidates = {
+            let c = |arrows| CARD.arrows(arrows);
+            [
+                [CARD, c(Arrows::LEFT), c(Arrows::UP), c(Arrows::RIGHT), c(Arrows::RIGHT)],
+                [CARD, CARD, CARD, CARD, flipper],
+                [CARD, CARD, CARD, CARD, CARD],
+            ]
+        };
         driver.send(setup_default().hand_candidates(&hand_candidates))?;
         driver.send(Command::pick_hand(0))?;
         driver.send(Command::pick_hand(1))?;
@@ -263,8 +266,8 @@ fn in_game_tests(s: &mut Suite<Ctx>) {
 
     test!(s "place card that results in a battle, attacker wins"; |ctx| {
         let mut driver = ctx.new_driver();
-        let defender = Card::physical(0, 3, 7, Arrows::ALL.0);
-        let attacker = Card::exploit(0xC, 0, 0, Arrows::ALL.0);
+        let defender = Card::physical(0, 3, 7, Arrows::ALL);
+        let attacker = Card::exploit(0xC, 0, 0, Arrows::ALL);
         let hand_candidates = [
             [defender, CARD, CARD, CARD, CARD],
             [attacker, CARD, CARD, CARD, CARD],
@@ -298,8 +301,8 @@ fn in_game_tests(s: &mut Suite<Ctx>) {
 
     test!(s "place card that results in a battle, defender wins"; |ctx| {
         let mut driver = ctx.new_driver();
-        let defender = Card::physical(0, 3, 7, Arrows::ALL.0);
-        let attacker = Card::exploit(0xC, 0, 0, Arrows::ALL.0);
+        let defender = Card::physical(0, 3, 7, Arrows::ALL);
+        let attacker = Card::exploit(0xC, 0, 0, Arrows::ALL);
         let hand_candidates = [
             [defender, CARD, CARD, CARD, CARD],
             [attacker, CARD, CARD, CARD, CARD],
@@ -333,8 +336,8 @@ fn in_game_tests(s: &mut Suite<Ctx>) {
 
     test!(s "place card that results in a battle, draw"; |ctx| {
         let mut driver = ctx.new_driver();
-        let defender = Card::physical(0, 3, 7, Arrows::ALL.0);
-        let attacker = Card::exploit(0x3, 0, 0, Arrows::ALL.0);
+        let defender = Card::physical(0, 3, 7, Arrows::ALL);
+        let attacker = Card::exploit(0x3, 0, 0, Arrows::ALL);
         let hand_candidates = [
             [defender, CARD, CARD, CARD, CARD],
             [attacker, CARD, CARD, CARD, CARD],
@@ -368,8 +371,8 @@ fn in_game_tests(s: &mut Suite<Ctx>) {
 
     test!(s "flip other undefended cards after attacker wins battle"; |ctx| {
         let mut driver = ctx.new_driver();
-        let defender = Card::physical(0, 3, 7, Arrows::DOWN.0);
-        let attacker = Card::exploit(0xC, 0, 0, Arrows::ALL.0);
+        let defender = Card::physical(0, 3, 7, Arrows::DOWN);
+        let attacker = Card::exploit(0xC, 0, 0, Arrows::ALL);
         let hand_candidates = [
             [defender, CARD, CARD, CARD, CARD],
             [attacker, CARD, CARD, CARD, CARD],
@@ -419,8 +422,8 @@ fn in_game_tests(s: &mut Suite<Ctx>) {
 
     test!(s "don't flip other undefended cards after attacker loses battle"; |ctx| {
         let mut driver = ctx.new_driver();
-        let defender = Card::physical(0, 3, 7, Arrows::DOWN.0);
-        let attacker = Card::exploit(0xC, 0, 0, Arrows::ALL.0);
+        let defender = Card::physical(0, 3, 7, Arrows::DOWN);
+        let attacker = Card::exploit(0xC, 0, 0, Arrows::ALL);
         let hand_candidates = [
             [defender, CARD, CARD, CARD, CARD],
             [attacker, CARD, CARD, CARD, CARD],
@@ -466,8 +469,8 @@ fn in_game_tests(s: &mut Suite<Ctx>) {
 
     test!(s "place card that results in a combo"; |ctx| {
         let mut driver = ctx.new_driver();
-        let defender = Card::physical(0, 3, 7, Arrows::ALL.0);
-        let attacker = Card::exploit(0xC, 0, 0, Arrows::ALL.0);
+        let defender = Card::physical(0, 3, 7, Arrows::ALL);
+        let attacker = Card::exploit(0xC, 0, 0, Arrows::ALL);
         let hand_candidates = [
             [defender, CARD, CARD, CARD, CARD],
             [attacker, CARD, CARD, CARD, CARD],
@@ -504,9 +507,9 @@ fn in_game_tests(s: &mut Suite<Ctx>) {
 
     test!(s "place card that results in a choice"; |ctx| {
         let mut driver = ctx.new_driver();
-        let defender1 = Card::physical(0, 3, 7, Arrows::ALL.0);
-        let defender2 = Card::physical(0, 9, 4, Arrows::ALL.0);
-        let attacker = Card::exploit(0xC, 0, 0, Arrows::ALL.0);
+        let defender1 = Card::physical(0, 3, 7, Arrows::ALL);
+        let defender2 = Card::physical(0, 9, 4, Arrows::ALL);
+        let attacker = Card::exploit(0xC, 0, 0, Arrows::ALL);
         let hand_candidates = [
             [defender1, defender2, CARD, CARD, CARD],
             [attacker, CARD, CARD, CARD, CARD],
@@ -555,9 +558,9 @@ fn in_game_tests(s: &mut Suite<Ctx>) {
 
     test!(s "error if battle choice isn't valid"; |ctx| {
         let mut driver = ctx.new_driver();
-        let defender1 = Card::physical(0, 0, 0, Arrows::DOWN.0);
-        let defender2 = Card::physical(0, 0, 0, Arrows::UP.0);
-        let attacker = Card::physical(0, 0, 0, (Arrows::UP | Arrows::DOWN).0);
+        let defender1 = Card::physical(0, 0, 0, Arrows::DOWN);
+        let defender2 = Card::physical(0, 0, 0, Arrows::UP);
+        let attacker = Card::physical(0, 0, 0, Arrows::UP | Arrows::DOWN);
         let hand_candidates = [
             [defender1, defender2, CARD, CARD, CARD],
             [attacker, CARD, CARD, CARD, CARD],
@@ -577,13 +580,14 @@ fn in_game_tests(s: &mut Suite<Ctx>) {
         assert_eq!(error, ErrorResponse::InvalidBattlePick { cell: 0xC });
     });
 
-    skiptest!(s "continue offering choices when multiple battles are still available"; |ctx| {
+    /*
+    skip_test!(s "continue offering choices when multiple battles are still available"; |ctx| {
         let mut driver = ctx.new_driver();
-        let defender0 = Card::physical(0, 2, 0, Arrows::DOWN.0);
-        let defender1 = Card::physical(0, 4, 0, Arrows::LEFT.0);
-        let defender2 = Card::physical(0, 6, 0, Arrows::UP.0);
-        let defender3 = Card::physical(0, 8, 0, Arrows::UP_LEFT.0);
-        let attacker = Card::exploit(1, 0, 0, Arrows::ALL.0);
+        let defender0 = Card::physical(0, 2, 0, Arrows::DOWN);
+        let defender1 = Card::physical(0, 4, 0, Arrows::LEFT);
+        let defender2 = Card::physical(0, 6, 0, Arrows::UP);
+        let defender3 = Card::physical(0, 8, 0, Arrows::UP_LEFT);
+        let attacker = Card::exploit(1, 0, 0, Arrows::ALL);
         let hand_candidates = [
             [defender0, defender1, defender2, defender3, CARD],
             [attacker, CARD, CARD, CARD, CARD],
@@ -651,13 +655,13 @@ fn in_game_tests(s: &mut Suite<Ctx>) {
         ]);
     });
 
-    skiptest!(s "don't continue offering choices if attacker loses"; |ctx| {
+    skip_test!(s "don't continue offering choices if attacker loses"; |ctx| {
         let mut driver = ctx.new_driver();
-        let defender0 = Card::physical(0, 2, 0, Arrows::DOWN.0);
-        let defender1 = Card::physical(0, 4, 0, Arrows::LEFT.0);
-        let defender2 = Card::physical(0, 6, 0, Arrows::UP.0);
-        let defender3 = Card::physical(0, 8, 0, Arrows::UP_LEFT.0);
-        let attacker = Card::exploit(1, 0, 0, Arrows::ALL.0);
+        let defender0 = Card::physical(0, 2, 0, Arrows::DOWN);
+        let defender1 = Card::physical(0, 4, 0, Arrows::LEFT);
+        let defender2 = Card::physical(0, 6, 0, Arrows::UP);
+        let defender3 = Card::physical(0, 8, 0, Arrows::UP_LEFT);
+        let attacker = Card::exploit(1, 0, 0, Arrows::ALL);
         let hand_candidates = [
             [defender0, defender1, defender2, defender3, CARD],
             [attacker, CARD, CARD, CARD, CARD],
@@ -695,6 +699,7 @@ fn in_game_tests(s: &mut Suite<Ctx>) {
         //     Event::flip(4),
         // ]);
     });
+    */
 
     test!(s "place card that ends the game in a draw"; |ctx| {
         let mut driver = ctx.new_driver();
@@ -723,7 +728,7 @@ fn in_game_tests(s: &mut Suite<Ctx>) {
 
     test!(s "place card that ends the game in player 1 drawing"; |ctx| {
         let mut driver = ctx.new_driver();
-        let attacker = Card::physical(0, 0, 0, Arrows::ALL.0);
+        let attacker = Card::physical(0, 0, 0, Arrows::ALL);
         let hand_candidates = [
             [CARD, CARD, CARD, CARD, attacker],
             [CARD, CARD, CARD, CARD, CARD],
@@ -754,7 +759,7 @@ fn in_game_tests(s: &mut Suite<Ctx>) {
 
     test!(s "place card that ends the game in player 2 drawing"; |ctx| {
         let mut driver = ctx.new_driver();
-        let attacker = Card::physical(0, 0, 0, Arrows::ALL.0);
+        let attacker = Card::physical(0, 0, 0, Arrows::ALL);
         let hand_candidates = [
             [CARD, CARD, CARD, CARD, CARD],
             [CARD, CARD, CARD, attacker, CARD],
@@ -785,9 +790,9 @@ fn in_game_tests(s: &mut Suite<Ctx>) {
 
     test!(s "handle game over when attacker loses battle after a choice"; |ctx| {
         let mut driver = ctx.new_driver();
-        let defender0 = Card::physical(0, 0, 0, Arrows::DOWN.0);
-        let defender1 = Card::physical(0, 0, 0, Arrows::UP.0);
-        let attacker = Card::physical(0, 0, 0, (Arrows::UP | Arrows::DOWN).0);
+        let defender0 = Card::physical(0, 0, 0, Arrows::DOWN);
+        let defender1 = Card::physical(0, 0, 0, Arrows::UP);
+        let attacker = Card::physical(0, 0, 0, Arrows::UP | Arrows::DOWN);
         let hand_candidates = [
             [defender0, defender1, CARD, CARD, CARD],
             [CARD, CARD, CARD, CARD, attacker],
@@ -827,8 +832,8 @@ fn in_game_tests(s: &mut Suite<Ctx>) {
 
     test!(s "combo flip cards that are pointed to by the defender if they lose"; |ctx| {
         let mut driver = ctx.new_driver();
-        let defender = Card::physical(0, 0, 0, Arrows::ALL.0);
-        let attacker = Card::physical(0, 0, 0, Arrows::ALL.0);
+        let defender = Card::physical(0, 0, 0, Arrows::ALL);
+        let attacker = Card::physical(0, 0, 0, Arrows::ALL);
         let hand_candidates = [
             [CARD, CARD, CARD, defender, CARD],
             [CARD, CARD, CARD, attacker, CARD],
@@ -867,8 +872,8 @@ fn in_game_tests(s: &mut Suite<Ctx>) {
 
     test!(s "combo flip cards that are pointed to by the attacker if they lose"; |ctx| {
         let mut driver = ctx.new_driver();
-        let defender = Card::physical(0, 0, 0, Arrows::UP.0);
-        let attacker = Card::physical(0, 0, 0, Arrows::ALL.0);
+        let defender = Card::physical(0, 0, 0, Arrows::UP);
+        let attacker = Card::physical(0, 0, 0, Arrows::ALL);
         let hand_candidates = [
             [CARD, CARD, CARD, defender, CARD],
             [CARD, CARD, CARD, attacker, CARD],

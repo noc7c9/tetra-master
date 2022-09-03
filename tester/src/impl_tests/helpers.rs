@@ -5,7 +5,7 @@ use crate::{
     Arrows, BattleSystem, Card, HandCandidate, HandCandidates, Player, Rng, Seed,
 };
 
-pub(super) const CARD: Card = Card::physical(0, 0, 0, 0);
+pub(super) const CARD: Card = Card::physical(0, 0, 0, Arrows(0));
 pub(super) const HAND_CANDIDATES: HandCandidates = {
     const HAND: HandCandidate = [CARD, CARD, CARD, CARD, CARD];
     [HAND, HAND, HAND]
