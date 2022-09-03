@@ -207,9 +207,9 @@ pub(crate) fn run() -> std::result::Result<(), Box<dyn std::error::Error>> {
                 if let Err(err) = logic::game_next(&mut state, &mut log, input) {
                     write::error(&mut buf, err.into())?;
                 } else if let GameStatus::WaitingBattle { choices, .. } = &state.status {
-                    write::place_card_pick_battle(&mut buf, choices)?;
+                    write::place_card_ok(&mut buf, log.new_entries(), &state.status, choices)?;
                 } else {
-                    write::place_card_ok(&mut buf, log.new_entries(), &state.status)?;
+                    write::place_card_ok(&mut buf, log.new_entries(), &state.status, &[])?;
                 }
 
                 out.write_all(buf.as_bytes())?;
@@ -434,8 +434,13 @@ mod write {
         Ok(())
     }
 
-    pub(super) fn place_card_ok(o: &mut String, entries: &[Entry], status: &GameStatus) -> Result {
-        write!(o, "(place-card-ok")?;
+    pub(super) fn place_card_ok(
+        o: &mut String,
+        entries: &[Entry],
+        status: &GameStatus,
+        pick_battle: &[(usize, Card)],
+    ) -> Result {
+        write!(o, "(place-card-ok (events")?;
 
         for entry in entries {
             match entry {
@@ -480,20 +485,21 @@ mod write {
             write!(o, ")")?;
         }
 
-        writeln!(o, ")")?;
-        Ok(())
-    }
+        write!(o, ")")?;
 
-    pub(super) fn place_card_pick_battle(o: &mut String, choices: &[(usize, Card)]) -> Result {
-        write!(o, "(place-card-pick-battle (choices (")?;
-        let mut choices = choices.iter();
-        if let Some((choice, _)) = choices.next() {
-            write!(o, "{choice:X}")?;
-            for (choice, _) in choices {
-                write!(o, " {choice:X}")?;
+        if !pick_battle.is_empty() {
+            write!(o, " (pick-battle (")?;
+            let mut pick_battle = pick_battle.iter();
+            if let Some((cell, _)) = pick_battle.next() {
+                write!(o, "{cell:X}")?;
+                for (cell, _) in pick_battle {
+                    write!(o, " {cell:X}")?;
+                }
             }
+            write!(o, "))")?;
         }
-        writeln!(o, ")))")?;
+
+        writeln!(o, ")")?;
         Ok(())
     }
 

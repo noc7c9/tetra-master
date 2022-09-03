@@ -145,19 +145,15 @@ impl Response {
     //     }
     // }
 
-    pub(super) fn place_card_ok(self) -> Vec<Event> {
-        if let Response::PlaceCardOk { events } = self {
-            events
+    pub(super) fn place_card_ok(self) -> (Vec<u8>, Vec<Event>) {
+        if let Response::PlaceCardOk {
+            pick_battle,
+            events,
+        } = self
+        {
+            (pick_battle, events)
         } else {
             panic!("Expected Response::PlaceCardOk, found {self:?}")
-        }
-    }
-
-    pub(super) fn place_card_pick_battle(self) -> Vec<u8> {
-        if let Response::PlaceCardPickBattle { choices } = self {
-            choices
-        } else {
-            panic!("Expected Response::PlaceCardPickBattle, found {self:?}")
         }
     }
 }

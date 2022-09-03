@@ -121,7 +121,7 @@ fn in_game_tests(s: &mut Suite<Ctx>) {
         driver.send(Command::pick_hand(0))?;
         driver.send(Command::pick_hand(1))?;
 
-        let events = driver.send(Command::place_card(1, 5))?.place_card_ok();
+        let (_, events) = driver.send(Command::place_card(1, 5))?.place_card_ok();
 
         assert_eq!(events, vec![Event::turn_p2()]);
     });
@@ -179,7 +179,7 @@ fn in_game_tests(s: &mut Suite<Ctx>) {
         driver.send(Command::place_card(0, 5))?; // shouldn't flip, belongs to p2
         driver.send(Command::place_card(1, 8))?; // shouldn't flip, not pointed to
 
-        let events = driver.send(Command::place_card(1, 4))?.place_card_ok();
+        let (_, events) = driver.send(Command::place_card(1, 4))?.place_card_ok();
 
         assert_eq!(events, vec![Event::flip(0), Event::turn_p1()]);
     });
@@ -204,7 +204,7 @@ fn in_game_tests(s: &mut Suite<Ctx>) {
         driver.send(Command::place_card(2, 8))?; // att
         driver.send(Command::place_card(3, 0))?;
 
-        let events = driver.send(Command::place_card(4, 5))?.place_card_ok();
+        let (_, events) = driver.send(Command::place_card(4, 5))?.place_card_ok();
 
         assert_eq!(
             events,
@@ -246,7 +246,7 @@ fn in_game_tests(s: &mut Suite<Ctx>) {
         // all cards on board now belong to P1
 
         // flip 8 surrounding cards
-        let events = driver.send(Command::place_card(4, 6))?.place_card_ok();
+        let (_, events) = driver.send(Command::place_card(4, 6))?.place_card_ok();
 
         assert_eq!(
             events,
@@ -283,7 +283,7 @@ fn in_game_tests(s: &mut Suite<Ctx>) {
 
         driver.send(Command::place_card(0, 0))?;
 
-        let events = driver.send(Command::place_card(0, 1))?.place_card_ok();
+        let (_, events) = driver.send(Command::place_card(0, 1))?.place_card_ok();
 
         assert_eq!(
             events,
@@ -318,7 +318,7 @@ fn in_game_tests(s: &mut Suite<Ctx>) {
 
         driver.send(Command::place_card(0, 0))?;
 
-        let events = driver.send(Command::place_card(0, 1))?.place_card_ok();
+        let (_, events) = driver.send(Command::place_card(0, 1))?.place_card_ok();
 
         assert_eq!(
             events,
@@ -353,7 +353,7 @@ fn in_game_tests(s: &mut Suite<Ctx>) {
 
         driver.send(Command::place_card(0, 0))?;
 
-        let events = driver.send(Command::place_card(0, 1))?.place_card_ok();
+        let (_, events) = driver.send(Command::place_card(0, 1))?.place_card_ok();
 
         assert_eq!(
             events,
@@ -400,7 +400,7 @@ fn in_game_tests(s: &mut Suite<Ctx>) {
 
         driver.send(Command::place_card(4, 8))?;
 
-        let events = driver.send(Command::place_card(0, 4))?.place_card_ok();
+        let (_, events) = driver.send(Command::place_card(0, 4))?.place_card_ok();
 
         assert_eq!(
             events,
@@ -451,7 +451,7 @@ fn in_game_tests(s: &mut Suite<Ctx>) {
 
         driver.send(Command::place_card(4, 8))?;
 
-        let events = driver.send(Command::place_card(0, 4))?.place_card_ok();
+        let (_, events) = driver.send(Command::place_card(0, 4))?.place_card_ok();
 
         assert_eq!(
             events,
@@ -488,7 +488,7 @@ fn in_game_tests(s: &mut Suite<Ctx>) {
         driver.send(Command::PlaceCard { card: 1, cell: 0xF })?; // out of the way
         driver.send(Command::place_card(1, 0))?; // will be combo'd
 
-        let events = driver.send(Command::place_card(0, 9))?.place_card_ok();
+        let (_, events) = driver.send(Command::place_card(0, 9))?.place_card_ok();
 
         assert_eq!(
             events,
@@ -527,13 +527,11 @@ fn in_game_tests(s: &mut Suite<Ctx>) {
         driver.send(Command::PlaceCard { card: 1, cell: 0xF })?; // out of the way
         driver.send(Command::place_card(1, 8))?; // defender 2
 
-        let choices = driver
-            .send(Command::place_card(0, 4))?
-            .place_card_pick_battle();
+        let (choices, _) = driver.send(Command::place_card(0, 4))?.place_card_ok();
 
         assert_eq!(choices, vec![0, 8]);
 
-        let events = driver.send(Command::pick_battle(8))?.place_card_ok();
+        let (_, events) = driver.send(Command::pick_battle(8))?.place_card_ok();
 
         assert_eq!(
             events,
@@ -580,14 +578,13 @@ fn in_game_tests(s: &mut Suite<Ctx>) {
         assert_eq!(error, ErrorResponse::InvalidBattlePick { cell: 0xC });
     });
 
-    /*
-    skip_test!(s "continue offering choices when multiple battles are still available"; |ctx| {
+    test!(s "continue offering choices when multiple battles are still available"; |ctx| {
         let mut driver = ctx.new_driver();
         let defender0 = Card::physical(0, 2, 0, Arrows::DOWN);
         let defender1 = Card::physical(0, 4, 0, Arrows::LEFT);
         let defender2 = Card::physical(0, 6, 0, Arrows::UP);
         let defender3 = Card::physical(0, 8, 0, Arrows::UP_LEFT);
-        let attacker = Card::exploit(1, 0, 0, Arrows::ALL);
+        let attacker = Card::physical(1, 0, 0, Arrows::ALL);
         let hand_candidates = [
             [defender0, defender1, defender2, defender3, CARD],
             [attacker, CARD, CARD, CARD, CARD],
@@ -609,69 +606,64 @@ fn in_game_tests(s: &mut Suite<Ctx>) {
         driver.send(Command::place_card(3, 0xB))?; // out of the way
         driver.send(Command::place_card(3, 9))?; // defender 2
 
-        let choices = driver.send(Command::place_card(0, 4))?.place_card_pick_battle();
-        let events = todo!();
+        let (choices, events) = driver.send(Command::place_card(0, 4))?.place_card_ok();
         assert_eq!(choices, vec![0, 5, 8, 9]);
-        // assert_eq!(events, vec![]);
+        assert_eq!(events, vec![]);
 
-        let choices = driver.send(Command::pick_battle(5))?.place_card_pick_battle();
-        let events = todo!();
+        let (choices, events) = driver.send(Command::pick_battle(5))?.place_card_ok();
         assert_eq!(choices, vec![0, 8, 9]);
-        // assert_eq!(events, vec![
-        //     Event::battle(
-        //         Battler::new(4, Digit::Attack, 1, 0xC6),
-        //         Battler::new(5, Digit::PhysicalDefense, 4, 0),
-        //         BattleWinner::Attacker,
-        //     ),
-        //     Event::flip(5),
-        // ]);
-
-        let choices = driver.send(Command::pick_battle(8))?.place_card_pick_battle();
-        let events = todo!();
-        assert_eq!(choices, vec![0, 9]);
-        // assert_eq!(events, vec![
-        //     Event::battle(
-        //         Battler::new(4, Digit::Attack, 1, 0xC6),
-        //         Battler::new(8, Digit::PhysicalDefense, 6, 0),
-        //         BattleWinner::Attacker,
-        //     ),
-        //     Event::flip(8),
-        // ]);
-
-        let events = driver.send(Command::pick_battle(0))?.place_card_ok();
         assert_eq!(events, vec![
             Event::battle(
-                Battler::new(4, Digit::Attack, 1, 0xC6),
+                Battler::new(4, Digit::Attack, 1, 22),
+                Battler::new(5, Digit::PhysicalDefense, 4, 0),
+                BattleWinner::Attacker,
+            ),
+            Event::flip(5),
+        ]);
+
+        let (choices, events) = driver.send(Command::pick_battle(8))?.place_card_ok();
+        assert_eq!(choices, vec![0, 9]);
+        assert_eq!(events, vec![
+            Event::battle(
+                Battler::new(4, Digit::Attack, 1, 22),
+                Battler::new(8, Digit::PhysicalDefense, 6, 0),
+                BattleWinner::Attacker,
+            ),
+            Event::flip(8),
+        ]);
+
+        let (choices, events) = driver.send(Command::pick_battle(0))?.place_card_ok();
+        assert_eq!(choices, vec![]);
+        assert_eq!(events, vec![
+            Event::battle(
+                Battler::new(4, Digit::Attack, 1, 22),
                 Battler::new(0, Digit::PhysicalDefense, 2, 0),
                 BattleWinner::Attacker,
             ),
             Event::flip(0),
             Event::battle(
-                Battler::new(4, Digit::Attack, 1, 0xC6),
+                Battler::new(4, Digit::Attack, 1, 22),
                 Battler::new(9, Digit::PhysicalDefense, 8, 0),
                 BattleWinner::Attacker,
             ),
             Event::flip(9),
+            Event::turn_p1(),
         ]);
     });
 
-    skip_test!(s "don't continue offering choices if attacker loses"; |ctx| {
+    test!(s "don't continue offering choices if attacker loses"; |ctx| {
         let mut driver = ctx.new_driver();
         let defender0 = Card::physical(0, 2, 0, Arrows::DOWN);
         let defender1 = Card::physical(0, 4, 0, Arrows::LEFT);
         let defender2 = Card::physical(0, 6, 0, Arrows::UP);
         let defender3 = Card::physical(0, 8, 0, Arrows::UP_LEFT);
-        let attacker = Card::exploit(1, 0, 0, Arrows::ALL);
+        let attacker = Card::physical(1, 0, 0, Arrows::ALL);
         let hand_candidates = [
             [defender0, defender1, defender2, defender3, CARD],
             [attacker, CARD, CARD, CARD, CARD],
             [CARD, CARD, CARD, CARD, CARD],
         ];
-        driver.send(
-            setup_default()
-                .rolls(&[255, 0, 255, 0, 255, 0, 255, 0])
-                .hand_candidates(&hand_candidates),
-        )?;
+        driver.send(setup_default().rolls(&[0, 255]).hand_candidates(&hand_candidates))?;
         driver.send(Command::pick_hand(0))?;
         driver.send(Command::pick_hand(1))?;
 
@@ -683,23 +675,22 @@ fn in_game_tests(s: &mut Suite<Ctx>) {
         driver.send(Command::place_card(3, 0xB))?; // out of the way
         driver.send(Command::place_card(3, 9))?; // defender 2
 
-        let choices = driver.send(Command::place_card(0, 4))?.place_card_pick_battle();
-        let events = todo!();
+        let (choices, events) = driver.send(Command::place_card(0, 4))?.place_card_ok();
         assert_eq!(choices, vec![0, 5, 8, 9]);
-        // assert_eq!(events, vec![]);
+        assert_eq!(events, vec![]);
 
-        let events = driver.send(Command::pick_battle(5))?.place_card_ok();
-        assert_eq!(choices, vec![0, 8, 9]);
-        // assert_eq!(events, vec![
-        //     Event::battle(
-        //         Battler::new(4, Digit::Attack, 1, 0xC6),
-        //         Battler::new(5, Digit::PhysicalDefense, 4, 0),
-        //         BattleWinner::Defender,
-        //     ),
-        //     Event::flip(4),
-        // ]);
+        let (choices, events) = driver.send(Command::pick_battle(5))?.place_card_ok();
+        assert_eq!(choices, vec![]);
+        assert_eq!(events, vec![
+            Event::battle(
+                Battler::new(4, Digit::Attack, 1, 0),
+                Battler::new(5, Digit::PhysicalDefense, 4, 0x46),
+                BattleWinner::Defender,
+            ),
+            Event::flip(4),
+            Event::turn_p1(),
+        ]);
     });
-    */
 
     test!(s "place card that ends the game in a draw"; |ctx| {
         let mut driver = ctx.new_driver();
@@ -721,7 +712,7 @@ fn in_game_tests(s: &mut Suite<Ctx>) {
 
         driver.send(Command::place_card(4, 8))?;
 
-        let events = driver.send(Command::place_card(4, 9))?.place_card_ok();
+        let (_, events) = driver.send(Command::place_card(4, 9))?.place_card_ok();
 
         assert_eq!(events, vec![Event::GameOver { winner: None }]);
     });
@@ -752,7 +743,7 @@ fn in_game_tests(s: &mut Suite<Ctx>) {
 
         driver.send(Command::place_card(4, 8))?;
 
-        let events = driver.send(Command::place_card(4, 9))?.place_card_ok();
+        let (_, events) = driver.send(Command::place_card(4, 9))?.place_card_ok();
 
         assert_eq!(events, vec![Event::game_over(Some(Player::P1))]);
     });
@@ -783,7 +774,7 @@ fn in_game_tests(s: &mut Suite<Ctx>) {
 
         driver.send(Command::place_card(4, 8))?;
 
-        let events = driver.send(Command::place_card(4, 9))?.place_card_ok();
+        let (_, events) = driver.send(Command::place_card(4, 9))?.place_card_ok();
 
         assert_eq!(events, vec![Event::game_over(Some(Player::P2))]);
     });
@@ -817,7 +808,7 @@ fn in_game_tests(s: &mut Suite<Ctx>) {
         driver.send(Command::place_card(4, 0xA))?;
 
         driver.send(Command::place_card(4, 4))?;
-        let events = driver.send(Command::pick_battle(0))?.place_card_ok();
+        let (_, events) = driver.send(Command::pick_battle(0))?.place_card_ok();
 
         assert_eq!(events, vec![
             Event::battle(
@@ -854,7 +845,7 @@ fn in_game_tests(s: &mut Suite<Ctx>) {
 
         driver.send(Command::place_card(3, 5))?; // defender
 
-        let events = driver.send(Command::place_card(3, 9))?.place_card_ok();
+        let (_, events) = driver.send(Command::place_card(3, 9))?.place_card_ok();
 
         assert_eq!(events, vec![
             Event::battle(
@@ -894,7 +885,7 @@ fn in_game_tests(s: &mut Suite<Ctx>) {
 
         driver.send(Command::place_card(3, 9))?; // defender
 
-        let events = driver.send(Command::place_card(3, 5))?.place_card_ok();
+        let (_, events) = driver.send(Command::place_card(3, 5))?.place_card_ok();
 
         assert_eq!(events, vec![
             Event::battle(
@@ -931,7 +922,7 @@ fn in_game_tests(s: &mut Suite<Ctx>) {
         driver.send(Command::place_card(3, 7))?;
 
         driver.send(Command::place_card(4, 8))?;
-        let events = driver.send(Command::place_card(4, 9))?.place_card_ok();
+        let (_, events) = driver.send(Command::place_card(4, 9))?.place_card_ok();
 
         assert_eq!(events, vec![
             Event::game_over(Some(Player::P1)),
@@ -959,7 +950,7 @@ fn in_game_tests(s: &mut Suite<Ctx>) {
         driver.send(Command::place_card(3, 7))?;
 
         driver.send(Command::place_card(4, 8))?;
-        let events = driver.send(Command::place_card(4, 9))?.place_card_ok();
+        let (_, events) = driver.send(Command::place_card(4, 9))?.place_card_ok();
 
         assert_eq!(events, vec![
             Event::game_over(Some(Player::P2)),
@@ -987,7 +978,7 @@ fn in_game_tests(s: &mut Suite<Ctx>) {
         driver.send(Command::place_card(3, 7))?;
 
         driver.send(Command::place_card(4, 8))?;
-        let events = driver.send(Command::place_card(4, 9))?.place_card_ok();
+        let (_, events) = driver.send(Command::place_card(4, 9))?.place_card_ok();
 
         assert_eq!(events, vec![
             Event::game_over(None),
@@ -1010,7 +1001,7 @@ fn in_game_tests(s: &mut Suite<Ctx>) {
 
         // placed card points to both other cards, attacker wins,
         // flips card on 0 and card on 4 get's combo flipped
-        let events = driver.send(Command::place_card(1, 5))?.place_card_ok();
+        let (_, events) = driver.send(Command::place_card(1, 5))?.place_card_ok();
 
         assert_eq!(events, vec![
             Event::battle(
