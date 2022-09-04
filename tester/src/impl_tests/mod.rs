@@ -183,7 +183,7 @@ fn in_game_tests(s: &mut Suite<Ctx>) {
         driver.send(Command::pick_hand(0))?.pick_hand_ok();
         driver.send(Command::pick_hand(1))?.pick_hand_ok();
 
-        driver.send(Command::place_card(0, 0))?.place_card_ok(); // should flip, is pointed to and belongs to p1
+        driver.send(Command::place_card(0, 0))?.place_card_ok(); // should flip
         driver.send(Command::place_card(0, 5))?.place_card_ok(); // shouldn't flip, belongs to p2
         driver.send(Command::place_card(1, 8))?.place_card_ok(); // shouldn't flip, not pointed to
 
