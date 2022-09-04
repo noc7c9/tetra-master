@@ -186,6 +186,19 @@ impl Event {
     pub(super) fn game_over(winner: Option<Player>) -> Self {
         Event::GameOver { winner }
     }
+
+    pub(super) fn as_battle(&self) -> (Battler, Battler, BattleWinner) {
+        if let Event::Battle {
+            attacker,
+            defender,
+            winner,
+        } = *self
+        {
+            (attacker, defender, winner)
+        } else {
+            panic!("Expected Event::Battle, found {self:?}")
+        }
+    }
 }
 
 impl Battler {

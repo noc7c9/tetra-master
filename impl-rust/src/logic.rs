@@ -475,6 +475,3 @@ fn get_possible_neighbours(cell: usize) -> &'static [(usize, Arrows)] {
         _ => unreachable!(),
     }
 }
-
-#[cfg(test)]
-mod tests;

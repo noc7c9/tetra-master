@@ -57,12 +57,6 @@ enum CardType {
 struct Arrows(u8);
 
 impl Arrows {
-    #[cfg(test)]
-    const NONE: Arrows = Arrows(0b0000_0000);
-
-    #[cfg(test)]
-    const ALL: Arrows = Arrows(0b1111_1111);
-
     // clockwise from the top
     const UP: Arrows = Arrows(0b1000_0000);
     const UP_RIGHT: Arrows = Arrows(0b0100_0000);

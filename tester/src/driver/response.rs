@@ -36,7 +36,7 @@ pub(crate) enum ErrorResponse {
     InvalidBattlePick { cell: u8 },
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Copy, Clone, PartialEq)]
 pub(crate) enum Event {
     NextTurn {
         to: Player,

@@ -1,3 +1,13 @@
+// board cells reference
+//
+//  0 | 1 | 2 | 3
+// ---+---+---+---
+//  4 | 5 | 6 | 7
+// ---+---+---+---
+//  8 | 9 | A | B
+// ---+---+---+---
+//  C | D | E | F
+
 use pretty_assertions::{assert_eq, assert_ne};
 
 use crate::{
@@ -8,6 +18,14 @@ use crate::{
 
 mod helpers;
 use helpers::*;
+
+fn setup_default() -> Command {
+    Command::setup()
+        .seed(0)
+        .battle_system(BattleSystem::Test)
+        .blocked_cells(&[])
+        .hand_candidates(&HAND_CANDIDATES)
+}
 
 fn game_setup_tests(s: &mut Suite<Ctx>) {
     test!(s "Setup without args should use random initialization"; |ctx| {
@@ -107,14 +125,6 @@ fn pre_game_tests(s: &mut Suite<Ctx>) {
 }
 
 fn in_game_tests(s: &mut Suite<Ctx>) {
-    fn setup_default() -> Command {
-        Command::setup()
-            .seed(0)
-            .battle_system(BattleSystem::Test)
-            .blocked_cells(&[])
-            .hand_candidates(&HAND_CANDIDATES)
-    }
-
     test!(s "place card with no interaction"; |ctx| {
         let mut driver = ctx.new_driver();
         driver.send(setup_default())?.setup_ok();
@@ -905,6 +915,140 @@ fn in_game_tests(s: &mut Suite<Ctx>) {
         assert_eq!(events, vec![
             Event::game_over(None),
         ]);
+    });
+
+    stat_selection(suite!(s "Stat Selection"));
+}
+
+fn stat_selection(s: &mut Suite<Ctx>) {
+    fn run_battle(ctx: &Ctx, attacker: Card, defender: Card) -> anyhow::Result<(Battler, Battler)> {
+        let mut driver = ctx.new_driver();
+        let hand_candidates = [
+            [defender, CARD, CARD, CARD, CARD],
+            [attacker, CARD, CARD, CARD, CARD],
+            [CARD, CARD, CARD, CARD, CARD],
+        ];
+        driver
+            .send(setup_default().hand_candidates(&hand_candidates))?
+            .setup_ok();
+        driver.send(Command::pick_hand(0))?.pick_hand_ok();
+        driver.send(Command::pick_hand(1))?.pick_hand_ok();
+
+        driver.send(Command::place_card(0, 0))?.place_card_ok();
+        let (_, events) = driver.send(Command::place_card(0, 1))?.place_card_ok();
+        let (attacker, defender, _) = events[0].as_battle();
+        Ok((attacker, defender))
+    }
+
+    const ALL: Arrows = Arrows::ALL;
+
+    // default cards
+    const DEFENDER: Card = Card::physical(0x1, 0x2, 0x3, ALL);
+
+    let ss = suite!(s "Attack Stat");
+
+    test!(ss "physical type attacker, picks attack stat"; |ctx| {
+        let (stat, _) = run_battle(ctx, Card::physical(0xA, 0xB, 0xC, ALL), DEFENDER)?;
+        assert_eq!(stat.digit, Digit::Attack);
+        assert_eq!(stat.value, 0xA);
+    });
+
+    test!(ss "magical type attacker, picks attack stat"; |ctx| {
+        let (stat, _) = run_battle(ctx, Card::magical(0xA, 0xB, 0xC, ALL), DEFENDER)?;
+        assert_eq!(stat.digit, Digit::Attack);
+        assert_eq!(stat.value, 0xA);
+    });
+
+    test!(ss "exploit type attacker, picks attack stat"; |ctx| {
+        let (stat, _) = run_battle(ctx, Card::exploit(0xA, 0xB, 0xC, ALL), DEFENDER)?;
+        assert_eq!(stat.digit, Digit::Attack);
+        assert_eq!(stat.value, 0xA);
+    });
+
+    test!(ss "assault type attacker, picks highest stat"; |ctx| {
+        // attack stat is highest
+        let (stat, _) = run_battle(ctx, Card::assault(0xF, 0xB, 0xC, ALL), DEFENDER)?;
+        assert_eq!(stat.digit, Digit::Attack);
+        assert_eq!(stat.value, 0xF);
+
+        // physical defense stat is highest
+        let (stat, _) = run_battle(ctx, Card::assault(0xA, 0xE, 0xC, ALL), DEFENDER)?;
+        assert_eq!(stat.digit, Digit::PhysicalDefense);
+        assert_eq!(stat.value, 0xE);
+
+        // magical defense stat is highest
+        let (stat, _) = run_battle(ctx, Card::assault(0xA, 0xB, 0xD, ALL), DEFENDER)?;
+        assert_eq!(stat.digit, Digit::MagicalDefense);
+        assert_eq!(stat.value, 0xD);
+
+        // when there is a tie between the attack stat and a defense stat, prefer the attack
+        // tie between attack and physical defense
+        let (stat, _) = run_battle(ctx, Card::assault(0xE, 0xE, 0xC, ALL), DEFENDER)?;
+        assert_eq!(stat.digit, Digit::Attack);
+        assert_eq!(stat.value, 0xE);
+
+        // tie between attack and magical defense
+        let (stat, _) = run_battle(ctx, Card::assault(0xE, 0xB, 0xE, ALL), DEFENDER)?;
+        assert_eq!(stat.digit, Digit::Attack);
+        assert_eq!(stat.value, 0xE);
+
+        // tie between all 3 stats
+        let (stat, _) = run_battle(ctx, Card::assault(0xE, 0xE, 0xE, ALL), DEFENDER)?;
+        assert_eq!(stat.digit, Digit::Attack);
+        assert_eq!(stat.value, 0xE);
+
+        // when there is a tie between the defense stats, prefer the physical_defense
+        let (stat, _) = run_battle(ctx, Card::assault(0xA, 0xE, 0xE, ALL), DEFENDER)?;
+        assert_eq!(stat.digit, Digit::PhysicalDefense);
+        assert_eq!(stat.value, 0xE);
+    });
+
+    let ss = suite!(s "Defense Stat");
+
+    test!(ss "physical type attacker, picks physical defense stat"; |ctx| {
+        let (_, stat) = run_battle(ctx, Card::physical(0, 0, 0, ALL), DEFENDER)?;
+        assert_eq!(stat.digit, Digit::PhysicalDefense);
+        assert_eq!(stat.value, 0x2);
+    });
+
+    test!(ss "magical type attacker, picks physical defense stat"; |ctx| {
+        let (_, stat) = run_battle(ctx, Card::magical(0, 0, 0, ALL), DEFENDER)?;
+        assert_eq!(stat.digit, Digit::MagicalDefense);
+        assert_eq!(stat.value, 0x3);
+    });
+
+    test!(ss "exploit type attacker, picks lowest defense stat"; |ctx| {
+        // physical defense is lowest
+        let defender: Card = Card::physical(0, 0xA, 0xB, ALL);
+        let (_, stat) = run_battle(ctx, Card::exploit(0, 0, 0, ALL), defender)?;
+        assert_eq!(stat.digit, Digit::PhysicalDefense);
+        assert_eq!(stat.value, 0xA);
+
+        // magical defense is lowest
+        let defender: Card = Card::physical(0, 0xB, 0xA, ALL);
+        let (_, stat) = run_battle(ctx, Card::exploit(0, 0, 0, ALL), defender)?;
+        assert_eq!(stat.digit, Digit::MagicalDefense);
+        assert_eq!(stat.value, 0xA);
+    });
+
+    test!(ss "assault type attacker, picks lowest stat"; |ctx| {
+        // physical defense is lowest
+        let defender: Card = Card::physical(0xB, 0xA, 0xB, ALL);
+        let (_, stat) = run_battle(ctx, Card::assault(0, 0, 0, ALL), defender)?;
+        assert_eq!(stat.digit, Digit::PhysicalDefense);
+        assert_eq!(stat.value, 0xA);
+
+        // magical defense is lowest
+        let defender: Card = Card::physical(0xB, 0xB, 0xA, ALL);
+        let (_, stat) = run_battle(ctx, Card::assault(0, 0, 0, ALL), defender)?;
+        assert_eq!(stat.digit, Digit::MagicalDefense);
+        assert_eq!(stat.value, 0xA);
+
+        // attack is lowest
+        let defender: Card = Card::physical(0xA, 0xB, 0xB, ALL);
+        let (_, stat) = run_battle(ctx, Card::assault(0, 0, 0, ALL), defender)?;
+        assert_eq!(stat.digit, Digit::Attack);
+        assert_eq!(stat.value, 0xA);
     });
 }
 
