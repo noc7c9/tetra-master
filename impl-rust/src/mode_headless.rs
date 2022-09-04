@@ -322,11 +322,11 @@ mod parse {
         let kind = cmd.atom();
         match kind {
             "original" => Ok(BattleSystem::Original),
-            "original-approx" => Ok(BattleSystem::OriginalApprox),
             "dice" => {
                 let sides = u8::from_str_radix(cmd.atom(), 16)?;
                 Ok(BattleSystem::Dice { sides })
             }
+            "test" => Ok(BattleSystem::Test),
             _ => Err(Error::InvalidBattleSystem { input: kind.into() }),
         }
     }
@@ -506,8 +506,8 @@ mod write {
     fn battle_system(o: &mut String, battle_system: &BattleSystem) -> Result {
         match battle_system {
             BattleSystem::Original => write!(o, "original")?,
-            BattleSystem::OriginalApprox => write!(o, "original-approx")?,
             BattleSystem::Dice { sides } => write!(o, "dice {sides:X}")?,
+            BattleSystem::Test => write!(o, "test")?,
         }
         Ok(())
     }

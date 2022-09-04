@@ -172,11 +172,11 @@ fn card(i: &str) -> IResult<&str, Card> {
 
 fn battle_system(i: &str) -> IResult<&str, BattleSystem> {
     alt((
-        map(ident("original-approx"), |_| BattleSystem::OriginalApprox),
         map(ident("original"), |_| BattleSystem::Original),
         map(preceded(ident("dice"), atom(hex_digit_1_n(2))), |sides| {
             BattleSystem::Dice { sides }
         }),
+        map(ident("test"), |_| BattleSystem::Test),
     ))(i)
 }
 
@@ -446,11 +446,11 @@ mod tests {
     }
 
     #[test_case("original" => BattleSystem::Original)]
-    #[test_case("original-approx" => BattleSystem::OriginalApprox)]
     #[test_case("dice 4" => BattleSystem::Dice { sides: 4 })]
     #[test_case("dice A" => BattleSystem::Dice { sides: 10 })]
     #[test_case("dice 11" => BattleSystem::Dice { sides: 17 })]
     #[test_case("dice" => panics)]
+    #[test_case("test" => BattleSystem::Test)]
     #[test_case("" => panics)]
     fn battle_system(i: &str) -> BattleSystem {
         super::battle_system(i).unwrap().1

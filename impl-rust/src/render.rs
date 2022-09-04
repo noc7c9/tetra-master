@@ -429,12 +429,10 @@ fn push_game_log(o: &mut String, log: &GameLog, battle_system: &BattleSystem) ->
             } => {
                 match battle_system {
                     BattleSystem::Original => writeln!(o, "Using the Original battle system")?,
-                    BattleSystem::OriginalApprox => {
-                        writeln!(o, "Using the Original (approximate) battle system")?
-                    }
                     BattleSystem::Dice { sides } => {
                         writeln!(o, "Using the Dice battle system with {sides} sided die")?
                     }
+                    BattleSystem::Test => writeln!(o, "Using the Test battle system")?,
                 }
                 if let Some(seed) = seed {
                     writeln!(o, "           │ The RNG seed is {seed}")?;
@@ -483,7 +481,7 @@ fn push_game_log(o: &mut String, log: &GameLog, battle_system: &BattleSystem) ->
                 write!(o, "           {RESET}│         ")?;
 
                 match battle_system {
-                    BattleSystem::Original | BattleSystem::OriginalApprox => {
+                    BattleSystem::Original | BattleSystem::Test => {
                         write!(o, "{att_color}Attacker{RESET} ")?;
                         write!(o, "({att_value}) rolled {att_roll}, ")?;
 

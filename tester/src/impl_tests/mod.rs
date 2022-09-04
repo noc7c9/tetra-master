@@ -110,7 +110,7 @@ fn in_game_tests(s: &mut Suite<Ctx>) {
     fn setup_default() -> Command {
         Command::setup()
             .seed(0)
-            .battle_system(BattleSystem::OriginalApprox)
+            .battle_system(BattleSystem::Test)
             .blocked_cells(&[])
             .hand_candidates(&HAND_CANDIDATES)
     }
@@ -289,7 +289,7 @@ fn in_game_tests(s: &mut Suite<Ctx>) {
             events,
             vec![
                 Event::battle(
-                    Battler::new(1, Digit::Attack, 0xC, 0xC6),
+                    Battler::new(1, Digit::Attack, 0xC, 0xCF),
                     Battler::new(0, Digit::PhysicalDefense, 3, 0),
                     BattleWinner::Attacker,
                 ),
@@ -325,7 +325,7 @@ fn in_game_tests(s: &mut Suite<Ctx>) {
             vec![
                 Event::battle(
                     Battler::new(1, Digit::Attack, 0xC, 0),
-                    Battler::new(0, Digit::PhysicalDefense, 3, 0x36),
+                    Battler::new(0, Digit::PhysicalDefense, 3, 0x3F),
                     BattleWinner::Defender,
                 ),
                 Event::flip(1),
@@ -359,8 +359,8 @@ fn in_game_tests(s: &mut Suite<Ctx>) {
             events,
             vec![
                 Event::battle(
-                    Battler::new(1, Digit::Attack, 3, 21),
-                    Battler::new(0, Digit::PhysicalDefense, 3, 21),
+                    Battler::new(1, Digit::Attack, 3, 25),
+                    Battler::new(0, Digit::PhysicalDefense, 3, 25),
                     BattleWinner::None,
                 ),
                 Event::flip(1),
@@ -406,7 +406,7 @@ fn in_game_tests(s: &mut Suite<Ctx>) {
             events,
             vec![
                 Event::battle(
-                    Battler::new(4, Digit::Attack, 0xC, 0xC6),
+                    Battler::new(4, Digit::Attack, 0xC, 0xCF),
                     Battler::new(0, Digit::PhysicalDefense, 3, 0),
                     BattleWinner::Attacker,
                 ),
@@ -458,7 +458,7 @@ fn in_game_tests(s: &mut Suite<Ctx>) {
             vec![
                 Event::battle(
                     Battler::new(4, Digit::Attack, 0xC, 0),
-                    Battler::new(0, Digit::PhysicalDefense, 3, 54),
+                    Battler::new(0, Digit::PhysicalDefense, 3, 0x3F),
                     BattleWinner::Defender,
                 ),
                 Event::flip(4),
@@ -494,7 +494,7 @@ fn in_game_tests(s: &mut Suite<Ctx>) {
             events,
             vec![
                 Event::battle(
-                    Battler::new(9, Digit::Attack, 0xC, 0xC6),
+                    Battler::new(9, Digit::Attack, 0xC, 0xCF),
                     Battler::new(5, Digit::PhysicalDefense, 3, 0),
                     BattleWinner::Attacker,
                 ),
@@ -537,14 +537,14 @@ fn in_game_tests(s: &mut Suite<Ctx>) {
             events,
             vec![
                 Event::battle(
-                    Battler::new(4, Digit::Attack, 0xC, 0xC6),
+                    Battler::new(4, Digit::Attack, 0xC, 0xCF),
                     Battler::new(8, Digit::MagicalDefense, 4, 0),
                     BattleWinner::Attacker,
                 ),
                 Event::flip(8),
                 Event::battle(
                     Battler::new(4, Digit::Attack, 0xC, 0),
-                    Battler::new(0, Digit::PhysicalDefense, 3, 0x36),
+                    Battler::new(0, Digit::PhysicalDefense, 3, 0x3F),
                     BattleWinner::Defender,
                 ),
                 Event::flip(4),
@@ -614,7 +614,7 @@ fn in_game_tests(s: &mut Suite<Ctx>) {
         assert_eq!(choices, vec![0, 8, 9]);
         assert_eq!(events, vec![
             Event::battle(
-                Battler::new(4, Digit::Attack, 1, 22),
+                Battler::new(4, Digit::Attack, 1, 0x1F),
                 Battler::new(5, Digit::PhysicalDefense, 4, 0),
                 BattleWinner::Attacker,
             ),
@@ -625,7 +625,7 @@ fn in_game_tests(s: &mut Suite<Ctx>) {
         assert_eq!(choices, vec![0, 9]);
         assert_eq!(events, vec![
             Event::battle(
-                Battler::new(4, Digit::Attack, 1, 22),
+                Battler::new(4, Digit::Attack, 1, 0x1F),
                 Battler::new(8, Digit::PhysicalDefense, 6, 0),
                 BattleWinner::Attacker,
             ),
@@ -636,13 +636,13 @@ fn in_game_tests(s: &mut Suite<Ctx>) {
         assert_eq!(choices, vec![]);
         assert_eq!(events, vec![
             Event::battle(
-                Battler::new(4, Digit::Attack, 1, 22),
+                Battler::new(4, Digit::Attack, 1, 0x1F),
                 Battler::new(0, Digit::PhysicalDefense, 2, 0),
                 BattleWinner::Attacker,
             ),
             Event::flip(0),
             Event::battle(
-                Battler::new(4, Digit::Attack, 1, 22),
+                Battler::new(4, Digit::Attack, 1, 0x1F),
                 Battler::new(9, Digit::PhysicalDefense, 8, 0),
                 BattleWinner::Attacker,
             ),
@@ -684,7 +684,7 @@ fn in_game_tests(s: &mut Suite<Ctx>) {
         assert_eq!(events, vec![
             Event::battle(
                 Battler::new(4, Digit::Attack, 1, 0),
-                Battler::new(5, Digit::PhysicalDefense, 4, 0x46),
+                Battler::new(5, Digit::PhysicalDefense, 4, 0x4F),
                 BattleWinner::Defender,
             ),
             Event::flip(4),
@@ -813,7 +813,7 @@ fn in_game_tests(s: &mut Suite<Ctx>) {
         assert_eq!(events, vec![
             Event::battle(
                 Battler::new(4, Digit::Attack, 0, 0),
-                Battler::new(0, Digit::PhysicalDefense, 0, 6),
+                Battler::new(0, Digit::PhysicalDefense, 0, 0xF),
                 BattleWinner::Defender,
             ),
             Event::flip(4),
@@ -849,7 +849,7 @@ fn in_game_tests(s: &mut Suite<Ctx>) {
 
         assert_eq!(events, vec![
             Event::battle(
-                Battler::new(9, Digit::Attack, 0, 6),
+                Battler::new(9, Digit::Attack, 0, 0xF),
                 Battler::new(5, Digit::PhysicalDefense, 0, 0),
                 BattleWinner::Attacker,
             ),
@@ -890,7 +890,7 @@ fn in_game_tests(s: &mut Suite<Ctx>) {
         assert_eq!(events, vec![
             Event::battle(
                 Battler::new(5, Digit::Attack, 0, 0),
-                Battler::new(9, Digit::PhysicalDefense, 0, 6),
+                Battler::new(9, Digit::PhysicalDefense, 0, 0xF),
                 BattleWinner::Defender,
             ),
             Event::flip(5),
@@ -1005,7 +1005,7 @@ fn in_game_tests(s: &mut Suite<Ctx>) {
 
         assert_eq!(events, vec![
             Event::battle(
-                Battler::new(5, Digit::Attack, 0, 6),
+                Battler::new(5, Digit::Attack, 0, 0xF),
                 Battler::new(0, Digit::PhysicalDefense, 0, 0),
                 BattleWinner::Attacker,
             ),

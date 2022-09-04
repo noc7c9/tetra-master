@@ -55,10 +55,10 @@ impl Command {
                             o.atom("battle-system")?;
                             match battle_system {
                                 BattleSystem::Original => o.atom("original"),
-                                BattleSystem::OriginalApprox => o.atom("original-approx"),
                                 BattleSystem::Dice { sides } => {
                                     o.atoms(("dice", DisplayHex(sides)))
                                 }
+                                BattleSystem::Test => o.atom("test"),
                             }
                         })?;
                     }
@@ -311,16 +311,16 @@ mod tests {
     } => using assert_eq("(setup (battle-system original))\n"))]
     #[test_case(Setup {
         rng: None,
-        battle_system: Some(BattleSystem::OriginalApprox),
-        blocked_cells: None,
-        hand_candidates: None,
-    } => using assert_eq("(setup (battle-system original-approx))\n"))]
-    #[test_case(Setup {
-        rng: None,
         battle_system: Some(BattleSystem::Dice { sides: 13 }),
         blocked_cells: None,
         hand_candidates: None,
     } => using assert_eq("(setup (battle-system dice D))\n"))]
+    #[test_case(Setup {
+        rng: None,
+        battle_system: Some(BattleSystem::Test),
+        blocked_cells: None,
+        hand_candidates: None,
+    } => using assert_eq("(setup (battle-system test))\n"))]
     #[test_case(Setup {
         rng: None,
         battle_system: None,

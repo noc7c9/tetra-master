@@ -20,8 +20,8 @@ enum Rng {
 #[derive(Debug, Clone, PartialEq)]
 enum BattleSystem {
     Original,
-    OriginalApprox,
     Dice { sides: u8 },
+    Test,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]

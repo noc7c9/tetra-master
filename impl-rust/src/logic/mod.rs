@@ -307,15 +307,16 @@ fn roll(battle_system: &mut BattleSystem, rng: &mut Rng, value: u8) -> u8 {
             let stat2 = rng.u8(0..=stat1);
             stat1 - stat2
         }
-        // Approximates the probabilities of the original battle system
-        // but uses only one 1 random number and also makes larger random numbers win
-        BattleSystem::OriginalApprox => {
-            let avg = (value << 4) | 0x7;
-            rng.u8(0..=avg)
-        }
         BattleSystem::Dice { sides } => {
             // roll {value} dice and return the sum
             (0..value).map(|_| rng.u8(1..=*sides)).sum()
+        }
+        // rolls are proportional to the rng number and falls in the range 0x00 - 0x{value}F
+        // meant for making battles in tests predictable
+        BattleSystem::Test => {
+            let max = (value << 4) | 0xF;
+            let rng = rng.u8(..) as f64 / 0xFF as f64;
+            (rng * max as f64).round() as u8
         }
     }
 }

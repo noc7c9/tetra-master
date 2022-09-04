@@ -25,8 +25,8 @@ type Board = [Cell; BOARD_SIZE];
 #[derive(Debug, Clone)]
 enum BattleSystem {
     Original,
-    OriginalApprox,
     Dice { sides: u8 },
+    Test,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
