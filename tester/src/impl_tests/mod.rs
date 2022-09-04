@@ -125,7 +125,6 @@ fn in_game_tests(s: &mut Suite<Ctx>) {
 
         assert_eq!(events, vec![Event::turn_p2()]);
     });
-
     test!(s "error if the card has already been played"; |ctx| {
         let mut driver = ctx.new_driver();
         driver.send(setup_default())?.setup_ok();
@@ -139,7 +138,6 @@ fn in_game_tests(s: &mut Suite<Ctx>) {
 
         assert_eq!(error, ErrorResponse::CardAlreadyPlayed { card: 1 });
     });
-
     test!(s "error if the cell played on is blocked"; |ctx| {
         let mut driver = ctx.new_driver();
         driver.send(setup_default().blocked_cells(&[0xB]))?.setup_ok();
@@ -150,7 +148,6 @@ fn in_game_tests(s: &mut Suite<Ctx>) {
 
         assert_eq!(error, ErrorResponse::CellIsNotEmpty { cell: 0xB });
     });
-
     test!(s "error if the cell played on already has a card placed"; |ctx| {
         let mut driver = ctx.new_driver();
         driver.send(setup_default().blocked_cells(&[0xB]))?.setup_ok();
@@ -163,7 +160,8 @@ fn in_game_tests(s: &mut Suite<Ctx>) {
         assert_eq!(error, ErrorResponse::CellIsNotEmpty { cell: 3 });
     });
 
-    test!(s "place card that flips one other card"; |ctx| {
+    let ss = suite!(s "Flips");
+    test!(ss "place card that flips one other card"; |ctx| {
         let mut driver = ctx.new_driver();
         let attacker = Card::physical(0, 0, 0, Arrows::UP | Arrows::RIGHT);
         let hand_candidates = [
@@ -183,8 +181,7 @@ fn in_game_tests(s: &mut Suite<Ctx>) {
 
         assert_eq!(events, vec![Event::flip(0), Event::turn_p1()]);
     });
-
-    test!(s "place card that flips multiple other cards"; |ctx| {
+    test!(ss "place card that flips multiple other cards"; |ctx| {
         let mut driver = ctx.new_driver();
         let attacker = Card::physical(0, 0, 0, Arrows::ALL);
         let hand_candidates = [
@@ -217,8 +214,7 @@ fn in_game_tests(s: &mut Suite<Ctx>) {
             ]
         );
     });
-
-    test!(s "flips events should be ordered by increasing cell number"; |ctx| {
+    test!(ss "flips events should be ordered by increasing cell number"; |ctx| {
         let mut driver = ctx.new_driver();
         let flipper = Card::physical(0, 0, 0, Arrows::ALL);
         let hand_candidates = {
@@ -264,7 +260,8 @@ fn in_game_tests(s: &mut Suite<Ctx>) {
         );
     });
 
-    test!(s "place card that results in a battle, attacker wins"; |ctx| {
+    let ss = suite!(s "Battles");
+    test!(ss "place card that results in a battle, attacker wins"; |ctx| {
         let mut driver = ctx.new_driver();
         let defender = Card::physical(0, 3, 7, Arrows::ALL);
         let attacker = Card::exploit(0xC, 0, 0, Arrows::ALL);
@@ -298,8 +295,7 @@ fn in_game_tests(s: &mut Suite<Ctx>) {
             ]
         );
     });
-
-    test!(s "place card that results in a battle, defender wins"; |ctx| {
+    test!(ss "place card that results in a battle, defender wins"; |ctx| {
         let mut driver = ctx.new_driver();
         let defender = Card::physical(0, 3, 7, Arrows::ALL);
         let attacker = Card::exploit(0xC, 0, 0, Arrows::ALL);
@@ -333,8 +329,7 @@ fn in_game_tests(s: &mut Suite<Ctx>) {
             ]
         );
     });
-
-    test!(s "place card that results in a battle, draw"; |ctx| {
+    test!(ss "place card that results in a battle, draw"; |ctx| {
         let mut driver = ctx.new_driver();
         let defender = Card::physical(0, 3, 7, Arrows::ALL);
         let attacker = Card::exploit(0x3, 0, 0, Arrows::ALL);
@@ -368,8 +363,7 @@ fn in_game_tests(s: &mut Suite<Ctx>) {
             ]
         );
     });
-
-    test!(s "flip other undefended cards after attacker wins battle"; |ctx| {
+    test!(ss "flip other undefended cards after attacker wins battle"; |ctx| {
         let mut driver = ctx.new_driver();
         let defender = Card::physical(0, 3, 7, Arrows::DOWN);
         let attacker = Card::exploit(0xC, 0, 0, Arrows::ALL);
@@ -419,8 +413,7 @@ fn in_game_tests(s: &mut Suite<Ctx>) {
             ]
         );
     });
-
-    test!(s "don't flip other undefended cards after attacker loses battle"; |ctx| {
+    test!(ss "don't flip other undefended cards after attacker loses battle"; |ctx| {
         let mut driver = ctx.new_driver();
         let defender = Card::physical(0, 3, 7, Arrows::DOWN);
         let attacker = Card::exploit(0xC, 0, 0, Arrows::ALL);
@@ -467,7 +460,8 @@ fn in_game_tests(s: &mut Suite<Ctx>) {
         );
     });
 
-    test!(s "place card that results in a combo"; |ctx| {
+    let ss = suite!(s "Combos");
+    test!(ss "place card that results in a combo"; |ctx| {
         let mut driver = ctx.new_driver();
         let defender = Card::physical(0, 3, 7, Arrows::ALL);
         let attacker = Card::exploit(0xC, 0, 0, Arrows::ALL);
@@ -504,8 +498,116 @@ fn in_game_tests(s: &mut Suite<Ctx>) {
             ]
         );
     });
+    test!(ss "combo flip cards that are pointed to by the defender if they lose"; |ctx| {
+        let mut driver = ctx.new_driver();
+        let defender = Card::physical(0, 0, 0, Arrows::ALL);
+        let attacker = Card::physical(0, 0, 0, Arrows::ALL);
+        let hand_candidates = [
+            [CARD, CARD, CARD, defender, CARD],
+            [CARD, CARD, CARD, attacker, CARD],
+            [CARD, CARD, CARD, CARD, CARD],
+        ];
+        driver.send(setup_default().hand_candidates(&hand_candidates).rolls(&[255, 0]))?.setup_ok();
+        driver.send(Command::pick_hand(0))?.pick_hand_ok();
+        driver.send(Command::pick_hand(1))?.pick_hand_ok();
 
-    test!(s "place card that results in a choice"; |ctx| {
+        driver.send(Command::place_card(0, 1))?.place_card_ok(); // will flip
+        driver.send(Command::place_card(0, 3))?.place_card_ok();
+
+        driver.send(Command::place_card(1, 4))?.place_card_ok(); // will flip
+        driver.send(Command::place_card(1, 7))?.place_card_ok();
+
+        driver.send(Command::place_card(2, 6))?.place_card_ok(); // will flip
+        driver.send(Command::place_card(2, 0xB))?.place_card_ok();
+
+        driver.send(Command::place_card(3, 5))?.place_card_ok(); // defender
+
+        let (_, events) = driver.send(Command::place_card(3, 9))?.place_card_ok();
+
+        assert_eq!(events, vec![
+            Event::battle(
+                Battler::new(9, Digit::Attack, 0, 0xF),
+                Battler::new(5, Digit::PhysicalDefense, 0, 0),
+                BattleWinner::Attacker,
+            ),
+            Event::flip(5),
+            Event::combo_flip(1),
+            Event::combo_flip(4),
+            Event::combo_flip(6),
+            Event::turn_p1(),
+        ]);
+    });
+    test!(ss "combo flip cards that are pointed to by the attacker if they lose"; |ctx| {
+        let mut driver = ctx.new_driver();
+        let defender = Card::physical(0, 0, 0, Arrows::UP);
+        let attacker = Card::physical(0, 0, 0, Arrows::ALL);
+        let hand_candidates = [
+            [CARD, CARD, CARD, defender, CARD],
+            [CARD, CARD, CARD, attacker, CARD],
+            [CARD, CARD, CARD, CARD, CARD],
+        ];
+        driver.send(setup_default().hand_candidates(&hand_candidates).rolls(&[0, 255]))?.setup_ok();
+        driver.send(Command::pick_hand(0))?.pick_hand_ok();
+        driver.send(Command::pick_hand(1))?.pick_hand_ok();
+
+        driver.send(Command::place_card(0, 3))?.place_card_ok();
+        driver.send(Command::place_card(0, 1))?.place_card_ok(); // will flip
+
+        driver.send(Command::place_card(1, 7))?.place_card_ok();
+        driver.send(Command::place_card(1, 4))?.place_card_ok(); // will flip
+
+        driver.send(Command::place_card(2, 0xB))?.place_card_ok();
+        driver.send(Command::place_card(2, 6))?.place_card_ok(); // will flip
+
+        driver.send(Command::place_card(3, 9))?.place_card_ok(); // defender
+
+        let (_, events) = driver.send(Command::place_card(3, 5))?.place_card_ok();
+
+        assert_eq!(events, vec![
+            Event::battle(
+                Battler::new(5, Digit::Attack, 0, 0),
+                Battler::new(9, Digit::PhysicalDefense, 0, 0xF),
+                BattleWinner::Defender,
+            ),
+            Event::flip(5),
+            Event::combo_flip(1),
+            Event::combo_flip(4),
+            Event::combo_flip(6),
+            Event::turn_p1(),
+        ]);
+    });
+    test!(ss "don't flip back undefended cards if they are flipped due to combos"; |ctx| {
+        let mut driver = ctx.new_driver();
+        let hand_candidates = [
+            [CARD, CARD.arrows(Arrows::ALL), CARD, CARD, CARD],
+            [CARD.arrows(Arrows::ALL), CARD, CARD, CARD, CARD],
+            [CARD, CARD, CARD, CARD, CARD],
+        ];
+        driver.send(setup_default().hand_candidates(&hand_candidates).rolls(&[255, 0]))?.setup_ok();
+        driver.send(Command::pick_hand(0))?.pick_hand_ok();
+        driver.send(Command::pick_hand(1))?.pick_hand_ok();
+
+        driver.send(Command::place_card(0, 4))?.place_card_ok();
+        driver.send(Command::place_card(0, 0))?.place_card_ok(); // flips the card on 4
+
+        // placed card points to both other cards, attacker wins,
+        // flips card on 0 and card on 4 get's combo flipped
+        let (_, events) = driver.send(Command::place_card(1, 5))?.place_card_ok();
+
+        assert_eq!(events, vec![
+            Event::battle(
+                Battler::new(5, Digit::Attack, 0, 0xF),
+                Battler::new(0, Digit::PhysicalDefense, 0, 0),
+                BattleWinner::Attacker,
+            ),
+            Event::flip(0),
+            Event::combo_flip(4),
+            Event::turn_p2(),
+        ]);
+    });
+
+    let ss = suite!(s "Battle Choices");
+    test!(ss "place card that results in a choice"; |ctx| {
         let mut driver = ctx.new_driver();
         let defender1 = Card::physical(0, 3, 7, Arrows::ALL);
         let defender2 = Card::physical(0, 9, 4, Arrows::ALL);
@@ -553,8 +655,7 @@ fn in_game_tests(s: &mut Suite<Ctx>) {
             ]
         );
     });
-
-    test!(s "error if battle choice isn't valid"; |ctx| {
+    test!(ss "error if battle choice isn't valid"; |ctx| {
         let mut driver = ctx.new_driver();
         let defender1 = Card::physical(0, 0, 0, Arrows::DOWN);
         let defender2 = Card::physical(0, 0, 0, Arrows::UP);
@@ -577,8 +678,7 @@ fn in_game_tests(s: &mut Suite<Ctx>) {
 
         assert_eq!(error, ErrorResponse::InvalidBattlePick { cell: 0xC });
     });
-
-    test!(s "continue offering choices when multiple battles are still available"; |ctx| {
+    test!(ss "continue offering choices when multiple battles are still available"; |ctx| {
         let mut driver = ctx.new_driver();
         let defender0 = Card::physical(0, 2, 0, Arrows::DOWN);
         let defender1 = Card::physical(0, 4, 0, Arrows::LEFT);
@@ -650,8 +750,7 @@ fn in_game_tests(s: &mut Suite<Ctx>) {
             Event::turn_p1(),
         ]);
     });
-
-    test!(s "don't continue offering choices if attacker loses"; |ctx| {
+    test!(ss "don't continue offering choices if attacker loses"; |ctx| {
         let mut driver = ctx.new_driver();
         let defender0 = Card::physical(0, 2, 0, Arrows::DOWN);
         let defender1 = Card::physical(0, 4, 0, Arrows::LEFT);
@@ -691,95 +790,7 @@ fn in_game_tests(s: &mut Suite<Ctx>) {
             Event::turn_p1(),
         ]);
     });
-
-    test!(s "place card that ends the game in a draw"; |ctx| {
-        let mut driver = ctx.new_driver();
-        driver.send(setup_default())?.setup_ok();
-        driver.send(Command::pick_hand(0))?.pick_hand_ok();
-        driver.send(Command::pick_hand(1))?.pick_hand_ok();
-
-        driver.send(Command::place_card(0, 0))?.place_card_ok();
-        driver.send(Command::place_card(0, 1))?.place_card_ok();
-
-        driver.send(Command::place_card(1, 2))?.place_card_ok();
-        driver.send(Command::place_card(1, 3))?.place_card_ok();
-
-        driver.send(Command::place_card(2, 4))?.place_card_ok();
-        driver.send(Command::place_card(2, 5))?.place_card_ok();
-
-        driver.send(Command::place_card(3, 6))?.place_card_ok();
-        driver.send(Command::place_card(3, 7))?.place_card_ok();
-
-        driver.send(Command::place_card(4, 8))?.place_card_ok();
-
-        let (_, events) = driver.send(Command::place_card(4, 9))?.place_card_ok();
-
-        assert_eq!(events, vec![Event::GameOver { winner: None }]);
-    });
-
-    test!(s "place card that ends the game in player 1 drawing"; |ctx| {
-        let mut driver = ctx.new_driver();
-        let attacker = Card::physical(0, 0, 0, Arrows::ALL);
-        let hand_candidates = [
-            [CARD, CARD, CARD, CARD, attacker],
-            [CARD, CARD, CARD, CARD, CARD],
-            [CARD, CARD, CARD, CARD, CARD],
-        ];
-        driver.send(setup_default().hand_candidates(&hand_candidates))?.setup_ok();
-        driver.send(Command::pick_hand(0))?.pick_hand_ok();
-        driver.send(Command::pick_hand(1))?.pick_hand_ok();
-
-        driver.send(Command::place_card(0, 0))?.place_card_ok();
-        driver.send(Command::place_card(0, 1))?.place_card_ok();
-
-        driver.send(Command::place_card(1, 2))?.place_card_ok();
-        driver.send(Command::place_card(1, 3))?.place_card_ok();
-
-        driver.send(Command::place_card(2, 4))?.place_card_ok();
-        driver.send(Command::place_card(2, 5))?.place_card_ok();
-
-        driver.send(Command::place_card(3, 6))?.place_card_ok();
-        driver.send(Command::place_card(3, 7))?.place_card_ok();
-
-        driver.send(Command::place_card(4, 8))?.place_card_ok();
-
-        let (_, events) = driver.send(Command::place_card(4, 9))?.place_card_ok();
-
-        assert_eq!(events, vec![Event::game_over(Some(Player::P1))]);
-    });
-
-    test!(s "place card that ends the game in player 2 drawing"; |ctx| {
-        let mut driver = ctx.new_driver();
-        let attacker = Card::physical(0, 0, 0, Arrows::ALL);
-        let hand_candidates = [
-            [CARD, CARD, CARD, CARD, CARD],
-            [CARD, CARD, CARD, attacker, CARD],
-            [CARD, CARD, CARD, CARD, CARD],
-        ];
-        driver.send(setup_default().hand_candidates(&hand_candidates))?.setup_ok();
-        driver.send(Command::pick_hand(0))?.pick_hand_ok();
-        driver.send(Command::pick_hand(1))?.pick_hand_ok();
-
-        driver.send(Command::place_card(0, 0))?.place_card_ok();
-        driver.send(Command::place_card(0, 1))?.place_card_ok();
-
-        driver.send(Command::place_card(1, 2))?.place_card_ok();
-        driver.send(Command::place_card(1, 3))?.place_card_ok();
-
-        driver.send(Command::place_card(2, 4))?.place_card_ok();
-        driver.send(Command::place_card(2, 5))?.place_card_ok();
-
-        driver.send(Command::place_card(3, 6))?.place_card_ok();
-        driver.send(Command::place_card(3, 7))?.place_card_ok();
-
-        driver.send(Command::place_card(4, 8))?.place_card_ok();
-
-        let (_, events) = driver.send(Command::place_card(4, 9))?.place_card_ok();
-
-        assert_eq!(events, vec![Event::game_over(Some(Player::P2))]);
-    });
-
-    test!(s "handle game over when attacker loses battle after a choice"; |ctx| {
+    test!(ss "handle game over when attacker loses battle after a choice"; |ctx| {
         let mut driver = ctx.new_driver();
         let defender0 = Card::physical(0, 0, 0, Arrows::DOWN);
         let defender1 = Card::physical(0, 0, 0, Arrows::UP);
@@ -821,94 +832,15 @@ fn in_game_tests(s: &mut Suite<Ctx>) {
         ]);
     });
 
-    test!(s "combo flip cards that are pointed to by the defender if they lose"; |ctx| {
-        let mut driver = ctx.new_driver();
-        let defender = Card::physical(0, 0, 0, Arrows::ALL);
-        let attacker = Card::physical(0, 0, 0, Arrows::ALL);
-        let hand_candidates = [
-            [CARD, CARD, CARD, defender, CARD],
-            [CARD, CARD, CARD, attacker, CARD],
-            [CARD, CARD, CARD, CARD, CARD],
-        ];
-        driver.send(setup_default().hand_candidates(&hand_candidates).rolls(&[255, 0]))?.setup_ok();
-        driver.send(Command::pick_hand(0))?.pick_hand_ok();
-        driver.send(Command::pick_hand(1))?.pick_hand_ok();
-
-        driver.send(Command::place_card(0, 1))?.place_card_ok(); // will flip
-        driver.send(Command::place_card(0, 3))?.place_card_ok();
-
-        driver.send(Command::place_card(1, 4))?.place_card_ok(); // will flip
-        driver.send(Command::place_card(1, 7))?.place_card_ok();
-
-        driver.send(Command::place_card(2, 6))?.place_card_ok(); // will flip
-        driver.send(Command::place_card(2, 0xB))?.place_card_ok();
-
-        driver.send(Command::place_card(3, 5))?.place_card_ok(); // defender
-
-        let (_, events) = driver.send(Command::place_card(3, 9))?.place_card_ok();
-
-        assert_eq!(events, vec![
-            Event::battle(
-                Battler::new(9, Digit::Attack, 0, 0xF),
-                Battler::new(5, Digit::PhysicalDefense, 0, 0),
-                BattleWinner::Attacker,
-            ),
-            Event::flip(5),
-            Event::combo_flip(1),
-            Event::combo_flip(4),
-            Event::combo_flip(6),
-            Event::turn_p1(),
-        ]);
-    });
-
-    test!(s "combo flip cards that are pointed to by the attacker if they lose"; |ctx| {
-        let mut driver = ctx.new_driver();
-        let defender = Card::physical(0, 0, 0, Arrows::UP);
-        let attacker = Card::physical(0, 0, 0, Arrows::ALL);
-        let hand_candidates = [
-            [CARD, CARD, CARD, defender, CARD],
-            [CARD, CARD, CARD, attacker, CARD],
-            [CARD, CARD, CARD, CARD, CARD],
-        ];
-        driver.send(setup_default().hand_candidates(&hand_candidates).rolls(&[0, 255]))?.setup_ok();
-        driver.send(Command::pick_hand(0))?.pick_hand_ok();
-        driver.send(Command::pick_hand(1))?.pick_hand_ok();
-
-        driver.send(Command::place_card(0, 3))?.place_card_ok();
-        driver.send(Command::place_card(0, 1))?.place_card_ok(); // will flip
-
-        driver.send(Command::place_card(1, 7))?.place_card_ok();
-        driver.send(Command::place_card(1, 4))?.place_card_ok(); // will flip
-
-        driver.send(Command::place_card(2, 0xB))?.place_card_ok();
-        driver.send(Command::place_card(2, 6))?.place_card_ok(); // will flip
-
-        driver.send(Command::place_card(3, 9))?.place_card_ok(); // defender
-
-        let (_, events) = driver.send(Command::place_card(3, 5))?.place_card_ok();
-
-        assert_eq!(events, vec![
-            Event::battle(
-                Battler::new(5, Digit::Attack, 0, 0),
-                Battler::new(9, Digit::PhysicalDefense, 0, 0xF),
-                BattleWinner::Defender,
-            ),
-            Event::flip(5),
-            Event::combo_flip(1),
-            Event::combo_flip(4),
-            Event::combo_flip(6),
-            Event::turn_p1(),
-        ]);
-    });
-
-    test!(s "game should be over once all cards have been played, player 1 wins"; |ctx| {
+    let ss = suite!(s "Game Ending");
+    test!(ss "game should be over once all cards have been played, player 1 wins"; |ctx| {
         let mut driver = ctx.new_driver();
         let hand_candidates = [
             [CARD, CARD, CARD.arrows(Arrows::ALL), CARD, CARD],
             [CARD, CARD, CARD, CARD, CARD],
             [CARD, CARD, CARD, CARD, CARD],
         ];
-        driver.send(setup_default().hand_candidates(&hand_candidates).rolls(&[0, 255]))?.setup_ok();
+        driver.send(setup_default().hand_candidates(&hand_candidates))?.setup_ok();
         driver.send(Command::pick_hand(0))?.pick_hand_ok();
         driver.send(Command::pick_hand(1))?.pick_hand_ok();
 
@@ -920,7 +852,6 @@ fn in_game_tests(s: &mut Suite<Ctx>) {
         driver.send(Command::place_card(2, 5))?.place_card_ok();
         driver.send(Command::place_card(3, 6))?.place_card_ok();
         driver.send(Command::place_card(3, 7))?.place_card_ok();
-
         driver.send(Command::place_card(4, 8))?.place_card_ok();
         let (_, events) = driver.send(Command::place_card(4, 9))?.place_card_ok();
 
@@ -928,15 +859,14 @@ fn in_game_tests(s: &mut Suite<Ctx>) {
             Event::game_over(Some(Player::P1)),
         ]);
     });
-
-    test!(s "game should be over once all cards have been played, player 2 wins"; |ctx| {
+    test!(ss "game should be over once all cards have been played, player 2 wins"; |ctx| {
         let mut driver = ctx.new_driver();
         let hand_candidates = [
             [CARD, CARD, CARD, CARD, CARD],
             [CARD, CARD, CARD.arrows(Arrows::ALL), CARD, CARD],
             [CARD, CARD, CARD, CARD, CARD],
         ];
-        driver.send(setup_default().hand_candidates(&hand_candidates).rolls(&[0, 255]))?.setup_ok();
+        driver.send(setup_default().hand_candidates(&hand_candidates))?.setup_ok();
         driver.send(Command::pick_hand(0))?.pick_hand_ok();
         driver.send(Command::pick_hand(1))?.pick_hand_ok();
 
@@ -948,7 +878,6 @@ fn in_game_tests(s: &mut Suite<Ctx>) {
         driver.send(Command::place_card(2, 5))?.place_card_ok();
         driver.send(Command::place_card(3, 6))?.place_card_ok();
         driver.send(Command::place_card(3, 7))?.place_card_ok();
-
         driver.send(Command::place_card(4, 8))?.place_card_ok();
         let (_, events) = driver.send(Command::place_card(4, 9))?.place_card_ok();
 
@@ -956,15 +885,9 @@ fn in_game_tests(s: &mut Suite<Ctx>) {
             Event::game_over(Some(Player::P2)),
         ]);
     });
-
-    test!(s "game should be over once all cards have been played, it's a draw"; |ctx| {
+    test!(ss "game should be over once all cards have been played, it's a draw"; |ctx| {
         let mut driver = ctx.new_driver();
-        let hand_candidates = [
-            [CARD, CARD, CARD, CARD, CARD],
-            [CARD, CARD, CARD, CARD, CARD],
-            [CARD, CARD, CARD, CARD, CARD],
-        ];
-        driver.send(setup_default().hand_candidates(&hand_candidates).rolls(&[0, 255]))?.setup_ok();
+        driver.send(setup_default())?.setup_ok();
         driver.send(Command::pick_hand(0))?.pick_hand_ok();
         driver.send(Command::pick_hand(1))?.pick_hand_ok();
 
@@ -976,42 +899,11 @@ fn in_game_tests(s: &mut Suite<Ctx>) {
         driver.send(Command::place_card(2, 5))?.place_card_ok();
         driver.send(Command::place_card(3, 6))?.place_card_ok();
         driver.send(Command::place_card(3, 7))?.place_card_ok();
-
         driver.send(Command::place_card(4, 8))?.place_card_ok();
         let (_, events) = driver.send(Command::place_card(4, 9))?.place_card_ok();
 
         assert_eq!(events, vec![
             Event::game_over(None),
-        ]);
-    });
-
-    test!(s "don't flip back undefended cards if they are flipped due to combos"; |ctx| {
-        let mut driver = ctx.new_driver();
-        let hand_candidates = [
-            [CARD, CARD.arrows(Arrows::ALL), CARD, CARD, CARD],
-            [CARD.arrows(Arrows::ALL), CARD, CARD, CARD, CARD],
-            [CARD, CARD, CARD, CARD, CARD],
-        ];
-        driver.send(setup_default().hand_candidates(&hand_candidates).rolls(&[255, 0]))?.setup_ok();
-        driver.send(Command::pick_hand(0))?.pick_hand_ok();
-        driver.send(Command::pick_hand(1))?.pick_hand_ok();
-
-        driver.send(Command::place_card(0, 4))?.place_card_ok();
-        driver.send(Command::place_card(0, 0))?.place_card_ok(); // flips the card on 4
-
-        // placed card points to both other cards, attacker wins,
-        // flips card on 0 and card on 4 get's combo flipped
-        let (_, events) = driver.send(Command::place_card(1, 5))?.place_card_ok();
-
-        assert_eq!(events, vec![
-            Event::battle(
-                Battler::new(5, Digit::Attack, 0, 0xF),
-                Battler::new(0, Digit::PhysicalDefense, 0, 0),
-                BattleWinner::Attacker,
-            ),
-            Event::flip(0),
-            Event::combo_flip(4),
-            Event::turn_p2(),
         ]);
     });
 }
