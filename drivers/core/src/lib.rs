@@ -3,7 +3,7 @@ mod driver;
 mod response;
 
 pub use command::Command;
-pub use driver::ImplementationDriver;
+pub use driver::Driver;
 pub use response::{ErrorResponse, Response};
 
 const HAND_CANDIDATES: usize = 3;

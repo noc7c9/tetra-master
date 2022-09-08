@@ -4,14 +4,14 @@ use std::io::{BufRead, Write};
 use crate::{Command, Response, Result};
 
 // Basic Driver that talks to the given Rx, Tx types
-struct Driver<Rx, Tx> {
+struct BaseDriver<Rx, Tx> {
     receiver: Rx,
     transmitter: Tx,
     buffer: String,
     logging: bool,
 }
 
-impl<Rx, Tx> Driver<Rx, Tx>
+impl<Rx, Tx> BaseDriver<Rx, Tx>
 where
     Rx: BufRead,
     Tx: Write,
@@ -57,24 +57,25 @@ where
 }
 
 // Driver for talking to an implementation that's run as an external process
-pub struct ImplementationDriver {
+pub struct Driver {
     proc: std::process::Child,
-    driver: Driver<std::io::BufReader<std::process::ChildStdout>, std::process::ChildStdin>,
+    base_driver:
+        BaseDriver<std::io::BufReader<std::process::ChildStdout>, std::process::ChildStdin>,
     _stderr_thread_handle: std::thread::JoinHandle<()>,
 }
 
-impl ImplementationDriver {
+impl Driver {
     pub fn send(&mut self, cmd: Command) -> Result<Response> {
-        self.driver.send(cmd)
+        self.base_driver.send(cmd)
     }
 
     pub fn log(mut self) -> Self {
-        self.driver.logging = true;
+        self.base_driver.logging = true;
         self
     }
 }
 
-impl Drop for ImplementationDriver {
+impl Drop for Driver {
     fn drop(&mut self) {
         // if killing the child fails, just ignore it
         // the OS should clean up after the tester process closes
@@ -82,8 +83,8 @@ impl Drop for ImplementationDriver {
     }
 }
 
-impl ImplementationDriver {
-    pub fn new(implementation: &str) -> ImplementationDriver {
+impl Driver {
+    pub fn new(implementation: &str) -> Driver {
         use std::process::{Command, Stdio};
 
         let mut proc = Command::new(implementation)
@@ -108,11 +109,11 @@ impl ImplementationDriver {
             }
         });
 
-        let driver = Driver::new(stdout, stdin);
+        let base_driver = BaseDriver::new(stdout, stdin);
 
-        ImplementationDriver {
+        Driver {
             proc,
-            driver,
+            base_driver,
             _stderr_thread_handle: handle,
         }
     }
