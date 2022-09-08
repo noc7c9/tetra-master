@@ -9,12 +9,12 @@
 //  C | D | E | F
 
 use pretty_assertions::{assert_eq, assert_ne};
-
-use crate::{
-    driver::{BattleWinner, Battler, Command, Digit, ErrorResponse, Event, Response},
-    harness::{Harness, Suite},
-    Arrows, BattleSystem, Card, Player,
+use tetra_master_core::{
+    Arrows, BattleSystem, BattleWinner, Battler, Card, Command, Digit, ErrorResponse, Event,
+    Player, Response,
 };
+
+use crate::harness::{Harness, Suite};
 
 mod helpers;
 use helpers::*;
@@ -29,7 +29,7 @@ fn setup_default() -> Command {
 
 fn game_setup_tests(s: &mut Suite<Ctx>) {
     test!(s "Setup without args should use random initialization"; |ctx| {
-        let first = ctx.new_driver().send(Command::setup())?;
+        let first = ctx.new_driver().log().send(Command::setup())?;
         let second = ctx.new_driver().send(Command::setup())?;
 
         assert_ne!(first, second);

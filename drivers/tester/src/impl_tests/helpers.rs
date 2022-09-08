@@ -1,13 +1,11 @@
-use crate::{
-    driver::{
-        BattleWinner, Battler, Command, Digit, ErrorResponse, Event, ImplementationDriver, Response,
-    },
-    Arrows, BattleSystem, Card, HandCandidate, HandCandidates, Player, Rng, Seed,
+use tetra_master_core::{
+    Arrows, BattleSystem, BattleWinner, Battler, Card, Command, ErrorResponse, Event, Hand,
+    HandCandidates, ImplementationDriver, Player, Response, Rng, Seed,
 };
 
 pub(super) const CARD: Card = Card::physical(0, 0, 0, Arrows(0));
 pub(super) const HAND_CANDIDATES: HandCandidates = {
-    const HAND: HandCandidate = [CARD, CARD, CARD, CARD, CARD];
+    const HAND: Hand = [CARD, CARD, CARD, CARD, CARD];
     [HAND, HAND, HAND]
 };
 
@@ -21,8 +19,20 @@ impl Ctx {
     }
 }
 
-impl Command {
-    pub(super) fn setup() -> Self {
+pub(super) trait CommandExt {
+    fn setup() -> Self;
+    fn pick_hand(hand: u8) -> Self;
+    fn place_card(card: u8, cell: u8) -> Self;
+    fn pick_battle(cell: u8) -> Self;
+    fn seed(self, seed: Seed) -> Self;
+    fn rolls(self, rolls: &[u8]) -> Self;
+    fn battle_system(self, value: BattleSystem) -> Self;
+    fn blocked_cells(self, value: &[u8]) -> Self;
+    fn hand_candidates(self, value: &HandCandidates) -> Self;
+}
+
+impl CommandExt for Command {
+    fn setup() -> Self {
         Command::Setup {
             rng: None,
             battle_system: None,
@@ -31,19 +41,19 @@ impl Command {
         }
     }
 
-    pub(super) fn pick_hand(hand: u8) -> Self {
+    fn pick_hand(hand: u8) -> Self {
         Command::PickHand { hand }
     }
 
-    pub(super) fn place_card(card: u8, cell: u8) -> Self {
+    fn place_card(card: u8, cell: u8) -> Self {
         Command::PlaceCard { card, cell }
     }
 
-    pub(super) fn pick_battle(cell: u8) -> Self {
+    fn pick_battle(cell: u8) -> Self {
         Command::PickBattle { cell }
     }
 
-    pub(super) fn seed(mut self, seed: Seed) -> Self {
+    fn seed(mut self, seed: Seed) -> Self {
         if let Command::Setup { ref mut rng, .. } = self {
             *rng = Some(Rng::Seeded { seed });
             self
@@ -52,7 +62,7 @@ impl Command {
         }
     }
 
-    pub(super) fn rolls(mut self, rolls: &[u8]) -> Self {
+    fn rolls(mut self, rolls: &[u8]) -> Self {
         if let Command::Setup { ref mut rng, .. } = self {
             let rolls = rolls.into();
             *rng = Some(Rng::External { rolls });
@@ -62,7 +72,7 @@ impl Command {
         }
     }
 
-    pub(super) fn battle_system(mut self, value: BattleSystem) -> Self {
+    fn battle_system(mut self, value: BattleSystem) -> Self {
         if let Command::Setup {
             ref mut battle_system,
             ..
@@ -75,7 +85,7 @@ impl Command {
         }
     }
 
-    pub(super) fn blocked_cells(mut self, value: &[u8]) -> Self {
+    fn blocked_cells(mut self, value: &[u8]) -> Self {
         if let Command::Setup {
             ref mut blocked_cells,
             ..
@@ -88,7 +98,7 @@ impl Command {
         }
     }
 
-    pub(super) fn hand_candidates(mut self, value: &HandCandidates) -> Self {
+    fn hand_candidates(mut self, value: &HandCandidates) -> Self {
         if let Command::Setup {
             ref mut hand_candidates,
             ..
@@ -109,8 +119,15 @@ pub(super) struct SetupOk {
     pub(super) hand_candidates: HandCandidates,
 }
 
-impl Response {
-    pub(super) fn error(self) -> ErrorResponse {
+pub(super) trait ResponseExt {
+    fn error(self) -> ErrorResponse;
+    fn setup_ok(self) -> SetupOk;
+    fn pick_hand_ok(self);
+    fn place_card_ok(self) -> (Vec<u8>, Vec<Event>);
+}
+
+impl ResponseExt for Response {
+    fn error(self) -> ErrorResponse {
         if let Response::Error(inner) = self {
             inner
         } else {
@@ -118,7 +135,7 @@ impl Response {
         }
     }
 
-    pub(super) fn setup_ok(self) -> SetupOk {
+    fn setup_ok(self) -> SetupOk {
         if let Response::SetupOk {
             seed,
             // battle_system,
@@ -138,14 +155,14 @@ impl Response {
         }
     }
 
-    pub(super) fn pick_hand_ok(self) {
+    fn pick_hand_ok(self) {
         if let Response::PickHandOk = self {
         } else {
             panic!("Expected Response::PickHandOk, found {self:?}")
         }
     }
 
-    pub(super) fn place_card_ok(self) -> (Vec<u8>, Vec<Event>) {
+    fn place_card_ok(self) -> (Vec<u8>, Vec<Event>) {
         if let Response::PlaceCardOk {
             pick_battle,
             events,
@@ -158,24 +175,34 @@ impl Response {
     }
 }
 
-impl Event {
-    pub(super) fn turn_p1() -> Self {
+pub(super) trait EventExt {
+    fn turn_p1() -> Self;
+    fn turn_p2() -> Self;
+    fn flip(cell: u8) -> Self;
+    fn combo_flip(cell: u8) -> Self;
+    fn battle(attacker: Battler, defender: Battler, winner: BattleWinner) -> Self;
+    fn game_over(winner: Option<Player>) -> Self;
+    fn as_battle(&self) -> (Battler, Battler, BattleWinner);
+}
+
+impl EventExt for Event {
+    fn turn_p1() -> Self {
         Event::NextTurn { to: Player::P1 }
     }
 
-    pub(super) fn turn_p2() -> Self {
+    fn turn_p2() -> Self {
         Event::NextTurn { to: Player::P2 }
     }
 
-    pub(super) fn flip(cell: u8) -> Self {
+    fn flip(cell: u8) -> Self {
         Event::Flip { cell }
     }
 
-    pub(super) fn combo_flip(cell: u8) -> Self {
+    fn combo_flip(cell: u8) -> Self {
         Event::ComboFlip { cell }
     }
 
-    pub(super) fn battle(attacker: Battler, defender: Battler, winner: BattleWinner) -> Self {
+    fn battle(attacker: Battler, defender: Battler, winner: BattleWinner) -> Self {
         Event::Battle {
             attacker,
             defender,
@@ -183,11 +210,11 @@ impl Event {
         }
     }
 
-    pub(super) fn game_over(winner: Option<Player>) -> Self {
+    fn game_over(winner: Option<Player>) -> Self {
         Event::GameOver { winner }
     }
 
-    pub(super) fn as_battle(&self) -> (Battler, Battler, BattleWinner) {
+    fn as_battle(&self) -> (Battler, Battler, BattleWinner) {
         if let Event::Battle {
             attacker,
             defender,
@@ -201,19 +228,12 @@ impl Event {
     }
 }
 
-impl Battler {
-    pub(super) fn new(cell: u8, digit: Digit, value: u8, roll: u8) -> Self {
-        Self {
-            cell,
-            digit,
-            value,
-            roll,
-        }
-    }
+pub(super) trait CardExt {
+    fn arrows(self, arrows: Arrows) -> Self;
 }
 
-impl Card {
-    pub(super) fn arrows(mut self, arrows: Arrows) -> Self {
+impl CardExt for Card {
+    fn arrows(mut self, arrows: Arrows) -> Self {
         self.arrows = arrows;
         self
     }

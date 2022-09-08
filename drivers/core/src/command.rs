@@ -2,7 +2,7 @@ use crate::{BattleSystem, Card, CardType, HandCandidates, Rng};
 use std::fmt::Result;
 
 #[derive(Debug)]
-pub(crate) enum Command {
+pub enum Command {
     // Quit,
     Setup {
         rng: Option<Rng>,
@@ -23,7 +23,7 @@ pub(crate) enum Command {
 }
 
 impl Command {
-    pub(crate) fn serialize(self, out: &mut String) -> anyhow::Result<()> {
+    pub fn serialize(self, out: &mut String) -> anyhow::Result<()> {
         let mut o = Sexpr::new(out);
 
         match self {

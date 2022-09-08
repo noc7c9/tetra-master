@@ -1,14 +1,13 @@
 [package]
-name = "tetra-master-tester"
+name = "tetra-master-core"
 version = "0.1.0"
 edition = "2021"
 
 [dependencies]
 anyhow = "1.0.61"
-clap = { version = "3.2.16", features = ["derive"] }
 nom = "7.1.1"
 owo-colors = "3.4.0"
-pretty_assertions = "1.2.1"
 
 [dev-dependencies]
+pretty_assertions = "1.2.1"
 test-case = "2.2.1"

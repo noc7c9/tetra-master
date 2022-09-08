@@ -1,11 +1,7 @@
 use owo_colors::OwoColorize;
 use std::io::{BufRead, Write};
 
-mod command;
-mod response;
-
-pub(crate) use command::Command;
-pub(crate) use response::{BattleWinner, Battler, Digit, ErrorResponse, Event, Response};
+use crate::{Command, Response};
 
 // Basic Driver that talks to the given Rx, Tx types
 struct Driver<Rx, Tx> {
@@ -61,19 +57,18 @@ where
 }
 
 // Driver for talking to an implementation that's run as an external process
-pub(crate) struct ImplementationDriver {
+pub struct ImplementationDriver {
     proc: std::process::Child,
     driver: Driver<std::io::BufReader<std::process::ChildStdout>, std::process::ChildStdin>,
     _stderr_thread_handle: std::thread::JoinHandle<()>,
 }
 
 impl ImplementationDriver {
-    pub(crate) fn send(&mut self, cmd: Command) -> anyhow::Result<Response> {
+    pub fn send(&mut self, cmd: Command) -> anyhow::Result<Response> {
         self.driver.send(cmd)
     }
 
-    #[allow(dead_code)]
-    pub(crate) fn log(mut self) -> Self {
+    pub fn log(mut self) -> Self {
         self.driver.logging = true;
         self
     }
@@ -88,7 +83,7 @@ impl Drop for ImplementationDriver {
 }
 
 impl ImplementationDriver {
-    pub(crate) fn new(implementation: &str) -> ImplementationDriver {
+    pub fn new(implementation: &str) -> ImplementationDriver {
         use std::process::{Command, Stdio};
 
         let mut proc = Command::new(implementation)

@@ -1,9 +1,6 @@
 _list:
     @just --list
 
-start +ARGS='':
-    just watch run {{ARGS}}
-
 watch CMD='check' +ARGS='':
     watchexec \
         --watch Cargo.toml --watch src \
@@ -12,14 +9,8 @@ watch CMD='check' +ARGS='':
 cargo +ARGS='':
     cargo {{ARGS}}
 
-run +ARGS='':
-    cargo run {{ARGS}}
-
 check +ARGS='':
     cargo clippy {{ARGS}}
-
-build +ARGS='':
-    cargo build {{ARGS}}
 
 test +ARGS='':
     cargo test {{ARGS}}

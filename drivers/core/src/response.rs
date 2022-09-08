@@ -1,4 +1,7 @@
-use crate::{Arrows, BattleSystem, Card, CardType, HandCandidate, HandCandidates, Player, Seed};
+use crate::{
+    Arrows, BattleSystem, BattleWinner, Battler, Card, CardType, Digit, Event, Hand,
+    HandCandidates, Player, Seed,
+};
 use nom::{
     branch::alt,
     bytes::complete::{tag, take_while_m_n},
@@ -12,7 +15,7 @@ use nom::{
 
 #[must_use]
 #[derive(Debug, Clone, PartialEq)]
-pub(crate) enum Response {
+pub enum Response {
     Error(ErrorResponse),
     SetupOk {
         seed: Option<Seed>,
@@ -28,7 +31,7 @@ pub(crate) enum Response {
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub(crate) enum ErrorResponse {
+pub enum ErrorResponse {
     InvalidHandPick { hand: u8 },
     HandAlreadyPicked { hand: u8 },
     CellIsNotEmpty { cell: u8 },
@@ -36,51 +39,8 @@ pub(crate) enum ErrorResponse {
     InvalidBattlePick { cell: u8 },
 }
 
-#[derive(Debug, Copy, Clone, PartialEq)]
-pub(crate) enum Event {
-    NextTurn {
-        to: Player,
-    },
-    Flip {
-        cell: u8,
-    },
-    ComboFlip {
-        cell: u8,
-    },
-    Battle {
-        attacker: Battler,
-        defender: Battler,
-        winner: BattleWinner,
-    },
-    GameOver {
-        winner: Option<Player>,
-    },
-}
-
-#[derive(Debug, Copy, Clone, PartialEq)]
-pub(crate) struct Battler {
-    pub cell: u8,
-    pub digit: Digit,
-    pub value: u8,
-    pub roll: u8,
-}
-
-#[derive(Debug, Copy, Clone, PartialEq)]
-pub(crate) enum Digit {
-    Attack,
-    PhysicalDefense,
-    MagicalDefense,
-}
-
-#[derive(Debug, Copy, Clone, PartialEq)]
-pub(crate) enum BattleWinner {
-    Attacker,
-    Defender,
-    None,
-}
-
 impl Response {
-    pub(crate) fn deserialize(i: &str) -> anyhow::Result<Self> {
+    pub fn deserialize(i: &str) -> anyhow::Result<Self> {
         let (_, res) =
             alt((error, setup_ok, pick_hand_ok, place_card_ok))(i).map_err(|e| e.to_owned())?;
         Ok(res)
@@ -184,7 +144,7 @@ fn blocked_cells(i: &str) -> IResult<&str, Vec<u8>> {
     array_verify(hex_digit_1_n(1), |v| v.len() < 6)(i)
 }
 
-fn hand(i: &str) -> IResult<&str, HandCandidate> {
+fn hand(i: &str) -> IResult<&str, Hand> {
     let (i, cards) = array_verify(card, |v| v.len() == crate::HAND_SIZE)(i)?;
     Ok((i, [cards[0], cards[1], cards[2], cards[3], cards[4]]))
 }
@@ -363,12 +323,13 @@ mod tests {
     use test_case::test_case;
 
     use super::{
-        BattleSystem, BattleWinner, Battler, Digit,
         ErrorResponse::*,
         Event::*,
         Response::{self, *},
     };
-    use crate::{Arrows, Card, HandCandidate, HandCandidates, Player};
+    use crate::{
+        Arrows, BattleSystem, BattleWinner, Battler, Card, Digit, Hand, HandCandidates, Player,
+    };
 
     fn assert_eq<T: PartialEq + std::fmt::Debug>(expected: T) -> impl Fn(T) {
         move |actual| pretty_assertions::assert_eq!(actual, expected)
@@ -420,7 +381,7 @@ mod tests {
     #[test_case("(0P00_0 0P00_0 0P00_0 0P00_0)" => panics)]
     #[test_case("()" => panics)]
     #[test_case(" " => panics; "empty string")]
-    fn hand(i: &str) -> HandCandidate {
+    fn hand(i: &str) -> Hand {
         super::hand(i).unwrap().1
     }
 

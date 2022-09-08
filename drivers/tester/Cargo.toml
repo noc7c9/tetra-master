@@ -1,0 +1,12 @@
+[package]
+name = "tetra-master-tester"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+tetra-master-core = { path = "../core" }
+
+anyhow = "1.0.61"
+clap = { version = "3.2.16", features = ["derive"] }
+owo-colors = "3.4.0"
+pretty_assertions = "1.2.1"
