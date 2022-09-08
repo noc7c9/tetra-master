@@ -1,5 +1,8 @@
 use crate::{BattleSystem, Card, CardType, HandCandidates, Rng};
-use std::fmt::Result;
+use std::fmt::Result as FResult;
+
+// TODO: replace this with a bespoke Error enum
+pub type Error = std::fmt::Error;
 
 #[derive(Debug)]
 pub enum Command {
@@ -23,7 +26,7 @@ pub enum Command {
 }
 
 impl Command {
-    pub fn serialize(self, out: &mut String) -> anyhow::Result<()> {
+    pub fn serialize(self, out: &mut String) -> Result<(), Error> {
         let mut o = Sexpr::new(out);
 
         match self {
@@ -107,7 +110,7 @@ impl Command {
     }
 }
 
-fn write_card(o: &mut Sexpr, card: Card) -> Result {
+fn write_card(o: &mut Sexpr, card: Card) -> FResult {
     let att = card.attack;
     let phy = card.physical_defense;
     let mag = card.magical_defense;
@@ -121,11 +124,11 @@ fn write_card(o: &mut Sexpr, card: Card) -> Result {
     o.atom_fmt(format_args!("{att:X}{typ}{phy:X}{mag:X}_{arr:X}"))
 }
 
-fn write_blocked_cells(o: &mut Sexpr, blocked_cells: &[u8]) -> Result {
+fn write_blocked_cells(o: &mut Sexpr, blocked_cells: &[u8]) -> FResult {
     o.array(blocked_cells, |o, cell| o.atom(DisplayHex(cell)))
 }
 
-fn write_hand_candidates(o: &mut Sexpr, hand_candidates: &HandCandidates) -> Result {
+fn write_hand_candidates(o: &mut Sexpr, hand_candidates: &HandCandidates) -> FResult {
     o.array(hand_candidates, |o, hand| {
         o.array(hand, |o, card| write_card(o, *card))
     })
@@ -134,7 +137,7 @@ fn write_hand_candidates(o: &mut Sexpr, hand_candidates: &HandCandidates) -> Res
 struct DisplayHex<T>(T);
 
 impl<T: std::fmt::UpperHex> std::fmt::Display for DisplayHex<T> {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> Result {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> FResult {
         write!(f, "{:X}", self.0)
     }
 }

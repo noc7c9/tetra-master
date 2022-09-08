@@ -7,11 +7,14 @@ use nom::{
     bytes::complete::{tag, take_while_m_n},
     character::complete::{char, multispace0, multispace1, one_of},
     combinator::{map, map_res, opt, verify},
-    error::Error,
+    error::Error as NomError,
     multi::separated_list0,
     sequence::{delimited, preceded, terminated, tuple},
     IResult, Parser,
 };
+
+// TODO: replace this with a bespoke Error enum
+pub type Error = nom::Err<NomError<String>>;
 
 #[must_use]
 #[derive(Debug, Clone, PartialEq)]
@@ -40,7 +43,7 @@ pub enum ErrorResponse {
 }
 
 impl Response {
-    pub fn deserialize(i: &str) -> anyhow::Result<Self> {
+    pub fn deserialize(i: &str) -> Result<Self, Error> {
         let (_, res) =
             alt((error, setup_ok, pick_hand_ok, place_card_ok))(i).map_err(|e| e.to_owned())?;
         Ok(res)
@@ -48,7 +51,7 @@ impl Response {
 }
 
 fn atom<'a, T>(
-    inner: impl Parser<&'a str, T, Error<&'a str>>,
+    inner: impl Parser<&'a str, T, NomError<&'a str>>,
 ) -> impl FnMut(&'a str) -> IResult<&'a str, T> {
     delimited(multispace0, inner, multispace0)
 }
@@ -58,19 +61,19 @@ fn ident<'a>(value: &'static str) -> impl FnMut(&'a str) -> IResult<&'a str, &st
 }
 
 fn list<'a, T>(
-    inner: impl Parser<&'a str, T, Error<&'a str>>,
+    inner: impl Parser<&'a str, T, NomError<&'a str>>,
 ) -> impl FnMut(&'a str) -> IResult<&'a str, T> {
     delimited(char('('), atom(inner), char(')'))
 }
 
 fn array<'a, T>(
-    inner: impl Parser<&'a str, T, Error<&'a str>>,
+    inner: impl Parser<&'a str, T, NomError<&'a str>>,
 ) -> impl FnMut(&'a str) -> IResult<&'a str, Vec<T>> {
     list(separated_list0(multispace1, inner))
 }
 
 fn array_verify<'a, T>(
-    inner: impl Parser<&'a str, T, Error<&'a str>>,
+    inner: impl Parser<&'a str, T, NomError<&'a str>>,
     predicate: impl Fn(&Vec<T>) -> bool,
 ) -> impl FnMut(&'a str) -> IResult<&'a str, Vec<T>> {
     verify(array(inner), predicate)
@@ -156,14 +159,14 @@ fn hand_candidates(i: &str) -> IResult<&str, HandCandidates> {
 
 fn response<'a>(
     name: &'static str,
-    inner: impl Parser<&'a str, Response, Error<&'a str>>,
+    inner: impl Parser<&'a str, Response, NomError<&'a str>>,
 ) -> impl FnMut(&'a str) -> IResult<&'a str, Response> {
     terminated(list(preceded(ident(name), inner)), char('\n'))
 }
 
 fn prop<'a, T>(
     name: &'static str,
-    inner: impl Parser<&'a str, T, Error<&'a str>>,
+    inner: impl Parser<&'a str, T, NomError<&'a str>>,
 ) -> impl FnMut(&'a str) -> IResult<&'a str, T> {
     preceded(multispace0, list(preceded(ident(name), inner)))
 }

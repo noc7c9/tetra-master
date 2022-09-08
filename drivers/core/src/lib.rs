@@ -13,6 +13,51 @@ pub type Seed = u64;
 pub type Hand = [Card; HAND_SIZE];
 pub type HandCandidates = [Hand; HAND_CANDIDATES];
 
+pub type Result<T> = std::result::Result<T, Error>;
+
+#[derive(Debug)]
+pub enum Error {
+    SerializationError(std::fmt::Error),
+    DeserializationError(response::Error),
+    IOError(std::io::Error),
+}
+
+impl std::fmt::Display for Error {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Error::SerializationError(inner) => {
+                write!(f, "Failed to serialize response: {inner:?}")
+            }
+            Error::DeserializationError(inner) => {
+                write!(f, "Failed to deserialize response: {inner:?}")
+            }
+            Error::IOError(inner) => {
+                write!(f, "IOError: {inner:?}")
+            }
+        }
+    }
+}
+
+impl std::error::Error for Error {}
+
+impl From<std::fmt::Error> for Error {
+    fn from(inner: std::fmt::Error) -> Self {
+        Self::SerializationError(inner)
+    }
+}
+
+impl From<response::Error> for Error {
+    fn from(inner: response::Error) -> Self {
+        Self::DeserializationError(inner)
+    }
+}
+
+impl From<std::io::Error> for Error {
+    fn from(inner: std::io::Error) -> Self {
+        Self::IOError(inner)
+    }
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub enum Rng {
     Seeded { seed: Seed },

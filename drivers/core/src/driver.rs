@@ -1,7 +1,7 @@
 use owo_colors::OwoColorize;
 use std::io::{BufRead, Write};
 
-use crate::{Command, Response};
+use crate::{Command, Response, Result};
 
 // Basic Driver that talks to the given Rx, Tx types
 struct Driver<Rx, Tx> {
@@ -25,12 +25,12 @@ where
         }
     }
 
-    fn send(&mut self, cmd: Command) -> anyhow::Result<Response> {
+    fn send(&mut self, cmd: Command) -> Result<Response> {
         self.tx(cmd)?;
         self.rx()
     }
 
-    fn tx(&mut self, cmd: Command) -> anyhow::Result<()> {
+    fn tx(&mut self, cmd: Command) -> Result<()> {
         self.buffer.clear();
         cmd.serialize(&mut self.buffer)?;
 
@@ -44,7 +44,7 @@ where
         Ok(())
     }
 
-    fn rx(&mut self) -> anyhow::Result<Response> {
+    fn rx(&mut self) -> Result<Response> {
         self.buffer.clear();
         self.receiver.read_line(&mut self.buffer)?;
 
@@ -52,7 +52,7 @@ where
             eprint!("{} {}", " RX ".black().on_blue(), self.buffer.blue());
         }
 
-        Response::deserialize(&self.buffer)
+        Ok(Response::deserialize(&self.buffer)?)
     }
 }
 
@@ -64,7 +64,7 @@ pub struct ImplementationDriver {
 }
 
 impl ImplementationDriver {
-    pub fn send(&mut self, cmd: Command) -> anyhow::Result<Response> {
+    pub fn send(&mut self, cmd: Command) -> Result<Response> {
         self.driver.send(cmd)
     }
 
