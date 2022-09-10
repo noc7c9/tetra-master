@@ -1,6 +1,6 @@
-use bevy::prelude::*;
+use bevy::{prelude::*, sprite::Anchor};
 
-use tetra_master_core::{Command, Driver, Response};
+use tetra_master_core as core;
 
 const RENDER_SIZE: (f32, f32) = (320., 240.);
 const SCREEN_SIZE: (f32, f32) = (RENDER_SIZE.0 * 4., RENDER_SIZE.1 * 4.);
@@ -8,39 +8,7 @@ const SCREEN_SIZE: (f32, f32) = (RENDER_SIZE.0 * 4., RENDER_SIZE.1 * 4.);
 // color picked from the background.png file
 const CLEAR_COLOR: Color = Color::rgb(0.03137255, 0.03137255, 0.03137255);
 
-enum GameState {
-    Setup,
-    PickingHandP1 {
-        blocked_cells: Vec<u8>,
-    },
-    PickingHandP2 {
-        blocked_cells: Vec<u8>,
-    },
-    Play {
-        hand_p1: Vec<u8>,
-        hand_p2: Vec<u8>,
-        blocked_cells: Vec<u8>,
-        choices: Vec<u8>,
-    },
-    GameOver,
-}
-
-#[derive(Debug, clap::Parser)]
-struct Args {
-    implementation: String,
-}
-
 fn main() {
-    let args = {
-        use clap::Parser;
-        Args::parse()
-    };
-
-    let driver = DriverWithLog {
-        log: Vec::new(),
-        inner: Driver::new(&args.implementation).log(),
-    };
-
     App::new()
         .insert_resource(bevy::render::texture::ImageSettings::default_nearest())
         .insert_resource(WindowDescriptor {
@@ -54,36 +22,63 @@ fn main() {
             },
             ..default()
         })
+        .insert_resource(GameAssets::default())
         .add_plugins(DefaultPlugins)
         .add_startup_system(setup)
-        .insert_resource(GameState::Setup)
-        .insert_resource(driver)
-        .add_system(step_game_on_click)
         .run();
 }
 
-struct DriverWithLog {
-    log: Vec<String>,
-    inner: Driver,
+#[derive(Default)]
+struct GameAssets {
+    font: Handle<Font>,
+    background: Handle<Image>,
+    card_blue_bg: Handle<Image>,
+    card_red_bg: Handle<Image>,
+    card_arrow_up: Handle<Image>,
+    card_arrow_up_right: Handle<Image>,
+    card_arrow_right: Handle<Image>,
+    card_arrow_down_right: Handle<Image>,
+    card_arrow_down: Handle<Image>,
+    card_arrow_down_left: Handle<Image>,
+    card_arrow_left: Handle<Image>,
+    card_arrow_up_left: Handle<Image>,
+    card_faces: Handle<TextureAtlas>,
+    card_stat_font: Handle<TextureAtlas>,
 }
 
-impl DriverWithLog {
-    fn send(&mut self, cmd: Command) -> anyhow::Result<Response> {
-        self.log.push(format!("TX {cmd:?}"));
+fn setup(
+    mut commands: Commands,
+    asset_server: Res<AssetServer>,
+    mut texture_atlases: ResMut<Assets<TextureAtlas>>,
+    mut assets: ResMut<GameAssets>,
+) {
+    assets.font = asset_server.load("alexandria.ttf");
 
-        let res = self.inner.send(cmd)?;
+    assets.background = asset_server.load("background.png");
 
-        self.log.push(format!("RX {res:?}"));
+    assets.card_blue_bg = asset_server.load("card-bg-blue.png");
+    assets.card_red_bg = asset_server.load("card-bg-red.png");
 
-        Ok(res)
-    }
-}
+    assets.card_arrow_up = asset_server.load("card-arrow-up.png");
+    assets.card_arrow_up_right = asset_server.load("card-arrow-up-right.png");
+    assets.card_arrow_right = asset_server.load("card-arrow-right.png");
+    assets.card_arrow_down_right = asset_server.load("card-arrow-down-right.png");
+    assets.card_arrow_down = asset_server.load("card-arrow-down.png");
+    assets.card_arrow_down_left = asset_server.load("card-arrow-down-left.png");
+    assets.card_arrow_left = asset_server.load("card-arrow-left.png");
+    assets.card_arrow_up_left = asset_server.load("card-arrow-up-left.png");
 
-#[derive(Component)]
-struct GameLog;
+    assets.card_faces = {
+        let handle = asset_server.load("card-faces.png");
+        let atlas = TextureAtlas::from_grid(handle, (42., 51.).into(), 10, 10);
+        texture_atlases.add(atlas)
+    };
 
-fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
-    let font = asset_server.load("alexandria.ttf");
+    assets.card_stat_font = {
+        let handle = asset_server.load("card-stat-font.png");
+        let atlas = TextureAtlas::from_grid(handle, (7., 7.).into(), 19, 1);
+        texture_atlases.add(atlas)
+    };
 
     commands.insert_resource(ClearColor(CLEAR_COLOR));
 
@@ -99,123 +94,126 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
     });
 
     commands.spawn_bundle(SpriteBundle {
-        texture: asset_server.load("background.png"),
+        texture: assets.background.clone(),
         ..default()
     });
 
-    commands
-        .spawn_bundle(
-            TextBundle::from_section(
-                "",
-                TextStyle {
-                    font,
-                    font_size: 14.0,
-                    color: Color::WHITE,
-                },
-            )
-            .with_text_alignment(TextAlignment::TOP_LEFT)
-            .with_style(Style {
-                align_self: AlignSelf::FlexStart,
-                position_type: PositionType::Absolute,
-                position: UiRect {
-                    top: Val::Px(10.0),
-                    left: Val::Px(10.0),
-                    ..default()
-                },
-                ..default()
-            }),
-        )
-        .insert(GameLog);
+    let card = core::Card::physical(1, 2, 3, core::Arrows(10));
+    let owner = core::Player::P1;
+    let position = (0., 0., 1.).into();
+    spawn_card(&mut commands, &assets, position, 0, owner, card);
+
+    let card = core::Card::assault(13, 11, 14, core::Arrows(123));
+    let owner = core::Player::P2;
+    let position = (25., 10., 2.).into();
+    spawn_card(&mut commands, &assets, position, 1, owner, card);
 }
 
-fn step_game_on_click(
-    buttons: Res<Input<MouseButton>>,
-    state: ResMut<GameState>,
-    mut driver: ResMut<DriverWithLog>,
-    mut game_log: Query<&mut Text, With<GameLog>>,
+fn spawn_card(
+    commands: &mut Commands,
+    assets: &GameAssets,
+    translation: Vec3,
+    image: usize,
+    owner: core::Player,
+    card: core::Card,
 ) {
-    if !buttons.just_pressed(MouseButton::Left) {
-        return;
-    }
+    commands
+        .spawn_bundle(SpriteBundle {
+            sprite: Sprite {
+                anchor: Anchor::BottomLeft,
+                ..default()
+            },
+            texture: match owner {
+                core::Player::P1 => assets.card_blue_bg.clone(),
+                core::Player::P2 => assets.card_red_bg.clone(),
+            },
+            transform: Transform::from_translation(translation),
+            ..default()
+        })
+        .with_children(|p| {
+            p.spawn_bundle(SpriteSheetBundle {
+                sprite: TextureAtlasSprite {
+                    index: image,
+                    anchor: Anchor::BottomLeft,
+                    ..default()
+                },
+                texture_atlas: assets.card_faces.clone(),
 
-    // forwards the game automatically
-    let state = state.into_inner();
-    match state {
-        GameState::Setup => {
-            // start a random game
-            let blocked_cells = if let Response::SetupOk { blocked_cells, .. } = driver
-                .send(Command::Setup {
-                    rng: None,
-                    battle_system: None,
-                    blocked_cells: None,
-                    hand_candidates: None,
-                })
-                .unwrap()
-            {
-                blocked_cells
-            } else {
-                panic!()
-            };
+                ..default()
+            });
 
-            *state = GameState::PickingHandP1 { blocked_cells };
-        }
-        GameState::PickingHandP1 { blocked_cells } => {
-            // pick the first hand
-            let _ = driver.send(Command::PickHand { hand: 0 }).unwrap();
-            *state = GameState::PickingHandP2 {
-                blocked_cells: blocked_cells.clone(),
-            }
-        }
-        GameState::PickingHandP2 { blocked_cells } => {
-            // pick the second hand
-            let _ = driver.send(Command::PickHand { hand: 1 }).unwrap();
+            let x = 9.0;
+            let y = 6.0;
+            p.spawn_bundle(SpriteSheetBundle {
+                sprite: TextureAtlasSprite {
+                    index: card.attack as usize,
+                    anchor: Anchor::BottomLeft,
+                    ..default()
+                },
+                texture_atlas: assets.card_stat_font.clone(),
+                transform: Transform::from_xyz(x, y, 1.),
+                ..default()
+            });
+            p.spawn_bundle(SpriteSheetBundle {
+                sprite: TextureAtlasSprite {
+                    index: match card.card_type {
+                        core::CardType::Physical => 16,
+                        core::CardType::Magical => 17,
+                        core::CardType::Exploit => 18,
+                        core::CardType::Assault => 10,
+                    },
+                    anchor: Anchor::BottomLeft,
+                    ..default()
+                },
+                texture_atlas: assets.card_stat_font.clone(),
+                transform: Transform::from_xyz(x + 6., y, 1.),
+                ..default()
+            });
+            p.spawn_bundle(SpriteSheetBundle {
+                sprite: TextureAtlasSprite {
+                    index: card.physical_defense as usize,
+                    anchor: Anchor::BottomLeft,
+                    ..default()
+                },
+                texture_atlas: assets.card_stat_font.clone(),
+                transform: Transform::from_xyz(x + 12., y, 1.),
+                ..default()
+            });
+            p.spawn_bundle(SpriteSheetBundle {
+                sprite: TextureAtlasSprite {
+                    index: card.magical_defense as usize,
+                    anchor: Anchor::BottomLeft,
+                    ..default()
+                },
+                texture_atlas: assets.card_stat_font.clone(),
+                transform: Transform::from_xyz(x + 18., y, 1.),
+                ..default()
+            });
 
-            let hand_p1 = vec![0, 1, 2, 3, 4];
-            let hand_p2 = vec![0, 1, 2, 3, 4];
-            *state = GameState::Play {
-                blocked_cells: blocked_cells.clone(),
-                hand_p1,
-                hand_p2,
-                choices: vec![],
-            };
-        }
-        GameState::Play {
-            blocked_cells,
-            hand_p1,
-            hand_p2,
-            choices,
-        } => {
-            // as p1 always goes first, if the p2 hand is empty the game is over
-            if !hand_p2.is_empty() {
-                let cmd = if choices.is_empty() {
-                    // no battle choice to be made, so play the next card in the hard
-                    let card = if hand_p2.len() > hand_p1.len() {
-                        hand_p2.pop().unwrap()
-                    } else {
-                        hand_p1.pop().unwrap()
-                    };
-                    // on the next non-empty cell on the board
-                    let cell = (0..16).find(|idx| !blocked_cells.contains(idx)).unwrap();
-                    blocked_cells.push(cell);
-                    Command::PlaceCard { card, cell }
-                } else {
-                    // pick the first battle out of the choices
-                    Command::PickBattle { cell: choices[0] }
-                };
-
-                if let Response::PlaceCardOk { pick_battle, .. } = driver.send(cmd).unwrap() {
-                    *choices = pick_battle;
-                } else {
-                    choices.clear();
+            for (arrow, texture) in &[
+                (core::Arrows::UP, assets.card_arrow_up.clone()),
+                (core::Arrows::UP_RIGHT, assets.card_arrow_up_right.clone()),
+                (core::Arrows::RIGHT, assets.card_arrow_right.clone()),
+                (
+                    core::Arrows::DOWN_RIGHT,
+                    assets.card_arrow_down_right.clone(),
+                ),
+                (core::Arrows::DOWN, assets.card_arrow_down.clone()),
+                (core::Arrows::DOWN_LEFT, assets.card_arrow_down_left.clone()),
+                (core::Arrows::LEFT, assets.card_arrow_left.clone()),
+                (core::Arrows::UP_LEFT, assets.card_arrow_up_left.clone()),
+            ] {
+                if card.arrows.has(*arrow) {
+                    p.spawn_bundle(SpriteBundle {
+                        sprite: Sprite {
+                            anchor: Anchor::BottomLeft,
+                            ..default()
+                        },
+                        texture: texture.clone(),
+                        transform: Transform::from_xyz(0., 0., 1.),
+                        ..default()
+                    });
                 }
-            } else {
-                *state = GameState::GameOver;
             }
-        }
-        GameState::GameOver => return,
-    }
-
-    // update the log on the screen
-    let mut game_log = game_log.get_single_mut().unwrap();
-    game_log.sections[0].value = driver.log.join("\n");
+        });
 }

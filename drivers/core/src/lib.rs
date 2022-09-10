@@ -101,6 +101,10 @@ impl Arrows {
     pub const DOWN_LEFT: Arrows = Arrows(0b0000_0100);
     pub const LEFT: Arrows = Arrows(0b0000_0010);
     pub const UP_LEFT: Arrows = Arrows(0b0000_0001);
+
+    pub fn has(self, other: Self) -> bool {
+        (self.0 & other.0) != 0
+    }
 }
 
 impl std::ops::BitOr for Arrows {
