@@ -1,0 +1,13 @@
+[package]
+name = "tetra-master-gui"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+tetra-master-core = { path = "../core" }
+
+bevy = "0.8.1"
+
+anyhow = "1.0.61"
+clap = { version = "3.2.16", features = ["derive"] }
+owo-colors = "3.4.0"
