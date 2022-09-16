@@ -68,6 +68,7 @@ struct AppAssets {
     font: Handle<Font>,
     background: Handle<Image>,
     board: Handle<Image>,
+    coin_flip: Handle<TextureAtlas>,
     card_bg_gray: Handle<Image>,
     card_bg_blue: Handle<Image>,
     card_bg_red: Handle<Image>,
@@ -98,6 +99,12 @@ fn setup(
 
     app_assets.background = asset_server.load("background.png");
     app_assets.board = asset_server.load("board.png");
+
+    app_assets.coin_flip = {
+        let handle = asset_server.load("coin-flip.png");
+        let atlas = TextureAtlas::from_grid(handle, (40., 40.).into(), 8, 1);
+        texture_atlases.add(atlas)
+    };
 
     app_assets.card_bg_gray = asset_server.load("card-bg-gray.png");
     app_assets.card_bg_blue = asset_server.load("card-bg-blue.png");
