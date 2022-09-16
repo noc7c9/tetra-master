@@ -4,7 +4,7 @@ use tetra_master_core as core;
 
 const CARD_SIZE: Vec2 = Vec2::new(42., 51.);
 
-const PLAYER_HAND_VOFFSET: f32 = 27.;
+const PLAYER_HAND_VOFFSET: f32 = 25.;
 
 const PLAYER_HAND_PADDING: f32 = 4.;
 const CENTER_HAND_PADDING: f32 = 3.;
@@ -79,6 +79,7 @@ fn on_exit(mut commands: Commands) {
 
 fn pick_hand(
     mut commands: Commands,
+    mut app_state: ResMut<State<AppState>>,
     mut game_state: ResMut<game_state::picking_hands::State>,
     hovered_hand: ResMut<HoveredHand>,
     btns: Res<Input<MouseButton>>,
@@ -106,8 +107,11 @@ fn pick_hand(
                                 - PLAYER_HAND_PADDING
                                 - PLAYER_HAND_VOFFSET * card_idx.0 as f32;
 
-                            // remove hand candidate marker
-                            commands.entity(entity).remove::<HandIdx>();
+                            // remove the hand candidate marker and the clean up marker
+                            commands
+                                .entity(entity)
+                                .remove::<HandIdx>()
+                                .remove::<Cleanup>();
                         }
                         // TODO: recenter remaining two candidates
                         // else {
@@ -134,8 +138,11 @@ fn pick_hand(
                                 - PLAYER_HAND_PADDING
                                 - PLAYER_HAND_VOFFSET * card_idx.0 as f32;
 
-                            // remove hand candidate marker
-                            commands.entity(entity).remove::<HandIdx>();
+                            // remove the hand candidate marker and the clean up marker
+                            commands
+                                .entity(entity)
+                                .remove::<HandIdx>()
+                                .remove::<Cleanup>();
                         }
                         // part of the unpicked hand
                         else {
@@ -146,6 +153,9 @@ fn pick_hand(
 
                     // forward the game state
                     game_state.pick_hand(picked_hand as usize);
+
+                    // forward the app state
+                    let _ = app_state.set(AppState::InGame);
                 }
                 game_state::picking_hands::Status::Done { .. } => {
                     unreachable!("Both hands already picked")

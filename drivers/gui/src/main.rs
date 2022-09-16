@@ -6,6 +6,7 @@ mod debug;
 mod card;
 mod game_state;
 
+mod app_state_in_game;
 mod app_state_picking_hands;
 mod app_state_start_menu;
 
@@ -21,6 +22,7 @@ enum AppState {
     Initialization,
     StartMenu,
     PickingHands,
+    InGame,
 }
 
 #[derive(Debug, Parser)]
@@ -49,6 +51,7 @@ fn main() {
         .add_plugin(card::Plugin)
         .add_plugin(app_state_start_menu::Plugin)
         .add_plugin(app_state_picking_hands::Plugin)
+        .add_plugin(app_state_in_game::Plugin)
         .add_state(AppState::Initialization)
         .add_system_set(SystemSet::on_enter(AppState::Initialization).with_system(setup))
         .run();
@@ -64,6 +67,7 @@ fn cleanup<T: Component>(mut commands: Commands, entities: Query<Entity, With<T>
 struct AppAssets {
     font: Handle<Font>,
     background: Handle<Image>,
+    board: Handle<Image>,
     card_bg_gray: Handle<Image>,
     card_bg_blue: Handle<Image>,
     card_bg_red: Handle<Image>,
@@ -77,6 +81,9 @@ struct AppAssets {
     card_arrow_up_left: Handle<Image>,
     card_faces: Handle<TextureAtlas>,
     card_stat_font: Handle<TextureAtlas>,
+    card_counter_center: Handle<Image>,
+    card_counter_blue: [Handle<Image>; 11],
+    card_counter_red: [Handle<Image>; 11],
 }
 
 fn setup(
@@ -90,6 +97,7 @@ fn setup(
     app_assets.font = asset_server.load("alexandria.ttf");
 
     app_assets.background = asset_server.load("background.png");
+    app_assets.board = asset_server.load("board.png");
 
     app_assets.card_bg_gray = asset_server.load("card-bg-gray.png");
     app_assets.card_bg_blue = asset_server.load("card-bg-blue.png");
@@ -116,6 +124,34 @@ fn setup(
         texture_atlases.add(atlas)
     };
 
+    app_assets.card_counter_center = asset_server.load("card-counter-center.png");
+    app_assets.card_counter_blue = [
+        asset_server.load("card-counter-blue-00.png"),
+        asset_server.load("card-counter-blue-01.png"),
+        asset_server.load("card-counter-blue-02.png"),
+        asset_server.load("card-counter-blue-03.png"),
+        asset_server.load("card-counter-blue-04.png"),
+        asset_server.load("card-counter-blue-05.png"),
+        asset_server.load("card-counter-blue-06.png"),
+        asset_server.load("card-counter-blue-07.png"),
+        asset_server.load("card-counter-blue-08.png"),
+        asset_server.load("card-counter-blue-09.png"),
+        asset_server.load("card-counter-blue-10.png"),
+    ];
+    app_assets.card_counter_red = [
+        asset_server.load("card-counter-red-00.png"),
+        asset_server.load("card-counter-red-01.png"),
+        asset_server.load("card-counter-red-02.png"),
+        asset_server.load("card-counter-red-03.png"),
+        asset_server.load("card-counter-red-04.png"),
+        asset_server.load("card-counter-red-05.png"),
+        asset_server.load("card-counter-red-06.png"),
+        asset_server.load("card-counter-red-07.png"),
+        asset_server.load("card-counter-red-08.png"),
+        asset_server.load("card-counter-red-09.png"),
+        asset_server.load("card-counter-red-10.png"),
+    ];
+
     // change projection so that when the window is resized, the game will scale with it while
     // keeping the aspect ratio
     commands.spawn_bundle(Camera2dBundle {
@@ -131,6 +167,7 @@ fn setup(
     commands.insert_resource(ClearColor(CLEAR_COLOR));
     commands.spawn_bundle(SpriteBundle {
         texture: app_assets.background.clone(),
+        transform: Transform::from_xyz(0., 0., 0.),
         ..default()
     });
 
