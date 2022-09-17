@@ -80,19 +80,48 @@ fn system(
     // reduce it to a 2D value
     let world_pos: Vec2 = world_pos.truncate();
 
-    // iterate over all hoverables to check which are hovered over
+    // end hover on all areas that are no longer hovered over
+    let mut hovered_areas = Vec::new();
     for (entity, transform, mut hoverable) in &mut hoverables {
         let is_hovered = hoverable.contains(transform, world_pos);
-        // avoid triggering change detection if it's the same
-        if hoverable.is_hovered != is_hovered {
-            hoverable.is_hovered = is_hovered;
 
-            if is_hovered {
-                start_event.send(StartEvent { entity });
-            } else {
-                end_event.send(EndEvent { entity });
-            }
+        // capture hovered over areas for further processing
+        if is_hovered {
+            hovered_areas.push((entity, transform, hoverable));
         }
+        // end hover on non-hovered over areas if they were previously hovered
+        else if hoverable.is_hovered {
+            // hover ended
+            hoverable.is_hovered = false;
+            end_event.send(EndEvent { entity });
+        }
+    }
+
+    // handle overlapping hovered over areas
+    hovered_areas.sort_by(|(_, a, _), (_, b, _)| b.translation.z.total_cmp(&a.translation.z)); // sort by z-order
+    let mut hovered_areas = hovered_areas.into_iter();
+    // top most area is considered hovered
+    if let Some((entity, _, mut hoverable)) = hovered_areas.next() {
+        if !hoverable.is_hovered {
+            hoverable.is_hovered = true;
+            start_event.send(StartEvent { entity });
+        }
+    }
+    // remaining areas are considered not hovered
+    for (entity, _, mut hoverable) in hovered_areas {
+        if hoverable.is_hovered {
+            hoverable.is_hovered = false;
+            end_event.send(EndEvent { entity });
+        }
+    }
+}
+
+pub fn debug_log_events(mut start: EventReader<StartEvent>, mut end: EventReader<EndEvent>) {
+    for evt in end.iter() {
+        dbg!(evt);
+    }
+    for evt in start.iter() {
+        dbg!(evt);
     }
 }
 
