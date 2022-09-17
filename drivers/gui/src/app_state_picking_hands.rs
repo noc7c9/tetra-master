@@ -2,7 +2,7 @@ use crate::{card, game_state, hover, AppAssets, AppState, CARD_SIZE, RENDER_HSIZ
 use bevy::prelude::*;
 use tetra_master_core as core;
 
-const PLAYER_HAND_VOFFSET: f32 = 25.;
+const PLAYER_HAND_VOFFSET: f32 = 27.;
 
 const PLAYER_HAND_PADDING: f32 = 4.;
 const CENTER_HAND_PADDING: f32 = 3.;

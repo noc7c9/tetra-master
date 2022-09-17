@@ -16,10 +16,10 @@ impl bevy::app::Plugin for Plugin {
     }
 }
 
-#[derive(Component)]
+#[derive(Debug, Component, Clone)]
 pub struct Card(pub core::Card);
 
-#[derive(Component)]
+#[derive(Debug, Component, Clone)]
 pub struct Owner(pub Option<core::Player>);
 
 pub(crate) fn spawn<'w, 's, 'a>(
