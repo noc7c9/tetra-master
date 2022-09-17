@@ -43,6 +43,7 @@ mod debug_only {
 
             commands
                 .entity(entity)
+                .remove::<RectInit>()
                 .insert_bundle(GeometryBuilder::build_as(
                     &shape,
                     DrawMode::Fill(FillMode::color(fill)),
