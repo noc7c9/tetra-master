@@ -38,8 +38,8 @@ impl Area {
         }
     }
 
-    fn contains(&self, transform: &Transform, point: Vec2) -> bool {
-        let a = transform.translation.truncate();
+    fn contains(&self, transform: &GlobalTransform, point: Vec2) -> bool {
+        let a = transform.translation().truncate();
         let b = a + self.size;
         (a.x..b.x).contains(&point.x) && (a.y..b.y).contains(&point.y)
     }
@@ -50,7 +50,7 @@ fn system(
     mut end_event: EventWriter<EndEvent>,
     mut cursor_moved: EventReader<CursorMoved>,
     windows: Res<Windows>,
-    mut hoverables: Query<(Entity, &Transform, &mut Area)>,
+    mut hoverables: Query<(Entity, &GlobalTransform, &mut Area)>,
     camera: Query<(&Camera, &GlobalTransform)>,
 ) {
     let (camera, camera_transform) = match camera.get_single().ok() {
@@ -98,7 +98,7 @@ fn system(
     }
 
     // handle overlapping hovered over areas
-    hovered_areas.sort_by(|(_, a, _), (_, b, _)| b.translation.z.total_cmp(&a.translation.z)); // sort by z-order
+    hovered_areas.sort_by(|(_, a, _), (_, b, _)| b.translation().z.total_cmp(&a.translation().z));
     let mut hovered_areas = hovered_areas.into_iter();
     // top most area is considered hovered
     if let Some((entity, _, mut hoverable)) = hovered_areas.next() {
@@ -116,6 +116,8 @@ fn system(
     }
 }
 
+#[allow(dead_code)]
+#[cfg(debug_assertions)]
 pub fn debug_log_events(mut start: EventReader<StartEvent>, mut end: EventReader<EndEvent>) {
     for evt in end.iter() {
         dbg!(evt);
@@ -126,9 +128,9 @@ pub fn debug_log_events(mut start: EventReader<StartEvent>, mut end: EventReader
 }
 
 #[cfg(debug_assertions)]
-fn require_transform_with_area(query: Query<&Area, Without<Transform>>) {
+fn require_transform_with_area(query: Query<&Area, Without<GlobalTransform>>) {
     assert!(
         query.is_empty(),
-        "hover::Area should not be added without a Transform"
+        "hover::Area should not be added without a GlobalTransform"
     );
 }
