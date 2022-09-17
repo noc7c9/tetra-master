@@ -1,4 +1,4 @@
-use crate::{card, game_state, AppAssets, AppState, CARD_SIZE, RENDER_HSIZE};
+use crate::{card, game_state, hover, AppAssets, AppState, CARD_SIZE, RENDER_HSIZE};
 use bevy::prelude::*;
 use tetra_master_core as core;
 
@@ -15,7 +15,6 @@ impl bevy::app::Plugin for Plugin {
             .add_system_set(
                 SystemSet::on_update(AppState::PickingHands)
                     .with_system(pick_hand)
-                    .with_system(hover)
                     .with_system(highlight_on_hover),
             )
             .add_system_set(
@@ -66,7 +65,7 @@ fn on_enter(
         commands
             .spawn()
             .insert(Cleanup)
-            .insert(Hoverable::new(pos, size))
+            .insert(hover::Area::new(pos, size))
             .insert(HandIdx(hand_idx));
     }
 }
@@ -163,101 +162,37 @@ fn pick_hand(
     }
 }
 
-#[derive(Debug, Component)]
-struct Hoverable {
-    is_hovered: bool,
-    bounding_box: (Vec2, Vec2),
-}
-
-impl Hoverable {
-    fn new(position: Vec2, size: Vec2) -> Self {
-        Self {
-            is_hovered: false,
-            bounding_box: (position, position + size),
-        }
-    }
-
-    fn contains(&self, point: Vec2) -> bool {
-        let a = self.bounding_box.0;
-        let b = self.bounding_box.1;
-        (a.x..b.x).contains(&point.x) && (a.y..b.y).contains(&point.y)
-    }
-}
-
-fn hover(
-    mut cursor_moved: EventReader<CursorMoved>,
-    windows: Res<Windows>,
-    mut hoverables: Query<&mut Hoverable>,
-    camera: Query<(&Camera, &GlobalTransform)>,
-) {
-    let (camera, camera_transform) = camera.single();
-    let window = windows.get_primary().unwrap();
-
-    let evt = match cursor_moved.iter().last() {
-        None => return,
-        Some(evt) => evt,
-    };
-
-    let screen_pos = evt.position;
-    let screen_size = Vec2::new(window.width() as f32, window.height() as f32);
-
-    // convert screen position [0..resolution] to ndc [-1..1] (gpu coordinates)
-    let ndc = (screen_pos / screen_size) * 2.0 - Vec2::ONE;
-
-    // matrix for undoing the projection and camera transform
-    let ndc_to_world = camera_transform.compute_matrix() * camera.projection_matrix().inverse();
-
-    // use it to convert ndc to world-space coordinates
-    let world_pos = ndc_to_world.project_point3(ndc.extend(-1.0));
-
-    // reduce it to a 2D value
-    let world_pos: Vec2 = world_pos.truncate();
-
-    for mut hoverable in &mut hoverables {
-        let is_hovered = hoverable.contains(world_pos);
-        // avoid triggering change detection if it's the same
-        if hoverable.is_hovered != is_hovered {
-            hoverable.is_hovered = is_hovered;
-        }
-    }
-}
-
 fn highlight_on_hover(
-    mut prev_hovered_hand: ResMut<HoveredHand>,
+    mut hovered_hand: ResMut<HoveredHand>,
     game_state: Res<game_state::picking_hands::State>,
+    mut hover_end: EventReader<hover::EndEvent>,
+    mut hover_start: EventReader<hover::StartEvent>,
     mut hand_cards: Query<(&mut card::Owner, &HandIdx)>,
-    changed: Query<(Entity, &Hoverable, &HandIdx), Changed<Hoverable>>,
+    hands: Query<&HandIdx>,
 ) {
-    // nothing changed, so nothing to do
-    if changed.is_empty() {
-        return;
-    }
-
     // picking is done, so nothing to do
     if let game_state::picking_hands::Status::Done { .. } = game_state.status {
         return;
     }
 
-    // figure out which hand is currently hovered over (if any)
-    let curr_hovered_hand = changed.iter().find_map(|(entity, hoverable, hand)| {
-        if hoverable.is_hovered {
-            Some((entity, hand.0))
-        } else {
-            None
-        }
-    });
-
-    // hovered hand has changed
-    if prev_hovered_hand.0 != curr_hovered_hand {
-        prev_hovered_hand.0 = curr_hovered_hand;
-
-        // (un)highlight all cards based on which hand is hovered over
+    let mut set_highlight = |hand_idx, highlight| {
         for (mut owner, hand) in &mut hand_cards {
-            if Some(hand.0) == curr_hovered_hand.map(|(_, idx)| idx) {
-                owner.0 = Some(game_state.picking_player());
-            } else {
-                owner.0 = None;
+            if hand.0 == hand_idx {
+                owner.0 = highlight;
             }
         }
+    };
+
+    for evt in hover_end.iter() {
+        let hand_idx = hands.get(evt.entity).unwrap();
+        set_highlight(hand_idx.0, None);
+
+        hovered_hand.0 = None;
+    }
+    for evt in hover_start.iter() {
+        let hand_idx = hands.get(evt.entity).unwrap();
+        set_highlight(hand_idx.0, Some(game_state.picking_player()));
+
+        hovered_hand.0 = Some((evt.entity, hand_idx.0));
     }
 }

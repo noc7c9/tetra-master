@@ -5,6 +5,7 @@ mod debug;
 
 mod card;
 mod game_state;
+mod hover;
 
 mod app_state_in_game;
 mod app_state_picking_hands;
@@ -52,6 +53,7 @@ fn main() {
         .add_plugins(DefaultPlugins)
         .add_plugin(debug::Plugin)
         .add_plugin(card::Plugin)
+        .add_plugin(hover::Plugin)
         .add_plugin(app_state_start_menu::Plugin)
         .add_plugin(app_state_picking_hands::Plugin)
         .add_plugin(app_state_in_game::Plugin)
