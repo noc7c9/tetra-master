@@ -14,6 +14,9 @@ const RENDER_SIZE: Vec2 = Vec2::new(320., 240.);
 const RENDER_HSIZE: Vec2 = Vec2::new(RENDER_SIZE.x / 2., RENDER_SIZE.y / 2.);
 const SCREEN_SIZE: Vec2 = Vec2::new(RENDER_SIZE.x * 4., RENDER_SIZE.y * 4.);
 
+const CARD_SIZE: Vec2 = Vec2::new(42., 51.);
+const COIN_SIZE: Vec2 = Vec2::new(40., 40.);
+
 // color picked from the background.png file
 const CLEAR_COLOR: Color = Color::rgb(0.03137255, 0.03137255, 0.03137255);
 
@@ -102,7 +105,7 @@ fn setup(
 
     app_assets.coin_flip = {
         let handle = asset_server.load("coin-flip.png");
-        let atlas = TextureAtlas::from_grid(handle, (40., 40.).into(), 8, 1);
+        let atlas = TextureAtlas::from_grid(handle, COIN_SIZE, 8, 1);
         texture_atlases.add(atlas)
     };
 
@@ -121,7 +124,7 @@ fn setup(
 
     app_assets.card_faces = {
         let handle = asset_server.load("card-faces.png");
-        let atlas = TextureAtlas::from_grid(handle, (42., 51.).into(), 10, 10);
+        let atlas = TextureAtlas::from_grid(handle, CARD_SIZE, 10, 10);
         texture_atlases.add(atlas)
     };
 

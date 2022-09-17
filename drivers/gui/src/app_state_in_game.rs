@@ -1,9 +1,8 @@
-use crate::{AppAssets, AppState, RENDER_HSIZE};
+use crate::{AppAssets, AppState, COIN_SIZE, RENDER_HSIZE};
 use bevy::{prelude::*, sprite::Anchor};
 
 const CARD_COUNTER_PADDING: f32 = 10.;
-const COIN_WIDTH: f32 = 40.;
-const COIN_PADDING: f32 = 20.;
+const COIN_PADDING: Vec2 = Vec2::new(20., 25.);
 
 pub struct Plugin;
 
@@ -82,8 +81,8 @@ fn setup(mut commands: Commands, app_assets: Res<AppAssets>) {
         .insert(Cleanup);
 
     // coin
-    let x = RENDER_HSIZE.x - COIN_WIDTH - COIN_PADDING;
-    let y = -RENDER_HSIZE.y + COIN_PADDING;
+    let x = RENDER_HSIZE.x - COIN_SIZE.x - COIN_PADDING.x;
+    let y = -RENDER_HSIZE.y + COIN_PADDING.y;
     commands
         .spawn_bundle(SpriteSheetBundle {
             sprite: TextureAtlasSprite {

@@ -1,8 +1,6 @@
-use crate::{card, game_state, AppAssets, AppState, RENDER_HSIZE};
+use crate::{card, game_state, AppAssets, AppState, CARD_SIZE, RENDER_HSIZE};
 use bevy::prelude::*;
 use tetra_master_core as core;
-
-const CARD_SIZE: Vec2 = Vec2::new(42., 51.);
 
 const PLAYER_HAND_VOFFSET: f32 = 25.;
 
