@@ -1,7 +1,7 @@
 use bevy::{app::AppExit, prelude::*};
 use bevy_prototype_lyon::prelude::*;
 
-const Z: f32 = 999.9;
+const Z: f32 = 666.;
 const DEFAULT_FILL: Color = Color::CYAN;
 const DEFAULT_OPACITY: f32 = 0.1;
 
@@ -19,7 +19,7 @@ mod debug_only {
         fn build(&self, app: &mut App) {
             app.insert_resource(Msaa { samples: 4 })
                 .add_plugin(ShapePlugin)
-                .add_system(rect_on_add)
+                .add_system(rect_initialization)
                 .add_system(quit_on_ctrl_escape);
         }
     }
@@ -31,8 +31,40 @@ mod debug_only {
         }
     }
 
-    fn rect_on_add(mut commands: Commands, query: Query<(Entity, &RectInit)>) {
+    #[allow(clippy::type_complexity)]
+    fn rect_initialization(
+        mut commands: Commands,
+        query: Query<(Entity, &RectInit)>,
+        required_components: Query<(
+            Option<&Transform>,
+            Option<&GlobalTransform>,
+            Option<&Visibility>,
+            Option<&ComputedVisibility>,
+        )>,
+    ) {
         for (entity, rect) in &query {
+            // ensure required sibling component exist
+            if let Ok((transform, global_transform, visibility, computed_visibility)) =
+                required_components.get(entity)
+            {
+                if transform.is_none() {
+                    panic!("debug::rect requires the Transform component, use debug::transform");
+                }
+                if global_transform.is_none() {
+                    panic!(
+                        "debug::rect requires the GlobalTransform component, use debug::transform"
+                    );
+                }
+
+                let mut commands = commands.entity(entity);
+                if visibility.is_none() {
+                    commands.insert(Visibility::default());
+                }
+                if computed_visibility.is_none() {
+                    commands.insert(ComputedVisibility::default());
+                }
+            }
+
             let shape = shapes::Rectangle {
                 extents: rect.size,
                 origin: RectangleOrigin::BottomLeft,
@@ -44,24 +76,22 @@ mod debug_only {
             commands
                 .entity(entity)
                 .remove::<RectInit>()
-                .insert_bundle(GeometryBuilder::build_as(
-                    &shape,
-                    DrawMode::Fill(FillMode::color(fill)),
-                    Transform::from_translation(rect.position.extend(Z)),
-                ));
+                .with_children(|p| {
+                    p.spawn_bundle(GeometryBuilder::build_as(
+                        &shape,
+                        DrawMode::Fill(FillMode::color(fill)),
+                        Transform::from_xyz(0., 0., Z),
+                    ));
+                });
         }
     }
 
     #[derive(Component)]
     pub struct RectInit {
-        position: Vec2,
-        size: Vec2,
+        pub size: Vec2,
     }
 
-    pub fn rect(position: impl Into<Vec2>, size: impl Into<Vec2>) -> RectInit {
-        RectInit {
-            position: position.into(),
-            size: size.into(),
-        }
+    pub fn rect(size: impl Into<Vec2>) -> RectInit {
+        RectInit { size: size.into() }
     }
 }

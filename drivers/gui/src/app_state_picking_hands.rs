@@ -61,11 +61,13 @@ fn on_enter(
         }
 
         let size = (CARD_SIZE.x * 5. + CENTER_HAND_PADDING * 4., CARD_SIZE.y).into();
+        let transform = Transform::from_xyz(x, y, 0.);
         commands
             .spawn()
             .insert(Cleanup)
-            .insert(Transform::from_xyz(x, y, 0.))
+            .insert_bundle(TransformBundle::from_transform(transform))
             .insert(hover::Area::new(size))
+            // .insert(crate::debug::rect(size))
             .insert(HandIdx(hand_idx));
     }
 }
