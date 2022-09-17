@@ -7,6 +7,10 @@ impl bevy::app::Plugin for Plugin {
         app.add_event::<StartEvent>()
             .add_event::<EndEvent>()
             .add_system(system);
+
+        if cfg!(debug_assertions) {
+            app.add_system(require_transform_with_area);
+        }
     }
 }
 
@@ -23,20 +27,20 @@ pub struct EndEvent {
 #[derive(Debug, Component)]
 pub struct Area {
     pub is_hovered: bool,
-    bounding_box: (Vec2, Vec2),
+    size: Vec2,
 }
 
 impl Area {
-    pub fn new(position: Vec2, size: Vec2) -> Self {
+    pub fn new(size: Vec2) -> Self {
         Self {
             is_hovered: false,
-            bounding_box: (position, position + size),
+            size,
         }
     }
 
-    fn contains(&self, point: Vec2) -> bool {
-        let a = self.bounding_box.0;
-        let b = self.bounding_box.1;
+    fn contains(&self, transform: &Transform, point: Vec2) -> bool {
+        let a = transform.translation.truncate();
+        let b = a + self.size;
         (a.x..b.x).contains(&point.x) && (a.y..b.y).contains(&point.y)
     }
 }
@@ -46,7 +50,7 @@ fn system(
     mut end_event: EventWriter<EndEvent>,
     mut cursor_moved: EventReader<CursorMoved>,
     windows: Res<Windows>,
-    mut hoverables: Query<(Entity, &mut Area)>,
+    mut hoverables: Query<(Entity, &Transform, &mut Area)>,
     camera: Query<(&Camera, &GlobalTransform)>,
 ) {
     let (camera, camera_transform) = match camera.get_single().ok() {
@@ -77,8 +81,8 @@ fn system(
     let world_pos: Vec2 = world_pos.truncate();
 
     // iterate over all hoverables to check which are hovered over
-    for (entity, mut hoverable) in &mut hoverables {
-        let is_hovered = hoverable.contains(world_pos);
+    for (entity, transform, mut hoverable) in &mut hoverables {
+        let is_hovered = hoverable.contains(transform, world_pos);
         // avoid triggering change detection if it's the same
         if hoverable.is_hovered != is_hovered {
             hoverable.is_hovered = is_hovered;
@@ -90,4 +94,12 @@ fn system(
             }
         }
     }
+}
+
+#[cfg(debug_assertions)]
+fn require_transform_with_area(query: Query<&Area, Without<Transform>>) {
+    assert!(
+        query.is_empty(),
+        "hover::Area should not be added without a Transform"
+    );
 }

@@ -60,12 +60,12 @@ fn on_enter(
                 .insert(HandIdx(hand_idx));
         }
 
-        let pos = (x, y).into();
         let size = (CARD_SIZE.x * 5. + CENTER_HAND_PADDING * 4., CARD_SIZE.y).into();
         commands
             .spawn()
             .insert(Cleanup)
-            .insert(hover::Area::new(pos, size))
+            .insert(Transform::from_xyz(x, y, 0.))
+            .insert(hover::Area::new(size))
             .insert(HandIdx(hand_idx));
     }
 }
