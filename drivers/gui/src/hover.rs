@@ -8,7 +8,8 @@ impl bevy::app::Plugin for Plugin {
             .add_event::<EndEvent>()
             .add_system(system);
 
-        if cfg!(debug_assertions) {
+        #[cfg(debug_assertions)]
+        {
             app.add_system(require_transform_with_area);
         }
     }

@@ -12,7 +12,8 @@ impl bevy::app::Plugin for Plugin {
     fn build(&self, app: &mut App) {
         app.add_system(swap_card_background);
 
-        if cfg!(debug_assertions) {
+        #[cfg(debug_assertions)]
+        {
             app.add_system(dont_allow_card_to_change);
         }
     }

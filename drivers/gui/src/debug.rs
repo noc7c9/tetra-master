@@ -1,19 +1,25 @@
-use bevy::{app::AppExit, prelude::*};
-use bevy_prototype_lyon::prelude::*;
-
-const Z: f32 = 666.;
-const DEFAULT_FILL: Color = Color::CYAN;
-const OPACITY: f32 = 0.1;
+use bevy::prelude::*;
 
 pub struct Plugin;
 
 #[cfg(debug_assertions)]
 pub use debug_only::*;
 
+#[cfg(not(debug_assertions))]
+impl bevy::app::Plugin for Plugin {
+    fn build(&self, _: &mut App) {}
+}
+
 #[allow(dead_code)]
 #[cfg(debug_assertions)]
 mod debug_only {
     use super::*;
+    use bevy::app::AppExit;
+    use bevy_prototype_lyon::prelude::*;
+
+    const Z: f32 = 666.;
+    const DEFAULT_FILL: Color = Color::CYAN;
+    const OPACITY: f32 = 0.1;
 
     impl bevy::app::Plugin for Plugin {
         fn build(&self, app: &mut App) {
