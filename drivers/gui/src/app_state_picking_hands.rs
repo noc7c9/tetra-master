@@ -34,10 +34,6 @@ struct Cleanup;
 #[derive(Debug, Component, Clone, Copy)]
 struct HandIdx(usize);
 
-// stores the index into the hand
-#[derive(Debug, Component, Clone, Copy)]
-struct CardIdx(usize);
-
 fn on_enter(
     mut commands: Commands,
     app_assets: Res<AppAssets>,
@@ -56,7 +52,7 @@ fn on_enter(
             let z = 1. + i * 5. + j;
             card::spawn(&mut commands, &app_assets, (x, y, z).into(), None, *card)
                 .insert(Cleanup)
-                .insert(CardIdx(card_idx))
+                .insert(card::CardIdx(card_idx))
                 .insert(HandIdx(hand_idx));
         }
 
@@ -82,7 +78,13 @@ fn pick_hand(
     mut game_state: ResMut<game_state::picking_hands::State>,
     hovered_hand: ResMut<HoveredHand>,
     btns: Res<Input<MouseButton>>,
-    mut hand_cards: Query<(Entity, &mut card::Owner, &mut Transform, &CardIdx, &HandIdx)>,
+    mut hand_cards: Query<(
+        Entity,
+        &mut card::Owner,
+        &mut Transform,
+        &card::CardIdx,
+        &HandIdx,
+    )>,
 ) {
     let hovered_hand = hovered_hand.into_inner();
     if let Some((hoverable_entity, picked_hand)) = hovered_hand.0 {

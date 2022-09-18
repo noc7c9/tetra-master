@@ -1,3 +1,5 @@
+// TODO rename this to common.rs (and spawn to spawn_card)
+
 use super::AppAssets;
 use bevy::{prelude::*, sprite::Anchor};
 use tetra_master_core as core;
@@ -19,8 +21,15 @@ impl bevy::app::Plugin for Plugin {
 #[derive(Debug, Component, Clone)]
 pub struct Card(pub core::Card);
 
+// TODO: remove the Option and just don't have an owner
 #[derive(Debug, Component, Clone)]
 pub struct Owner(pub Option<core::Player>);
+
+#[derive(Debug, Component, Clone)]
+pub struct CardIdx(
+    // index into the hand, from top to bottom
+    pub usize,
+);
 
 pub(crate) fn spawn<'w, 's, 'a>(
     commands: &'a mut Commands<'w, 's>,

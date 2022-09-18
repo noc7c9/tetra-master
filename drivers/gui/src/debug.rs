@@ -3,7 +3,7 @@ use bevy_prototype_lyon::prelude::*;
 
 const Z: f32 = 666.;
 const DEFAULT_FILL: Color = Color::CYAN;
-const DEFAULT_OPACITY: f32 = 0.1;
+const OPACITY: f32 = 0.1;
 
 pub struct Plugin;
 
@@ -70,8 +70,8 @@ mod debug_only {
                 origin: RectangleOrigin::BottomLeft,
             };
 
-            let mut fill = DEFAULT_FILL;
-            fill.set_a(DEFAULT_OPACITY);
+            let mut fill = rect.fill;
+            fill.set_a(OPACITY);
 
             commands
                 .entity(entity)
@@ -88,10 +88,21 @@ mod debug_only {
 
     #[derive(Component)]
     pub struct RectInit {
-        pub size: Vec2,
+        size: Vec2,
+        fill: Color,
+    }
+
+    impl RectInit {
+        pub fn fill(mut self, color: Color) -> Self {
+            self.fill = color;
+            self
+        }
     }
 
     pub fn rect(size: impl Into<Vec2>) -> RectInit {
-        RectInit { size: size.into() }
+        RectInit {
+            size: size.into(),
+            fill: DEFAULT_FILL,
+        }
     }
 }

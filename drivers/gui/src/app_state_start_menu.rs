@@ -65,7 +65,7 @@ fn mouse_input(
         ));
 
         // change the state
-        let _ = app_state.set(AppState::PickingHands);
+        app_state.set(AppState::PickingHands).unwrap();
 
         // required to workaround bug?
         btns.reset(MouseButton::Left);
