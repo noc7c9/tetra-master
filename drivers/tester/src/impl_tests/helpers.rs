@@ -1,6 +1,6 @@
 use tetra_master_core::{
-    Arrows, BattleSystem, BattleWinner, Battler, Card, Command, Driver, ErrorResponse, Event, Hand,
-    HandCandidates, Player, Response, Rng, Seed,
+    command, Arrows, BattleSystem, BattleWinner, Battler, Card, Driver, Error, ErrorResponse,
+    Event, Hand, HandCandidates, Player, Rng, Seed,
 };
 
 pub(super) const CARD: Card = Card::physical(0, 0, 0, Arrows(0));
@@ -19,21 +19,11 @@ impl Ctx {
     }
 }
 
-pub(super) trait CommandExt {
-    fn setup() -> Self;
-    fn pick_hand(hand: u8) -> Self;
-    fn place_card(card: u8, cell: u8) -> Self;
-    fn pick_battle(cell: u8) -> Self;
-    fn seed(self, seed: Seed) -> Self;
-    fn rolls(self, rolls: &[u8]) -> Self;
-    fn battle_system(self, value: BattleSystem) -> Self;
-    fn blocked_cells(self, value: &[u8]) -> Self;
-    fn hand_candidates(self, value: &HandCandidates) -> Self;
-}
+pub(super) struct Command;
 
-impl CommandExt for Command {
-    fn setup() -> Self {
-        Command::Setup {
+impl Command {
+    pub(super) fn setup() -> command::Setup {
+        command::Setup {
             rng: None,
             battle_system: None,
             blocked_cells: None,
@@ -41,136 +31,65 @@ impl CommandExt for Command {
         }
     }
 
-    fn pick_hand(hand: u8) -> Self {
-        Command::PickHand { hand }
+    pub(super) fn pick_hand(hand: u8) -> command::PickHand {
+        command::PickHand { hand }
     }
 
-    fn place_card(card: u8, cell: u8) -> Self {
-        Command::PlaceCard { card, cell }
+    pub(super) fn place_card(card: u8, cell: u8) -> command::PlaceCard {
+        command::PlaceCard { card, cell }
     }
 
-    fn pick_battle(cell: u8) -> Self {
-        Command::PickBattle { cell }
+    pub(super) fn pick_battle(cell: u8) -> command::PickBattle {
+        command::PickBattle { cell }
     }
+}
 
+pub(super) trait SetupExt {
+    fn seed(self, seed: Seed) -> Self;
+    fn rolls(self, rolls: &[u8]) -> Self;
+    fn battle_system(self, value: BattleSystem) -> Self;
+    fn blocked_cells(self, value: &[u8]) -> Self;
+    fn hand_candidates(self, value: &HandCandidates) -> Self;
+}
+
+impl SetupExt for command::Setup {
     fn seed(mut self, seed: Seed) -> Self {
-        if let Command::Setup { ref mut rng, .. } = self {
-            *rng = Some(Rng::Seeded { seed });
-            self
-        } else {
-            panic!("Cannot set field rng on {self:?}")
-        }
+        self.rng = Some(Rng::Seeded { seed });
+        self
     }
 
     fn rolls(mut self, rolls: &[u8]) -> Self {
-        if let Command::Setup { ref mut rng, .. } = self {
-            let rolls = rolls.into();
-            *rng = Some(Rng::External { rolls });
-            self
-        } else {
-            panic!("Cannot set field rng on {self:?}")
-        }
+        let rolls = rolls.into();
+        self.rng = Some(Rng::External { rolls });
+        self
     }
 
     fn battle_system(mut self, value: BattleSystem) -> Self {
-        if let Command::Setup {
-            ref mut battle_system,
-            ..
-        } = self
-        {
-            *battle_system = Some(value);
-            self
-        } else {
-            panic!("Cannot set field battle_system on {self:?}")
-        }
+        self.battle_system = Some(value);
+        self
     }
 
     fn blocked_cells(mut self, value: &[u8]) -> Self {
-        if let Command::Setup {
-            ref mut blocked_cells,
-            ..
-        } = self
-        {
-            *blocked_cells = Some(value.into());
-            self
-        } else {
-            panic!("Cannot set field blocked_cells on {self:?}")
-        }
+        self.blocked_cells = Some(value.into());
+        self
     }
 
     fn hand_candidates(mut self, value: &HandCandidates) -> Self {
-        if let Command::Setup {
-            ref mut hand_candidates,
-            ..
-        } = self
-        {
-            *hand_candidates = Some(*value);
-            self
-        } else {
-            panic!("Cannot set field hand_candidates on {self:?}")
-        }
+        self.hand_candidates = Some(*value);
+        self
     }
 }
 
-pub(super) struct SetupOk {
-    pub(super) seed: Option<Seed>,
-    // pub(super) battle_system: BattleSystem,
-    pub(super) blocked_cells: Vec<u8>,
-    pub(super) hand_candidates: HandCandidates,
-}
-
-pub(super) trait ResponseExt {
+pub(super) trait ResponseResultExt {
     fn error(self) -> ErrorResponse;
-    fn setup_ok(self) -> SetupOk;
-    fn pick_hand_ok(self);
-    fn place_card_ok(self) -> (Vec<u8>, Vec<Event>);
 }
 
-impl ResponseExt for Response {
+impl<T: std::fmt::Debug> ResponseResultExt for Result<T, Error> {
     fn error(self) -> ErrorResponse {
-        if let Response::Error(inner) = self {
+        if let Err(Error::ErrorResponse(inner)) = self {
             inner
         } else {
             panic!("Expected Response::Error, found {self:?}")
-        }
-    }
-
-    fn setup_ok(self) -> SetupOk {
-        if let Response::SetupOk {
-            seed,
-            // battle_system,
-            blocked_cells,
-            hand_candidates,
-            ..
-        } = self
-        {
-            SetupOk {
-                seed,
-                // battle_system,
-                blocked_cells,
-                hand_candidates,
-            }
-        } else {
-            panic!("Expected Response::SetupOk, found {self:?}")
-        }
-    }
-
-    fn pick_hand_ok(self) {
-        if let Response::PickHandOk = self {
-        } else {
-            panic!("Expected Response::PickHandOk, found {self:?}")
-        }
-    }
-
-    fn place_card_ok(self) -> (Vec<u8>, Vec<Event>) {
-        if let Response::PlaceCardOk {
-            pick_battle,
-            events,
-        } = self
-        {
-            (pick_battle, events)
-        } else {
-            panic!("Expected Response::PlaceCardOk, found {self:?}")
         }
     }
 }

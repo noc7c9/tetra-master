@@ -1,7 +1,28 @@
 use owo_colors::OwoColorize;
 use std::io::{BufRead, Write};
 
-use crate::{Command, Response, Result};
+use crate::{
+    command::{self, Command},
+    response::{self, Response},
+    Error, Result,
+};
+
+pub trait CommandResponse: Command {
+    type Response: Response;
+}
+
+impl CommandResponse for command::Setup {
+    type Response = response::SetupOk;
+}
+impl CommandResponse for command::PickHand {
+    type Response = response::PickHandOk;
+}
+impl CommandResponse for command::PlaceCard {
+    type Response = response::PlaceCardOk;
+}
+impl CommandResponse for command::PickBattle {
+    type Response = response::PlaceCardOk;
+}
 
 // Basic Driver that talks to the given Rx, Tx types
 struct BaseDriver<Rx, Tx> {
@@ -25,12 +46,12 @@ where
         }
     }
 
-    fn send(&mut self, cmd: Command) -> Result<Response> {
+    fn send<C: CommandResponse>(&mut self, cmd: C) -> Result<C::Response> {
         self.tx(cmd)?;
         self.rx()
     }
 
-    fn tx(&mut self, cmd: Command) -> Result<()> {
+    fn tx<C: Command>(&mut self, cmd: C) -> Result<()> {
         self.buffer.clear();
         cmd.serialize(&mut self.buffer)?;
 
@@ -44,7 +65,7 @@ where
         Ok(())
     }
 
-    fn rx(&mut self) -> Result<Response> {
+    fn rx<R: Response>(&mut self) -> Result<R> {
         self.buffer.clear();
         self.receiver.read_line(&mut self.buffer)?;
 
@@ -52,7 +73,11 @@ where
             eprint!("{} {}", " RX ".black().on_blue(), self.buffer.blue());
         }
 
-        Ok(Response::deserialize(&self.buffer)?)
+        if let Ok(error_response) = response::ErrorResponse::deserialize(&self.buffer) {
+            return Err(Error::ErrorResponse(error_response));
+        }
+
+        Ok(R::deserialize(&self.buffer)?)
     }
 }
 
@@ -65,7 +90,7 @@ pub struct Driver {
 }
 
 impl Driver {
-    pub fn send(&mut self, cmd: Command) -> Result<Response> {
+    pub fn send<C: CommandResponse>(&mut self, cmd: C) -> Result<C::Response> {
         self.base_driver.send(cmd)
     }
 

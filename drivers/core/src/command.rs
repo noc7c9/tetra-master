@@ -4,105 +4,127 @@ use std::fmt::Result as FResult;
 // TODO: replace this with a bespoke Error enum
 pub type Error = std::fmt::Error;
 
-#[derive(Debug)]
-pub enum Command {
-    // Quit,
-    Setup {
-        rng: Option<Rng>,
-        battle_system: Option<BattleSystem>,
-        blocked_cells: Option<Vec<u8>>,
-        hand_candidates: Option<HandCandidates>,
-    },
-    PickHand {
-        hand: u8,
-    },
-    PlaceCard {
-        card: u8,
-        cell: u8,
-    },
-    PickBattle {
-        cell: u8,
-    },
+pub trait Command {
+    fn serialize(self, output: &mut String) -> Result<(), Error>;
 }
 
-impl Command {
-    pub fn serialize(self, out: &mut String) -> Result<(), Error> {
+#[derive(Debug)]
+pub struct Setup {
+    pub rng: Option<Rng>,
+    pub battle_system: Option<BattleSystem>,
+    pub blocked_cells: Option<Vec<u8>>,
+    pub hand_candidates: Option<HandCandidates>,
+}
+
+impl Command for Setup {
+    fn serialize(self, out: &mut String) -> Result<(), Error> {
         let mut o = Sexpr::new(out);
 
-        match self {
-            // Command::Quit => o.list(|o| o.atom("quit"))?,
-            Command::Setup {
-                rng,
-                battle_system,
-                blocked_cells,
-                hand_candidates,
-            } => {
+        o.list(|o| {
+            o.atom("setup")?;
+
+            if let Some(rng) = self.rng {
                 o.list(|o| {
-                    o.atom("setup")?;
-
-                    if let Some(rng) = rng {
-                        o.list(|o| {
-                            o.atom("rng")?;
-                            match rng {
-                                Rng::Seeded { seed } => o.atoms(("seed", DisplayHex(seed))),
-                                Rng::External { rolls } => {
-                                    o.atom("external")?;
-                                    o.array(rolls, |o, roll| o.atom(DisplayHex(roll)))
-                                }
-                            }
-                        })?;
+                    o.atom("rng")?;
+                    match rng {
+                        Rng::Seeded { seed } => o.atoms(("seed", DisplayHex(seed))),
+                        Rng::External { rolls } => {
+                            o.atom("external")?;
+                            o.array(rolls, |o, roll| o.atom(DisplayHex(roll)))
+                        }
                     }
-
-                    if let Some(battle_system) = battle_system {
-                        o.list(|o| {
-                            o.atom("battle-system")?;
-                            match battle_system {
-                                BattleSystem::Original => o.atom("original"),
-                                BattleSystem::Dice { sides } => {
-                                    o.atoms(("dice", DisplayHex(sides)))
-                                }
-                                BattleSystem::Test => o.atom("test"),
-                            }
-                        })?;
-                    }
-
-                    if let Some(blocked_cells) = blocked_cells {
-                        o.list(|o| {
-                            o.atom("blocked-cells")?;
-                            write_blocked_cells(o, &blocked_cells)
-                        })?;
-                    }
-
-                    if let Some(hand_candidates) = hand_candidates {
-                        o.list(|o| {
-                            o.atom("hand-candidates")?;
-                            write_hand_candidates(o, &hand_candidates)
-                        })?;
-                    }
-
-                    Ok(())
                 })?;
             }
-            Command::PickHand { hand } => {
+
+            if let Some(battle_system) = self.battle_system {
                 o.list(|o| {
-                    o.atom("pick-hand")?;
-                    o.list(|o| o.atoms(("hand", hand)))
+                    o.atom("battle-system")?;
+                    match battle_system {
+                        BattleSystem::Original => o.atom("original"),
+                        BattleSystem::Dice { sides } => o.atoms(("dice", DisplayHex(sides))),
+                        BattleSystem::Test => o.atom("test"),
+                    }
                 })?;
             }
-            Command::PlaceCard { card, cell } => {
+
+            if let Some(blocked_cells) = self.blocked_cells {
                 o.list(|o| {
-                    o.atom("place-card")?;
-                    o.list(|o| o.atoms(("card", card)))?;
-                    o.list(|o| o.atoms(("cell", DisplayHex(cell))))
+                    o.atom("blocked-cells")?;
+                    write_blocked_cells(o, &blocked_cells)
                 })?;
             }
-            Command::PickBattle { cell } => {
+
+            if let Some(hand_candidates) = self.hand_candidates {
                 o.list(|o| {
-                    o.atom("pick-battle")?;
-                    o.list(|o| o.atoms(("cell", DisplayHex(cell))))
+                    o.atom("hand-candidates")?;
+                    write_hand_candidates(o, &hand_candidates)
                 })?;
             }
-        }
+
+            Ok(())
+        })?;
+
+        out.push('\n');
+
+        Ok(())
+    }
+}
+
+#[derive(Debug)]
+pub struct PickHand {
+    pub hand: u8,
+}
+
+impl Command for PickHand {
+    fn serialize(self, out: &mut String) -> Result<(), Error> {
+        let mut o = Sexpr::new(out);
+
+        o.list(|o| {
+            o.atom("pick-hand")?;
+            o.list(|o| o.atoms(("hand", self.hand)))
+        })?;
+
+        out.push('\n');
+
+        Ok(())
+    }
+}
+
+#[derive(Debug)]
+pub struct PlaceCard {
+    pub card: u8,
+    pub cell: u8,
+}
+
+impl Command for PlaceCard {
+    fn serialize(self, out: &mut String) -> Result<(), Error> {
+        let mut o = Sexpr::new(out);
+
+        o.list(|o| {
+            o.atom("place-card")?;
+            o.list(|o| o.atoms(("card", self.card)))?;
+            o.list(|o| o.atoms(("cell", DisplayHex(self.cell))))
+        })?;
+
+        out.push('\n');
+
+        Ok(())
+    }
+}
+
+#[derive(Debug)]
+pub struct PickBattle {
+    pub cell: u8,
+}
+
+impl Command for PickBattle {
+    fn serialize(self, out: &mut String) -> Result<(), Error> {
+        let mut o = Sexpr::new(out);
+
+        o.list(|o| {
+            o.atom("pick-battle")?;
+            o.list(|o| o.atoms(("cell", DisplayHex(self.cell))))
+        })?;
 
         out.push('\n');
 
@@ -230,10 +252,7 @@ mod sexpr {
 mod tests {
     use test_case::test_case;
 
-    use super::{
-        Command::{self, *},
-        Sexpr,
-    };
+    use super::*;
     use crate::{Arrows, BattleSystem, Card, HandCandidates, Rng};
 
     fn assert_eq<T, U>(expected: T) -> impl Fn(U)
@@ -364,7 +383,7 @@ mod tests {
                                           "((1P23_4 5M67_8 9XAB_C DAEF_0 5M67_8)",
                                           " (5M67_8 1P23_4 DAEF_0 5M67_8 9XAB_C)",
                                           " (DAEF_0 5M67_8 9XAB_C 5M67_8 1P23_4))))\n")))]
-    fn setup(input: Command) -> String {
+    fn setup(input: Setup) -> String {
         let mut o = String::new();
         input.serialize(&mut o).unwrap();
         o
@@ -373,7 +392,7 @@ mod tests {
     #[test_case(PickHand { hand: 0 } => using assert_eq("(pick-hand (hand 0))\n"))]
     #[test_case(PickHand { hand: 1 } => using assert_eq("(pick-hand (hand 1))\n"))]
     #[test_case(PickHand { hand: 2 } => using assert_eq("(pick-hand (hand 2))\n"))]
-    fn pick_hand(input: Command) -> String {
+    fn pick_hand(input: PickHand) -> String {
         let mut o = String::new();
         input.serialize(&mut o).unwrap();
         o
@@ -383,7 +402,7 @@ mod tests {
         => using assert_eq("(place-card (card 0) (cell 0))\n"))]
     #[test_case(PlaceCard { card: 3, cell: 0xA }
         => using assert_eq("(place-card (card 3) (cell A))\n"))]
-    fn place_card(input: Command) -> String {
+    fn place_card(input: PlaceCard) -> String {
         let mut o = String::new();
         input.serialize(&mut o).unwrap();
         o
@@ -391,7 +410,7 @@ mod tests {
 
     #[test_case(PickBattle { cell: 0 } => using assert_eq("(pick-battle (cell 0))\n"))]
     #[test_case(PickBattle { cell: 0xA } => using assert_eq("(pick-battle (cell A))\n"))]
-    fn pick_battle(input: Command) -> String {
+    fn pick_battle(input: PickBattle) -> String {
         let mut o = String::new();
         input.serialize(&mut o).unwrap();
         o

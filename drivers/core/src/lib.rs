@@ -1,10 +1,10 @@
-mod command;
 mod driver;
-mod response;
 
-pub use command::Command;
+pub mod command;
+pub mod response;
+
 pub use driver::Driver;
-pub use response::{ErrorResponse, Response};
+pub use response::ErrorResponse;
 
 const HAND_CANDIDATES: usize = 3;
 const HAND_SIZE: usize = 5;
@@ -17,6 +17,7 @@ pub type Result<T> = std::result::Result<T, Error>;
 
 #[derive(Debug)]
 pub enum Error {
+    ErrorResponse(response::ErrorResponse),
     SerializationError(std::fmt::Error),
     DeserializationError(response::Error),
     IOError(std::io::Error),
@@ -25,6 +26,9 @@ pub enum Error {
 impl std::fmt::Display for Error {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
+            Error::ErrorResponse(inner) => {
+                write!(f, "Got error response: {inner:?}")
+            }
             Error::SerializationError(inner) => {
                 write!(f, "Failed to serialize response: {inner:?}")
             }

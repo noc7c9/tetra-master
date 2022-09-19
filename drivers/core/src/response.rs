@@ -16,21 +16,8 @@ use nom::{
 // TODO: replace this with a bespoke Error enum
 pub type Error = nom::Err<NomError<String>>;
 
-#[must_use]
-#[derive(Debug, Clone, PartialEq)]
-pub enum Response {
-    Error(ErrorResponse),
-    SetupOk {
-        seed: Option<Seed>,
-        battle_system: BattleSystem,
-        blocked_cells: Vec<u8>,
-        hand_candidates: HandCandidates,
-    },
-    PickHandOk,
-    PlaceCardOk {
-        pick_battle: Vec<u8>,
-        events: Vec<Event>,
-    },
+pub trait Response: Sized {
+    fn deserialize(input: &str) -> Result<Self, Error>;
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -42,10 +29,47 @@ pub enum ErrorResponse {
     InvalidBattlePick { cell: u8 },
 }
 
-impl Response {
-    pub fn deserialize(i: &str) -> Result<Self, Error> {
-        let (_, res) =
-            alt((error, setup_ok, pick_hand_ok, place_card_ok))(i).map_err(|e| e.to_owned())?;
+impl Response for ErrorResponse {
+    fn deserialize(i: &str) -> Result<Self, Error> {
+        let (_, res) = error(i).map_err(|e| e.to_owned())?;
+        Ok(res)
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct SetupOk {
+    pub seed: Option<Seed>,
+    pub battle_system: BattleSystem,
+    pub blocked_cells: Vec<u8>,
+    pub hand_candidates: HandCandidates,
+}
+
+impl Response for SetupOk {
+    fn deserialize(i: &str) -> Result<Self, Error> {
+        let (_, res) = setup_ok(i).map_err(|e| e.to_owned())?;
+        Ok(res)
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct PickHandOk;
+
+impl Response for PickHandOk {
+    fn deserialize(i: &str) -> Result<Self, Error> {
+        let (_, res) = pick_hand_ok(i).map_err(|e| e.to_owned())?;
+        Ok(res)
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct PlaceCardOk {
+    pub pick_battle: Vec<u8>,
+    pub events: Vec<Event>,
+}
+
+impl Response for PlaceCardOk {
+    fn deserialize(i: &str) -> Result<Self, Error> {
+        let (_, res) = place_card_ok(i).map_err(|e| e.to_owned())?;
         Ok(res)
     }
 }
@@ -157,10 +181,10 @@ fn hand_candidates(i: &str) -> IResult<&str, HandCandidates> {
     Ok((i, [hands[0], hands[1], hands[2]]))
 }
 
-fn response<'a>(
+fn response<'a, T>(
     name: &'static str,
-    inner: impl Parser<&'a str, Response, NomError<&'a str>>,
-) -> impl FnMut(&'a str) -> IResult<&'a str, Response> {
+    inner: impl Parser<&'a str, T, NomError<&'a str>>,
+) -> impl FnMut(&'a str) -> IResult<&'a str, T> {
     terminated(list(preceded(ident(name), inner)), char('\n'))
 }
 
@@ -171,7 +195,7 @@ fn prop<'a, T>(
     preceded(multispace0, list(preceded(ident(name), inner)))
 }
 
-fn error(i: &str) -> IResult<&str, Response> {
+fn error(i: &str) -> IResult<&str, ErrorResponse> {
     use ErrorResponse::*;
 
     fn invalid_hand_pick(i: &str) -> IResult<&str, ErrorResponse> {
@@ -205,38 +229,37 @@ fn error(i: &str) -> IResult<&str, Response> {
     }
 
     response("error", |i| {
-        let (i, inner) = alt((
+        alt((
             invalid_hand_pick,
             already_picked_hand,
             cell_is_not_empty,
             card_already_played,
             invalid_battle_pick,
-        ))(i)?;
-        Ok((i, Response::Error(inner)))
+        ))(i)
     })(i)
 }
 
-fn setup_ok(i: &str) -> IResult<&str, Response> {
+fn setup_ok(i: &str) -> IResult<&str, SetupOk> {
     response("setup-ok", |i| {
         let (i, seed) = opt(prop("seed", hex_digit_1_n(16)))(i)?;
         let (i, battle_system) = prop("battle-system", battle_system)(i)?;
         let (i, blocked_cells) = prop("blocked-cells", blocked_cells)(i)?;
         let (i, hand_candidates) = prop("hand-candidates", hand_candidates)(i)?;
-        let response = Response::SetupOk {
+        let setup_ok = SetupOk {
             seed,
             battle_system,
             blocked_cells,
             hand_candidates,
         };
-        Ok((i, response))
+        Ok((i, setup_ok))
     })(i)
 }
 
-fn pick_hand_ok(i: &str) -> IResult<&str, Response> {
-    response("pick-hand-ok", |i| Ok((i, Response::PickHandOk)))(i)
+fn pick_hand_ok(i: &str) -> IResult<&str, PickHandOk> {
+    response("pick-hand-ok", |i| Ok((i, PickHandOk)))(i)
 }
 
-fn place_card_ok(i: &str) -> IResult<&str, Response> {
+fn place_card_ok(i: &str) -> IResult<&str, PlaceCardOk> {
     fn next_turn(i: &str) -> IResult<&str, Event> {
         let (i, to) = prop("next-turn", player)(i)?;
         Ok((i, Event::NextTurn { to }))
@@ -313,11 +336,11 @@ fn place_card_ok(i: &str) -> IResult<&str, Response> {
     response("place-card-ok", |i| {
         let (i, events) = prop("events", separated_list0(multispace1, event))(i)?;
         let (i, pick_battle) = opt(prop("pick-battle", array(hex_digit_1_n(1))))(i)?;
-        let response = Response::PlaceCardOk {
+        let place_card_ok = PlaceCardOk {
             pick_battle: pick_battle.unwrap_or_default(),
             events,
         };
-        Ok((i, response))
+        Ok((i, place_card_ok))
     })(i)
 }
 
@@ -325,11 +348,7 @@ fn place_card_ok(i: &str) -> IResult<&str, Response> {
 mod tests {
     use test_case::test_case;
 
-    use super::{
-        ErrorResponse::*,
-        Event::*,
-        Response::{self, *},
-    };
+    use super::*;
     use crate::{
         Arrows, BattleSystem, BattleWinner, Battler, Card, Digit, Hand, HandCandidates, Player,
     };
@@ -420,12 +439,12 @@ mod tests {
         super::battle_system(i).unwrap().1
     }
 
-    #[test_case("(error InvalidHandPick (hand 1))\n" => Error(InvalidHandPick { hand: 1 }))]
-    #[test_case("(error HandAlreadyPicked (hand 2))\n" => Error(HandAlreadyPicked { hand: 2 }))]
-    #[test_case("(error CellIsNotEmpty (cell 2))\n" => Error(CellIsNotEmpty { cell: 2 }))]
-    #[test_case("(error CardAlreadyPlayed (card 2))\n" => Error(CardAlreadyPlayed { card: 2 }))]
-    #[test_case("(error InvalidBattlePick (cell 2))\n" => Error(InvalidBattlePick { cell: 2 }))]
-    fn error(i: &str) -> Response {
+    #[test_case("(error InvalidHandPick (hand 1))\n" => ErrorResponse::InvalidHandPick { hand: 1 })]
+    #[test_case("(error HandAlreadyPicked (hand 2))\n" => ErrorResponse::HandAlreadyPicked { hand: 2 })]
+    #[test_case("(error CellIsNotEmpty (cell 2))\n" => ErrorResponse::CellIsNotEmpty { cell: 2 })]
+    #[test_case("(error CardAlreadyPlayed (card 2))\n" => ErrorResponse::CardAlreadyPlayed { card: 2 })]
+    #[test_case("(error InvalidBattlePick (cell 2))\n" => ErrorResponse::InvalidBattlePick { cell: 2 })]
+    fn error(i: &str) -> ErrorResponse {
         Response::deserialize(i).unwrap()
     }
 
@@ -463,15 +482,16 @@ mod tests {
             ],
         }
     )]
-    fn setup_ok(i: String) -> Response {
+    fn setup_ok(i: String) -> SetupOk {
         Response::deserialize(&i).unwrap()
     }
 
     #[test_case("(pick-hand-ok)\n" => PickHandOk)]
-    fn pick_hand_ok(i: &str) -> Response {
+    fn pick_hand_ok(i: &str) -> PickHandOk {
         Response::deserialize(i).unwrap()
     }
 
+    use Event::*;
     #[test_case("(place-card-ok (events))\n"
         => PlaceCardOk { pick_battle: vec![], events: vec![] })]
     #[test_case("(place-card-ok (events (next-turn player1)))\n"
@@ -503,7 +523,7 @@ mod tests {
         => PlaceCardOk { pick_battle: vec![], events: vec![GameOver { winner: None }] })]
     #[test_case("(place-card-ok (events) (pick-battle (2 3 4)))\n"
         => PlaceCardOk { pick_battle: vec![2, 3, 4], events: vec![] })]
-    fn place_card_ok(i: &str) -> Response {
+    fn place_card_ok(i: &str) -> PlaceCardOk {
         Response::deserialize(i).unwrap()
     }
 }
