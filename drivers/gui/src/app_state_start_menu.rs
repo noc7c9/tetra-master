@@ -65,21 +65,16 @@ fn mouse_input(
     if btns.just_pressed(MouseButton::Left) {
         // start the new game
         let mut driver = core::Driver::new(&args.implementation).log();
-        let cmd = core::Command::Setup {
+        let cmd = core::command::Setup {
             rng: None,
             battle_system: None,
             blocked_cells: None,
             hand_candidates: None,
         };
-        // TODO: expose expect_setup_ok() method from tester crate
-        if let core::Response::SetupOk {
-            hand_candidates: c, ..
-        } = driver.send(cmd).unwrap()
-        {
-            commands.insert_resource(Candidates([Some(c[0]), Some(c[1]), Some(c[2])]));
-        } else {
-            unreachable!()
-        };
+        // TODO: handle the error
+        let response = driver.send(cmd).unwrap();
+        let c = response.hand_candidates;
+        commands.insert_resource(Candidates([Some(c[0]), Some(c[1]), Some(c[2])]));
 
         commands.insert_resource(Driver(driver));
 

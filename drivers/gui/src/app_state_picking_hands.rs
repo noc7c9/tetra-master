@@ -115,16 +115,12 @@ fn pick_hand(
                     }
 
                     // forward the game state
-                    let response = driver
+                    driver
                         .0
-                        .send(core::Command::PickHand {
+                        .send(core::command::PickHand {
                             hand: picked_candidate as u8,
                         })
                         .expect("PickHand command should work");
-                    // TODO: expose expect_pick_hand_ok() method from tester crate
-                    if !matches!(response, core::Response::PickHandOk) {
-                        panic!("PickHand command should work");
-                    }
 
                     *status = Status::RedPicking;
                 }
@@ -158,15 +154,12 @@ fn pick_hand(
                     }
 
                     // forward the game state
-                    let response = driver
+                    driver
                         .0
-                        .send(core::Command::PickHand {
+                        .send(core::command::PickHand {
                             hand: picked_candidate as u8,
                         })
                         .expect("PickHand command should work");
-                    if !matches!(response, core::Response::PickHandOk) {
-                        panic!("PickHand command should work");
-                    }
 
                     // forward the app state
                     let _ = app_state.set(AppState::InGame);
