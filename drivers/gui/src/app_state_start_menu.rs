@@ -1,5 +1,9 @@
-use super::{AppAssets, AppState};
+use super::{
+    common::{Candidates, Driver},
+    AppAssets, AppState,
+};
 use bevy::prelude::*;
+use tetra_master_core as core;
 
 pub struct Plugin;
 
@@ -60,9 +64,24 @@ fn mouse_input(
 ) {
     if btns.just_pressed(MouseButton::Left) {
         // start the new game
-        commands.insert_resource(crate::game_state::picking_hands::State::new(
-            &args.implementation,
-        ));
+        let mut driver = core::Driver::new(&args.implementation).log();
+        let cmd = core::Command::Setup {
+            rng: None,
+            battle_system: None,
+            blocked_cells: None,
+            hand_candidates: None,
+        };
+        // TODO: expose expect_setup_ok() method from tester crate
+        if let core::Response::SetupOk {
+            hand_candidates: c, ..
+        } = driver.send(cmd).unwrap()
+        {
+            commands.insert_resource(Candidates([Some(c[0]), Some(c[1]), Some(c[2])]));
+        } else {
+            unreachable!()
+        };
+
+        commands.insert_resource(Driver(driver));
 
         // change the state
         app_state.set(AppState::PickingHands).unwrap();

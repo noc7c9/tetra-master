@@ -1,9 +1,9 @@
 use crate::{
     common::{
-        calc_candidate_card_screen_pos, calc_hand_card_screen_pos, spawn_card, HandIdx,
-        OptionalOwner, Owner, CANDIDATE_PADDING,
+        calc_candidate_card_screen_pos, calc_hand_card_screen_pos, spawn_card, Candidates, Driver,
+        HandIdx, OptionalOwner, Owner, CANDIDATE_PADDING,
     },
-    game_state, hover, AppAssets, AppState, CARD_SIZE,
+    hover, AppAssets, AppState, CARD_SIZE,
 };
 use bevy::prelude::*;
 use tetra_master_core as core;
@@ -27,6 +27,11 @@ impl bevy::app::Plugin for Plugin {
     }
 }
 
+enum Status {
+    BluePicking,
+    RedPicking,
+}
+
 struct HoveredCandidate(Option<(Entity, usize)>);
 
 #[derive(Component)]
@@ -36,14 +41,11 @@ struct Cleanup;
 #[derive(Debug, Component, Clone, Copy)]
 struct CandidateIdx(usize);
 
-fn on_enter(
-    mut commands: Commands,
-    app_assets: Res<AppAssets>,
-    game_state: Res<game_state::picking_hands::State>,
-) {
+fn on_enter(mut commands: Commands, app_assets: Res<AppAssets>, candidates: Res<Candidates>) {
+    commands.insert_resource(Status::BluePicking);
     commands.insert_resource(HoveredCandidate(None));
 
-    for (candidate_idx, candidate) in game_state.candidates.iter().enumerate() {
+    for (candidate_idx, candidate) in candidates.0.iter().enumerate() {
         let candidate = candidate.unwrap(); // will all exist on_enter
         for (hand_idx, card) in candidate.iter().enumerate() {
             let pos = calc_candidate_card_screen_pos(candidate_idx, hand_idx);
@@ -68,13 +70,15 @@ fn on_enter(
 }
 
 fn on_exit(mut commands: Commands) {
+    commands.remove_resource::<Status>();
     commands.remove_resource::<HoveredCandidate>();
 }
 
 fn pick_hand(
     mut commands: Commands,
     mut app_state: ResMut<State<AppState>>,
-    mut game_state: ResMut<game_state::picking_hands::State>,
+    mut driver: ResMut<Driver>,
+    mut status: ResMut<Status>,
     hovered_candidate: ResMut<HoveredCandidate>,
     btns: Res<Input<MouseButton>>,
     mut cards: Query<(Entity, &mut Transform, &HandIdx, &CandidateIdx)>,
@@ -82,8 +86,8 @@ fn pick_hand(
     let hovered_candidate = hovered_candidate.into_inner();
     if let Some((hoverable_entity, picked_candidate)) = hovered_candidate.0 {
         if btns.just_pressed(MouseButton::Left) {
-            match game_state.status {
-                game_state::picking_hands::Status::BluePicking { .. } => {
+            match *status {
+                Status::BluePicking => {
                     // remove the hoverable entity
                     commands.entity(hoverable_entity).despawn_recursive();
                     hovered_candidate.0 = None;
@@ -111,9 +115,20 @@ fn pick_hand(
                     }
 
                     // forward the game state
-                    game_state.pick_hand(picked_candidate as usize);
+                    let response = driver
+                        .0
+                        .send(core::Command::PickHand {
+                            hand: picked_candidate as u8,
+                        })
+                        .expect("PickHand command should work");
+                    // TODO: expose expect_pick_hand_ok() method from tester crate
+                    if !matches!(response, core::Response::PickHandOk) {
+                        panic!("PickHand command should work");
+                    }
+
+                    *status = Status::RedPicking;
                 }
-                game_state::picking_hands::Status::RedPicking { .. } => {
+                Status::RedPicking => {
                     // remove the hoverable entity
                     commands.entity(hoverable_entity).despawn_recursive();
                     hovered_candidate.0 = None;
@@ -143,13 +158,18 @@ fn pick_hand(
                     }
 
                     // forward the game state
-                    game_state.pick_hand(picked_candidate as usize);
+                    let response = driver
+                        .0
+                        .send(core::Command::PickHand {
+                            hand: picked_candidate as u8,
+                        })
+                        .expect("PickHand command should work");
+                    if !matches!(response, core::Response::PickHandOk) {
+                        panic!("PickHand command should work");
+                    }
 
                     // forward the app state
                     let _ = app_state.set(AppState::InGame);
-                }
-                game_state::picking_hands::Status::Done { .. } => {
-                    unreachable!("Both hands already picked")
                 }
             }
         }
@@ -158,17 +178,12 @@ fn pick_hand(
 
 fn highlight_on_hover(
     mut hovered_candidate: ResMut<HoveredCandidate>,
-    game_state: Res<game_state::picking_hands::State>,
+    status: Res<Status>,
     mut hover_end: EventReader<hover::EndEvent>,
     mut hover_start: EventReader<hover::StartEvent>,
     mut cards: Query<(&mut OptionalOwner, &CandidateIdx)>,
     candidates: Query<&CandidateIdx>,
 ) {
-    // picking is done, so nothing to do
-    if let game_state::picking_hands::Status::Done { .. } = game_state.status {
-        return;
-    }
-
     let mut set_highlight = |candidate_idx, highlight| {
         for (mut owner, hand) in &mut cards {
             if hand.0 == candidate_idx {
@@ -185,7 +200,11 @@ fn highlight_on_hover(
     }
     for evt in hover_start.iter() {
         let candidate_idx = candidates.get(evt.entity).unwrap();
-        set_highlight(candidate_idx.0, Some(game_state.picking_player()));
+        let highlight = match *status {
+            Status::BluePicking => core::Player::P1,
+            Status::RedPicking => core::Player::P2,
+        };
+        set_highlight(candidate_idx.0, Some(highlight));
 
         hovered_candidate.0 = Some((evt.entity, candidate_idx.0));
     }

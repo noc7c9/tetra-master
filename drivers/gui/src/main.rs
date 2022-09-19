@@ -4,7 +4,6 @@ use clap::Parser;
 mod debug;
 
 mod common;
-mod game_state;
 mod hover;
 
 mod app_state_in_game;
