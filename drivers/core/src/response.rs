@@ -20,7 +20,7 @@ pub trait Response: Sized {
     fn deserialize(input: &str) -> Result<Self, Error>;
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ErrorResponse {
     InvalidHandPick { hand: u8 },
     HandAlreadyPicked { hand: u8 },
@@ -36,7 +36,7 @@ impl Response for ErrorResponse {
     }
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SetupOk {
     pub seed: Option<Seed>,
     pub battle_system: BattleSystem,
@@ -51,7 +51,7 @@ impl Response for SetupOk {
     }
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PickHandOk;
 
 impl Response for PickHandOk {
@@ -61,7 +61,7 @@ impl Response for PickHandOk {
     }
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PlaceCardOk {
     pub pick_battle: Vec<u8>,
     pub events: Vec<Event>,

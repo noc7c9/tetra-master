@@ -62,26 +62,26 @@ impl From<std::io::Error> for Error {
     }
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Rng {
     Seeded { seed: Seed },
     External { rolls: Vec<u8> },
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum BattleSystem {
     Original,
     Dice { sides: u8 },
     Test,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Player {
     P1,
     P2,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum CardType {
     Physical,
     Magical,
@@ -89,7 +89,7 @@ pub enum CardType {
     Assault,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Arrows(pub u8);
 
 impl Arrows {
@@ -119,7 +119,7 @@ impl std::ops::BitOr for Arrows {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Card {
     pub attack: u8,
     pub card_type: CardType,
@@ -162,7 +162,7 @@ impl Card {
     }
 }
 
-#[derive(Debug, Copy, Clone, PartialEq)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub enum Event {
     NextTurn {
         to: Player,
@@ -183,7 +183,7 @@ pub enum Event {
     },
 }
 
-#[derive(Debug, Copy, Clone, PartialEq)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub struct Battler {
     pub cell: u8,
     pub digit: Digit,
@@ -202,14 +202,14 @@ impl Battler {
     }
 }
 
-#[derive(Debug, Copy, Clone, PartialEq)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub enum Digit {
     Attack,
     PhysicalDefense,
     MagicalDefense,
 }
 
-#[derive(Debug, Copy, Clone, PartialEq)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub enum BattleWinner {
     Attacker,
     Defender,
