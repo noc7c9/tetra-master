@@ -1,12 +1,11 @@
-use crate::{card, hover, AppAssets, AppState, CARD_SIZE, COIN_SIZE, RENDER_HSIZE};
+use crate::{
+    common::{calc_hand_card_screen_pos, Card, HandIdx, Owner},
+    hover, AppAssets, AppState, CARD_SIZE, COIN_SIZE, RENDER_HSIZE,
+};
 use bevy::{prelude::*, sprite::Anchor};
 use tetra_master_core as core;
 
-// FIXME: this is duplicated from picking menu module
-const PLAYER_HAND_PADDING: f32 = 4.;
-const PLAYER_HAND_VOFFSET: f32 = 27.;
-
-const CARD_EMPHASIZE_OFFSET: Vec3 = Vec3::new(12., 0., 10.);
+const CARD_EMPHASIZE_OFFSET: Vec3 = Vec3::new(12., 0., 5.);
 const CARD_COUNTER_PADDING: Vec2 = Vec2::new(10., 5.);
 const COIN_PADDING: Vec2 = Vec2::new(20., 20.);
 
@@ -65,7 +64,7 @@ struct BoardCell(usize);
 fn setup(
     mut commands: Commands,
     app_assets: Res<AppAssets>,
-    player_hands: Query<(Entity, &card::Owner, &Transform), With<card::Card>>,
+    player_hands: Query<(Entity, &Owner, &Transform), With<Card>>,
 ) {
     commands.insert_resource(HoveredCard(None));
     commands.insert_resource(ActiveCard(None));
@@ -227,31 +226,22 @@ fn update_card_positions(
     hovered_cell: Res<HoveredCell>,
     hovered_card: Res<HoveredCard>,
     active_card: Res<ActiveCard>,
-    mut hand_cards: Query<(Entity, &card::Owner, &card::CardIdx, &mut Transform)>,
+    mut hand_cards: Query<(Entity, &Owner, &HandIdx, &mut Transform)>,
 ) {
     if hovered_cell.is_changed() || hovered_card.is_changed() || active_card.is_changed() {
         // iterate over all the cards and set the position for all of them
-        for (entity, owner, card_idx, mut transform) in &mut hand_cards {
-            let owner = owner.0.unwrap();
-
-            // TODO: pull this calculation (and duplication in picking hands) to common.rs
-            transform.translation.x = match owner {
-                core::Player::P1 => RENDER_HSIZE.x - CARD_SIZE.x - PLAYER_HAND_PADDING,
-                core::Player::P2 => -RENDER_HSIZE.x + PLAYER_HAND_PADDING,
-            };
-            transform.translation.y = RENDER_HSIZE.y
-                - CARD_SIZE.y
-                - PLAYER_HAND_PADDING
-                - PLAYER_HAND_VOFFSET * card_idx.0 as f32;
+        for (entity, owner, hand_idx, mut transform) in &mut hand_cards {
+            transform.translation = calc_hand_card_screen_pos(owner.0, hand_idx.0);
 
             let is_hovered = hovered_card.0 == Some(entity);
             let is_active = active_card.0 == Some(entity);
             let is_over_cell = hovered_cell.0.is_some();
             if is_hovered || (is_active && !is_over_cell) {
-                transform.translation.x += match owner {
+                transform.translation.x += match owner.0 {
                     core::Player::P1 => -CARD_EMPHASIZE_OFFSET.x,
                     core::Player::P2 => CARD_EMPHASIZE_OFFSET.x,
                 };
+                transform.translation.z += CARD_EMPHASIZE_OFFSET.z;
             } else if is_over_cell && is_active {
                 let pos = cell_to_position(hovered_cell.0.unwrap());
                 transform.translation.x = pos.x;

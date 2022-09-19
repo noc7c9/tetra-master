@@ -3,7 +3,7 @@ use clap::Parser;
 
 mod debug;
 
-mod card;
+mod common;
 mod game_state;
 mod hover;
 
@@ -52,7 +52,7 @@ fn main() {
         .insert_resource(AppAssets::default())
         .add_plugins(DefaultPlugins)
         .add_plugin(debug::Plugin)
-        .add_plugin(card::Plugin)
+        .add_plugin(common::Plugin)
         .add_plugin(hover::Plugin)
         .add_plugin(app_state_start_menu::Plugin)
         .add_plugin(app_state_picking_hands::Plugin)

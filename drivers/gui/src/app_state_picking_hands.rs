@@ -1,11 +1,12 @@
-use crate::{card, game_state, hover, AppAssets, AppState, CARD_SIZE, RENDER_HSIZE};
+use crate::{
+    common::{
+        calc_candidate_card_screen_pos, calc_hand_card_screen_pos, spawn_card, HandIdx,
+        OptionalOwner, Owner, CANDIDATE_PADDING,
+    },
+    game_state, hover, AppAssets, AppState, CARD_SIZE,
+};
 use bevy::prelude::*;
 use tetra_master_core as core;
-
-const PLAYER_HAND_VOFFSET: f32 = 27.;
-
-const PLAYER_HAND_PADDING: f32 = 4.;
-const CENTER_HAND_PADDING: f32 = 3.;
 
 pub struct Plugin;
 
@@ -15,7 +16,8 @@ impl bevy::app::Plugin for Plugin {
             .add_system_set(
                 SystemSet::on_update(AppState::PickingHands)
                     .with_system(pick_hand)
-                    .with_system(highlight_on_hover),
+                    .with_system(highlight_on_hover)
+                    .with_system(swap_card_background),
             )
             .add_system_set(
                 SystemSet::on_exit(AppState::PickingHands)
@@ -25,93 +27,82 @@ impl bevy::app::Plugin for Plugin {
     }
 }
 
-struct HoveredHand(Option<(Entity, usize)>);
+struct HoveredCandidate(Option<(Entity, usize)>);
 
 #[derive(Component)]
 struct Cleanup;
 
 // stores the index into the hand_candidates array
 #[derive(Debug, Component, Clone, Copy)]
-struct HandIdx(usize);
+struct CandidateIdx(usize);
 
 fn on_enter(
     mut commands: Commands,
     app_assets: Res<AppAssets>,
     game_state: Res<game_state::picking_hands::State>,
 ) {
-    commands.insert_resource(HoveredHand(None));
+    commands.insert_resource(HoveredCandidate(None));
 
-    for (hand_idx, hand) in game_state.candidates.iter().enumerate() {
-        let hand = hand.unwrap(); // will all exist on_enter
-        let i = hand_idx as f32;
-        let y = CARD_SIZE.y * 0.5 + CENTER_HAND_PADDING + i * -(CARD_SIZE.y + CENTER_HAND_PADDING);
-        let x = CARD_SIZE.x * -2.5 + CENTER_HAND_PADDING * -2.;
-        for (card_idx, card) in hand.iter().enumerate() {
-            let j = card_idx as f32;
-            let x = x + j * (CARD_SIZE.x + CENTER_HAND_PADDING);
-            let z = 1. + i * 5. + j;
-            card::spawn(&mut commands, &app_assets, (x, y, z).into(), None, *card)
+    for (candidate_idx, candidate) in game_state.candidates.iter().enumerate() {
+        let candidate = candidate.unwrap(); // will all exist on_enter
+        for (hand_idx, card) in candidate.iter().enumerate() {
+            let pos = calc_candidate_card_screen_pos(candidate_idx, hand_idx);
+            spawn_card(&mut commands, &app_assets, pos.extend(1.), *card)
+                .insert(OptionalOwner(None))
                 .insert(Cleanup)
-                .insert(card::CardIdx(card_idx))
-                .insert(HandIdx(hand_idx));
+                .insert(HandIdx(hand_idx))
+                .insert(CandidateIdx(candidate_idx));
         }
 
-        let size = (CARD_SIZE.x * 5. + CENTER_HAND_PADDING * 4., CARD_SIZE.y).into();
-        let transform = Transform::from_xyz(x, y, 0.);
+        let size = (CARD_SIZE.x * 5. + CANDIDATE_PADDING * 4., CARD_SIZE.y).into();
+        let position = calc_candidate_card_screen_pos(candidate_idx, 0).extend(0.);
+        let transform = Transform::from_translation(position);
         commands
             .spawn()
             .insert(Cleanup)
             .insert_bundle(TransformBundle::from_transform(transform))
             .insert(hover::Area::new(size))
             // .insert(crate::debug::rect(size))
-            .insert(HandIdx(hand_idx));
+            .insert(CandidateIdx(candidate_idx));
     }
 }
 
 fn on_exit(mut commands: Commands) {
-    commands.remove_resource::<HoveredHand>();
+    commands.remove_resource::<HoveredCandidate>();
 }
 
 fn pick_hand(
     mut commands: Commands,
     mut app_state: ResMut<State<AppState>>,
     mut game_state: ResMut<game_state::picking_hands::State>,
-    hovered_hand: ResMut<HoveredHand>,
+    hovered_candidate: ResMut<HoveredCandidate>,
     btns: Res<Input<MouseButton>>,
-    mut hand_cards: Query<(
-        Entity,
-        &mut card::Owner,
-        &mut Transform,
-        &card::CardIdx,
-        &HandIdx,
-    )>,
+    mut cards: Query<(Entity, &mut Transform, &HandIdx, &CandidateIdx)>,
 ) {
-    let hovered_hand = hovered_hand.into_inner();
-    if let Some((hoverable_entity, picked_hand)) = hovered_hand.0 {
+    let hovered_candidate = hovered_candidate.into_inner();
+    if let Some((hoverable_entity, picked_candidate)) = hovered_candidate.0 {
         if btns.just_pressed(MouseButton::Left) {
             match game_state.status {
                 game_state::picking_hands::Status::BluePicking { .. } => {
                     // remove the hoverable entity
                     commands.entity(hoverable_entity).despawn_recursive();
-                    hovered_hand.0 = None;
+                    hovered_candidate.0 = None;
 
                     // iterate over each of the cards in a hand candidate
-                    for (entity, mut owner, mut transform, card_idx, hand_idx) in &mut hand_cards {
+                    for (entity, mut transform, hand_idx, candidate_idx) in &mut cards {
                         // this card is part of the picked hand
-                        if hand_idx.0 == picked_hand {
+                        if candidate_idx.0 == picked_candidate {
                             // move it to the blue side
-                            owner.0 = Some(core::Player::P1);
-                            transform.translation.x =
-                                RENDER_HSIZE.x - CARD_SIZE.x - PLAYER_HAND_PADDING;
-                            transform.translation.y = RENDER_HSIZE.y
-                                - CARD_SIZE.y
-                                - PLAYER_HAND_PADDING
-                                - PLAYER_HAND_VOFFSET * card_idx.0 as f32;
+                            transform.translation =
+                                calc_hand_card_screen_pos(core::Player::P1, hand_idx.0);
 
-                            // remove the hand candidate marker and the clean up marker
                             commands
                                 .entity(entity)
-                                .remove::<HandIdx>()
+                                // replace OptionalOwner with Owner
+                                .remove::<OptionalOwner>()
+                                .insert(Owner(core::Player::P1))
+                                // remove the hand candidate marker and the clean up marker
+                                .remove::<CandidateIdx>()
                                 .remove::<Cleanup>();
                         }
                         // TODO: recenter remaining two candidates
@@ -120,29 +111,28 @@ fn pick_hand(
                     }
 
                     // forward the game state
-                    game_state.pick_hand(picked_hand as usize);
+                    game_state.pick_hand(picked_candidate as usize);
                 }
                 game_state::picking_hands::Status::RedPicking { .. } => {
                     // remove the hoverable entity
                     commands.entity(hoverable_entity).despawn_recursive();
-                    hovered_hand.0 = None;
+                    hovered_candidate.0 = None;
 
                     // iterate over each of the cards in a hand candidate
-                    for (entity, mut owner, mut transform, card_idx, hand_idx) in &mut hand_cards {
+                    for (entity, mut transform, hand_idx, candidate_idx) in &mut cards {
                         // this card is part of the picked hand
-                        if hand_idx.0 == picked_hand {
+                        if candidate_idx.0 == picked_candidate {
                             // move it to the red side
-                            owner.0 = Some(core::Player::P2);
-                            transform.translation.x = -RENDER_HSIZE.x + PLAYER_HAND_PADDING;
-                            transform.translation.y = RENDER_HSIZE.y
-                                - CARD_SIZE.y
-                                - PLAYER_HAND_PADDING
-                                - PLAYER_HAND_VOFFSET * card_idx.0 as f32;
+                            transform.translation =
+                                calc_hand_card_screen_pos(core::Player::P2, hand_idx.0);
 
-                            // remove the hand candidate marker and the clean up marker
                             commands
                                 .entity(entity)
-                                .remove::<HandIdx>()
+                                // replace OptionalOwner with Owner
+                                .remove::<OptionalOwner>()
+                                .insert(Owner(core::Player::P2))
+                                // remove the hand candidate marker and the clean up marker
+                                .remove::<CandidateIdx>()
                                 .remove::<Cleanup>();
                         }
                         // part of the unpicked hand
@@ -153,7 +143,7 @@ fn pick_hand(
                     }
 
                     // forward the game state
-                    game_state.pick_hand(picked_hand as usize);
+                    game_state.pick_hand(picked_candidate as usize);
 
                     // forward the app state
                     let _ = app_state.set(AppState::InGame);
@@ -167,36 +157,49 @@ fn pick_hand(
 }
 
 fn highlight_on_hover(
-    mut hovered_hand: ResMut<HoveredHand>,
+    mut hovered_candidate: ResMut<HoveredCandidate>,
     game_state: Res<game_state::picking_hands::State>,
     mut hover_end: EventReader<hover::EndEvent>,
     mut hover_start: EventReader<hover::StartEvent>,
-    mut hand_cards: Query<(&mut card::Owner, &HandIdx)>,
-    hands: Query<&HandIdx>,
+    mut cards: Query<(&mut OptionalOwner, &CandidateIdx)>,
+    candidates: Query<&CandidateIdx>,
 ) {
     // picking is done, so nothing to do
     if let game_state::picking_hands::Status::Done { .. } = game_state.status {
         return;
     }
 
-    let mut set_highlight = |hand_idx, highlight| {
-        for (mut owner, hand) in &mut hand_cards {
-            if hand.0 == hand_idx {
+    let mut set_highlight = |candidate_idx, highlight| {
+        for (mut owner, hand) in &mut cards {
+            if hand.0 == candidate_idx {
                 owner.0 = highlight;
             }
         }
     };
 
     for evt in hover_end.iter() {
-        let hand_idx = hands.get(evt.entity).unwrap();
-        set_highlight(hand_idx.0, None);
+        let candidate_idx = candidates.get(evt.entity).unwrap();
+        set_highlight(candidate_idx.0, None);
 
-        hovered_hand.0 = None;
+        hovered_candidate.0 = None;
     }
     for evt in hover_start.iter() {
-        let hand_idx = hands.get(evt.entity).unwrap();
-        set_highlight(hand_idx.0, Some(game_state.picking_player()));
+        let candidate_idx = candidates.get(evt.entity).unwrap();
+        set_highlight(candidate_idx.0, Some(game_state.picking_player()));
 
-        hovered_hand.0 = Some((evt.entity, hand_idx.0));
+        hovered_candidate.0 = Some((evt.entity, candidate_idx.0));
+    }
+}
+
+fn swap_card_background(
+    app_assets: Res<AppAssets>,
+    mut query: Query<(&mut Handle<Image>, &OptionalOwner), Changed<OptionalOwner>>,
+) {
+    for (mut texture, owner) in &mut query {
+        *texture = match owner.0 {
+            None => app_assets.card_bg_gray.clone(),
+            Some(core::Player::P1) => app_assets.card_bg_blue.clone(),
+            Some(core::Player::P2) => app_assets.card_bg_red.clone(),
+        };
     }
 }
