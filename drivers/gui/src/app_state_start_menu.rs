@@ -1,5 +1,5 @@
 use super::{
-    common::{Candidates, Driver},
+    common::{Candidates, Driver, Turn},
     AppAssets, AppState,
 };
 use bevy::prelude::*;
@@ -75,6 +75,8 @@ fn mouse_input(
         let response = driver.send(cmd).unwrap();
         let c = response.hand_candidates;
         commands.insert_resource(Candidates([Some(c[0]), Some(c[1]), Some(c[2])]));
+
+        commands.insert_resource(Turn(core::Player::P1));
 
         commands.insert_resource(Driver(driver));
 

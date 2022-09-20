@@ -1,5 +1,5 @@
 use crate::{
-    common::{calc_hand_card_screen_pos, Card, HandIdx, Owner},
+    common::{calc_hand_card_screen_pos, Card, HandIdx, Owner, Turn},
     hover, AppAssets, AppState, CARD_SIZE, COIN_SIZE, RENDER_HSIZE,
 };
 use bevy::{prelude::*, sprite::Anchor};
@@ -206,18 +206,21 @@ fn maintain_card_hover_marker(
     mut hover_end: EventReader<hover::EndEvent>,
     mut hover_start: EventReader<hover::StartEvent>,
     mut hovered_card: ResMut<HoveredCard>,
-    hover_areas: Query<&HandCardHoverArea>,
+    turn: Res<Turn>,
+    hover_areas: Query<(&Owner, &HandCardHoverArea)>,
 ) {
     for evt in hover_end.iter() {
-        if let Ok(&HandCardHoverArea(entity)) = hover_areas.get(evt.entity) {
+        if let Ok((_, &HandCardHoverArea(entity))) = hover_areas.get(evt.entity) {
             if hovered_card.0 == Some(entity) {
                 hovered_card.0 = None;
             }
         }
     }
     for evt in hover_start.iter() {
-        if let Ok(&HandCardHoverArea(entity)) = hover_areas.get(evt.entity) {
-            hovered_card.0 = Some(entity);
+        if let Ok((owner, &HandCardHoverArea(entity))) = hover_areas.get(evt.entity) {
+            if turn.0 == owner.0 {
+                hovered_card.0 = Some(entity);
+            }
         }
     }
 }

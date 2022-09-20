@@ -23,6 +23,9 @@ impl bevy::app::Plugin for Plugin {
 pub struct Driver(pub core::Driver);
 
 #[derive(Debug)]
+pub struct Turn(pub core::Player);
+
+#[derive(Debug)]
 pub struct Candidates(pub [Option<core::Hand>; 3]);
 
 #[derive(Debug, Component, Clone)]
