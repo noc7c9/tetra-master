@@ -72,6 +72,7 @@ struct AppAssets {
     font: Handle<Font>,
     background: Handle<Image>,
     board: Handle<Image>,
+    blocked_cell: [Handle<Image>; 2],
     coin_flip: Handle<TextureAtlas>,
     card_bg_gray: Handle<Image>,
     card_bg_blue: Handle<Image>,
@@ -103,6 +104,11 @@ fn setup(
 
     app_assets.background = asset_server.load("background.png");
     app_assets.board = asset_server.load("board.png");
+
+    app_assets.blocked_cell = [
+        asset_server.load("blocked-cell-1.png"),
+        asset_server.load("blocked-cell-2.png"),
+    ];
 
     app_assets.coin_flip = {
         let handle = asset_server.load("coin-flip.png");

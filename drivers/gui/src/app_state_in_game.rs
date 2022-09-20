@@ -1,5 +1,5 @@
 use crate::{
-    common::{calc_hand_card_screen_pos, Card, HandIdx, Owner, Turn},
+    common::{calc_hand_card_screen_pos, BlockedCells, Card, HandIdx, Owner, Turn},
     hover, AppAssets, AppState, CARD_SIZE, COIN_SIZE, RENDER_HSIZE,
 };
 use bevy::{prelude::*, sprite::Anchor};
@@ -64,6 +64,7 @@ struct BoardCell(usize);
 fn setup(
     mut commands: Commands,
     app_assets: Res<AppAssets>,
+    blocked_cells: Res<BlockedCells>,
     player_hands: Query<(Entity, &Owner, &Transform), With<Card>>,
 ) {
     commands.insert_resource(HoveredCard(None));
@@ -79,8 +80,29 @@ fn setup(
         })
         .insert(Cleanup);
 
+    // blocked cells
+    for &cell in &blocked_cells.0 {
+        let texture_idx = fastrand::usize(..app_assets.blocked_cell.len());
+        let transform = Transform::from_translation(cell_to_position(cell).extend(0.2));
+        commands
+            .spawn_bundle(SpriteBundle {
+                sprite: Sprite {
+                    anchor: Anchor::BottomLeft,
+                    ..default()
+                },
+                texture: app_assets.blocked_cell[texture_idx].clone(),
+                transform,
+                ..default()
+            })
+            .insert(Cleanup);
+    }
+
     // board cell hover areas
     for cell in 0..16 {
+        if blocked_cells.0.contains(&cell) {
+            continue;
+        }
+
         let transform = Transform::from_translation(cell_to_position(cell).extend(100.));
         commands
             .spawn()

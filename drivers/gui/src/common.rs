@@ -28,6 +28,9 @@ pub struct Turn(pub core::Player);
 #[derive(Debug)]
 pub struct Candidates(pub [Option<core::Hand>; 3]);
 
+#[derive(Debug)]
+pub struct BlockedCells(pub Vec<usize>);
+
 #[derive(Debug, Component, Clone)]
 pub struct Card(pub core::Card);
 

@@ -2934,7 +2934,7 @@ dependencies = [
  "bevy",
  "bevy_prototype_lyon",
  "clap",
- "owo-colors",
+ "fastrand",
  "tetra-master-core",
 ]
 
