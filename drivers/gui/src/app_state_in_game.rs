@@ -16,7 +16,8 @@ pub struct Plugin;
 
 impl bevy::app::Plugin for Plugin {
     fn build(&self, app: &mut App) {
-        app.add_system_set(SystemSet::on_enter(AppState::InGame).with_system(setup))
+        app.add_event::<NextTurn>()
+            .add_system_set(SystemSet::on_enter(AppState::InGame).with_system(setup))
             .add_system_set(
                 SystemSet::on_update(AppState::InGame)
                     // place_card needs to run before so that the active card won't be dismissed
@@ -35,13 +36,18 @@ impl bevy::app::Plugin for Plugin {
                             .before(select_and_deselect_card)
                             .before(maintain_card_hover_marker)
                             .before(maintain_cell_hover_marker),
-                    ),
+                    )
+                    .with_system(handle_flip_card),
                 // .with_system(animate_coin)
             )
             .add_system_set(
                 SystemSet::on_exit(AppState::InGame).with_system(crate::cleanup::<Cleanup>),
             );
     }
+}
+
+struct NextTurn {
+    to: core::Player,
 }
 
 #[derive(Debug)]
@@ -223,6 +229,7 @@ fn select_and_deselect_card(
 #[allow(clippy::too_many_arguments)]
 fn place_card(
     mut commands: Commands,
+    mut next_turn: EventWriter<NextTurn>,
     mut driver: ResMut<Driver>,
     mut active_card: ResMut<ActiveCard>,
     hovered_cell: Res<HoveredCell>,
@@ -236,14 +243,20 @@ fn place_card(
         if let (Some(card_entity), Some(cell)) = (active_card.0, hovered_cell.0) {
             let card = hand_idx.get(card_entity).unwrap().0 as u8;
 
-            // TODO: handle the response.{ events, pick_battle }
-            let _res = driver
+            let response = driver
                 .0
                 .send(core::command::PlaceCard {
                     card,
                     cell: cell as u8,
                 })
                 .expect("PlaceCard command should work");
+
+            for event in response.events {
+                match event {
+                    core::Event::NextTurn { to } => next_turn.send(NextTurn { to }),
+                    _ => todo!("{event:?}"),
+                }
+            }
 
             commands.entity(card_entity).insert(PlacedCard(cell));
 
@@ -348,6 +361,20 @@ fn update_card_positions(
                 transform.translation = calc_board_card_screen_pos(hovered_cell.0.unwrap());
             }
         }
+    }
+}
+
+fn handle_flip_card(
+    mut next_turn: EventReader<NextTurn>,
+    mut turn: ResMut<Turn>,
+    mut sprite: Query<&mut TextureAtlasSprite, With<Coin>>,
+) {
+    for NextTurn { to } in next_turn.iter() {
+        turn.0 = *to;
+        sprite.single_mut().index = match to {
+            core::Player::P1 => 0,
+            core::Player::P2 => 4,
+        };
     }
 }
 
