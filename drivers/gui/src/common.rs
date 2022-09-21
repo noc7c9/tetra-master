@@ -7,6 +7,9 @@ const TOTAL_CARD_IMAGES: usize = 100;
 const PLAYER_HAND_VOFFSET: f32 = 27.;
 const PLAYER_HAND_PADDING: f32 = 4.;
 
+const BOARD_POS: Vec2 = Vec2::new(-88.5, -95.5);
+pub const CELL_SIZE: Vec2 = Vec2::new(CARD_SIZE.x + 1., CARD_SIZE.y + 1.);
+
 pub const CANDIDATE_PADDING: f32 = 3.;
 
 pub struct Plugin;
@@ -188,6 +191,21 @@ pub fn calc_hand_card_screen_pos(owner: core::Player, hand_idx: usize) -> Vec3 {
         },
         RENDER_HSIZE.y - CARD_SIZE.y - PLAYER_HAND_PADDING - PLAYER_HAND_VOFFSET * hand_idx,
         1. + hand_idx,
+    )
+}
+
+pub fn calc_board_cell_screen_pos(cell: usize) -> Vec2 {
+    Vec2::new(
+        BOARD_POS.x + (cell % 4) as f32 * CELL_SIZE.x,
+        BOARD_POS.y + (3 - cell / 4) as f32 * CELL_SIZE.y,
+    )
+}
+
+pub fn calc_board_card_screen_pos(cell: usize) -> Vec3 {
+    Vec3::new(
+        BOARD_POS.x + (cell % 4) as f32 * CELL_SIZE.x + 0.5,
+        BOARD_POS.y + (3 - cell / 4) as f32 * CELL_SIZE.y + 0.5,
+        2.,
     )
 }
 
