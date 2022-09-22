@@ -18,12 +18,25 @@ impl bevy::app::Plugin for Plugin {
     fn build(&self, app: &mut App) {
         app.add_event::<NextTurn>()
             .add_event::<Flip>()
+            .add_event::<Battle>()
             .add_system_set(SystemSet::on_enter(AppState::InGame).with_system(setup))
             .add_system_set(
                 SystemSet::on_update(AppState::InGame)
-                    // place_card needs to run before so that the active card won't be dismissed
-                    // when clicking the board
-                    .with_system(place_card.before(select_and_deselect_card))
+                    .with_system(
+                        place_card
+                            // place_card needs to run before so that the active card won't be
+                            // dismissed when clicking the board
+                            .before(select_and_deselect_card)
+                            // since place card generates the events, it needs to run after all the
+                            // event handlers
+                            // usually it should run before so that events can be handled on the
+                            // same frame BUT we need commands to run and we can't use stages due to
+                            // limitations in Bevy's State system
+                            .after(handle_next_turn)
+                            .after(handle_flip)
+                            .after(handle_battle)
+                            .after(update_card_counter),
+                    )
                     .with_system(select_and_deselect_card)
                     .with_system(maintain_card_hover_marker)
                     .with_system(maintain_cell_hover_marker)
@@ -40,6 +53,7 @@ impl bevy::app::Plugin for Plugin {
                     )
                     .with_system(handle_next_turn)
                     .with_system(handle_flip)
+                    .with_system(handle_battle)
                     .with_system(update_card_counter),
                 // .with_system(animate_coin)
             )
@@ -55,6 +69,12 @@ struct NextTurn {
 
 struct Flip {
     cell: u8,
+}
+
+#[derive(Debug)]
+struct Battle {
+    attacker: core::Battler,
+    defender: core::Battler,
 }
 
 #[derive(Debug)]
@@ -89,6 +109,9 @@ struct BoardCell(usize);
 
 #[derive(Debug, Component)]
 struct PlacedCard(usize);
+
+#[derive(Component)]
+struct BattlerStatDisplay;
 
 fn setup(
     mut commands: Commands,
@@ -250,6 +273,7 @@ fn place_card(
     mut commands: Commands,
     mut next_turn: EventWriter<NextTurn>,
     mut flip: EventWriter<Flip>,
+    mut battle: EventWriter<Battle>,
     mut driver: ResMut<Driver>,
     mut active_card: ResMut<ActiveCard>,
     hovered_cell: Res<HoveredCell>,
@@ -258,9 +282,15 @@ fn place_card(
     hand_hover_areas: Query<(Entity, &HandCardHoverArea)>,
     board_hover_areas: Query<(Entity, &BoardCell)>,
     mut transforms: Query<&mut Transform>,
+    mut battler_stat_displays: Query<Entity, With<BattlerStatDisplay>>,
 ) {
     if btns.just_pressed(MouseButton::Left) {
         if let (Some(card_entity), Some(cell)) = (active_card.0, hovered_cell.0) {
+            // remove any battlers stats on the screen
+            for entity in battler_stat_displays.iter_mut() {
+                commands.entity(entity).despawn_recursive();
+            }
+
             let card = hand_idx.get(card_entity).unwrap().0 as u8;
 
             let response = driver
@@ -274,8 +304,13 @@ fn place_card(
             for event in response.events {
                 match event {
                     core::Event::NextTurn { to } => next_turn.send(NextTurn { to }),
-                    core::Event::Flip { cell } => flip.send(Flip { cell }),
-                    _ => todo!("{event:?}"),
+                    core::Event::Flip { cell } | core::Event::ComboFlip { cell } => {
+                        flip.send(Flip { cell })
+                    }
+                    core::Event::Battle {
+                        attacker, defender, ..
+                    } => battle.send(Battle { attacker, defender }),
+                    core::Event::GameOver { .. } => todo!("{event:?}"),
                 }
             }
 
@@ -402,6 +437,7 @@ fn handle_flip(
     mut query: Query<(&PlacedCard, &mut Handle<Image>, &mut Owner)>,
 ) {
     for evt in flip.iter() {
+        let mut debug_found_card_in_evt = false;
         for (&PlacedCard(cell), mut image, mut owner) in &mut query {
             if cell == evt.cell as usize {
                 *image = if *image == app_assets.card_bg_red {
@@ -411,9 +447,25 @@ fn handle_flip(
                     owner.0 = core::Player::P2;
                     app_assets.card_bg_red.clone()
                 };
+                debug_found_card_in_evt = true;
                 break;
             }
         }
+        debug_assert!(
+            debug_found_card_in_evt,
+            "Card in Flip event not a PlacedCard"
+        );
+    }
+}
+
+fn handle_battle(
+    mut commands: Commands,
+    mut battle: EventReader<Battle>,
+    app_assets: Res<AppAssets>,
+) {
+    for evt in battle.iter() {
+        spawn_battler_stats(&mut commands, &app_assets, evt.attacker);
+        spawn_battler_stats(&mut commands, &app_assets, evt.defender);
     }
 }
 
@@ -469,3 +521,78 @@ fn update_card_counter(
 //         }
 //     }
 // }
+
+pub(crate) fn spawn_battler_stats(
+    commands: &mut Commands,
+    app_assets: &AppAssets,
+    battler: core::Battler,
+) {
+    const WIDTH_1_DIGIT_1_POS: Vec2 = Vec2::new(16., 24.);
+
+    const WIDTH_2_DIGIT_1_POS: Vec2 = Vec2::new(11., 24.);
+    const WIDTH_2_DIGIT_2_POS: Vec2 = Vec2::new(21., 24.);
+
+    const WIDTH_3_DIGIT_1_POS: Vec2 = Vec2::new(6., 24.);
+    const WIDTH_3_DIGIT_2_POS: Vec2 = Vec2::new(16., 24.);
+    const WIDTH_3_DIGIT_3_POS: Vec2 = Vec2::new(26., 24.);
+
+    fn spawn_digit(app_assets: &AppAssets, p: &mut ChildBuilder<'_, '_, '_>, index: u8, pos: Vec2) {
+        p.spawn_bundle(SpriteSheetBundle {
+            sprite: TextureAtlasSprite {
+                index: index as usize,
+                anchor: Anchor::BottomLeft,
+                ..default()
+            },
+            texture_atlas: app_assets.battle_digits.clone(),
+            transform: Transform::from_xyz(pos.x, pos.y, 0.),
+            ..default()
+        });
+    }
+
+    let mut position = calc_board_card_screen_pos(battler.cell as usize);
+    position.z += 1.;
+    let transform = Transform::from_translation(position);
+    commands
+        .spawn()
+        .insert(BattlerStatDisplay)
+        .insert_bundle(TransformBundle::from_transform(transform))
+        .insert(Visibility::default())
+        .insert(ComputedVisibility::default())
+        .insert(Cleanup)
+        .with_children(|p| {
+            // show the stat roll
+            match battler.roll {
+                0..=9 => {
+                    spawn_digit(app_assets, p, battler.roll, WIDTH_1_DIGIT_1_POS);
+                }
+                10..=99 => {
+                    spawn_digit(app_assets, p, battler.roll / 10, WIDTH_2_DIGIT_1_POS);
+                    spawn_digit(app_assets, p, battler.roll % 10, WIDTH_2_DIGIT_2_POS);
+                }
+                _ => {
+                    spawn_digit(app_assets, p, battler.roll / 100, WIDTH_3_DIGIT_1_POS);
+                    spawn_digit(app_assets, p, battler.roll % 100 / 10, WIDTH_3_DIGIT_2_POS);
+                    spawn_digit(app_assets, p, battler.roll % 10, WIDTH_3_DIGIT_3_POS);
+                }
+            }
+
+            // highlight digit used for the battle
+            let x = match battler.digit {
+                core::Digit::Attack => 9.,
+                core::Digit::PhysicalDefense => 21.,
+                core::Digit::MagicalDefense => 27.,
+            };
+            let y = 6.;
+            p.spawn_bundle(SpriteSheetBundle {
+                sprite: TextureAtlasSprite {
+                    color: Color::GREEN,
+                    index: battler.value as usize,
+                    anchor: Anchor::BottomLeft,
+                    ..default()
+                },
+                texture_atlas: app_assets.card_stat_font.clone(),
+                transform: Transform::from_xyz(x, y, 0.),
+                ..default()
+            });
+        });
+}

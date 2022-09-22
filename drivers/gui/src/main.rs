@@ -16,6 +16,7 @@ const SCREEN_SIZE: Vec2 = Vec2::new(RENDER_SIZE.x * 4., RENDER_SIZE.y * 4.);
 
 const CARD_SIZE: Vec2 = Vec2::new(42., 51.);
 const COIN_SIZE: Vec2 = Vec2::new(40., 40.);
+const DIGIT_SIZE: Vec2 = Vec2::new(10., 14.);
 
 // color picked from the background.png file
 const CLEAR_COLOR: Color = Color::rgb(0.03137255, 0.03137255, 0.03137255);
@@ -71,6 +72,7 @@ fn cleanup<T: Component>(mut commands: Commands, entities: Query<Entity, With<T>
 struct AppAssets {
     font: Handle<Font>,
     background: Handle<Image>,
+    battle_digits: Handle<TextureAtlas>,
     board: Handle<Image>,
     blocked_cell: [Handle<Image>; 2],
     coin_flip: Handle<TextureAtlas>,
@@ -104,6 +106,12 @@ fn setup(
 
     app_assets.background = asset_server.load("background.png");
     app_assets.board = asset_server.load("board.png");
+
+    app_assets.battle_digits = {
+        let handle = asset_server.load("battle-digits.png");
+        let atlas = TextureAtlas::from_grid(handle, DIGIT_SIZE, 10, 1);
+        texture_atlases.add(atlas)
+    };
 
     app_assets.blocked_cell = [
         asset_server.load("blocked-cell-1.png"),
