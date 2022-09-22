@@ -39,7 +39,8 @@ impl bevy::app::Plugin for Plugin {
                             .before(maintain_cell_hover_marker),
                     )
                     .with_system(handle_next_turn)
-                    .with_system(handle_flip),
+                    .with_system(handle_flip)
+                    .with_system(update_card_counter),
                 // .with_system(animate_coin)
             )
             .add_system_set(
@@ -75,10 +76,10 @@ struct Coin;
 struct AnimationTimer(Timer);
 
 #[derive(Component)]
-struct BlueCardCounter(u8);
+struct BlueCardCounter(usize);
 
 #[derive(Component)]
-struct RedCardCounter(u8);
+struct RedCardCounter(usize);
 
 #[derive(Component)]
 struct HandCardHoverArea(Entity);
@@ -398,19 +399,63 @@ fn handle_next_turn(
 fn handle_flip(
     mut flip: EventReader<Flip>,
     app_assets: Res<AppAssets>,
-    mut query: Query<(&PlacedCard, &mut Handle<Image>)>,
+    mut query: Query<(&PlacedCard, &mut Handle<Image>, &mut Owner)>,
 ) {
     for evt in flip.iter() {
-        for (&PlacedCard(cell), mut image) in &mut query {
+        for (&PlacedCard(cell), mut image, mut owner) in &mut query {
             if cell == evt.cell as usize {
                 *image = if *image == app_assets.card_bg_red {
+                    owner.0 = core::Player::P1;
                     app_assets.card_bg_blue.clone()
                 } else {
+                    owner.0 = core::Player::P2;
                     app_assets.card_bg_red.clone()
                 };
+                break;
             }
         }
     }
+}
+
+fn update_card_counter(
+    app_assets: Res<AppAssets>,
+    mut red: Query<(&mut RedCardCounter, &mut Handle<Image>), Without<BlueCardCounter>>,
+    mut blue: Query<(&mut BlueCardCounter, &mut Handle<Image>), Without<RedCardCounter>>,
+    placed_cards: Query<&Owner, Added<PlacedCard>>,
+    flipped_cards: Query<&Owner, (Changed<Owner>, With<PlacedCard>)>,
+) {
+    let (mut red_count, mut red_image) = red.single_mut();
+    let (mut blue_count, mut blue_image) = blue.single_mut();
+
+    // update on placing cards
+    for &Owner(owner) in &placed_cards {
+        match owner {
+            core::Player::P1 => {
+                blue_count.0 += 1;
+            }
+            core::Player::P2 => {
+                red_count.0 += 1;
+            }
+        }
+    }
+
+    // update on flipping cards
+    for &Owner(owner) in &flipped_cards {
+        match owner {
+            core::Player::P1 => {
+                blue_count.0 += 1;
+                red_count.0 -= 1;
+            }
+            core::Player::P2 => {
+                blue_count.0 -= 1;
+                red_count.0 += 1;
+            }
+        }
+    }
+
+    // update the textures
+    *red_image = app_assets.card_counter_red[red_count.0].clone();
+    *blue_image = app_assets.card_counter_blue[blue_count.0].clone();
 }
 
 // fn animate_coin(
