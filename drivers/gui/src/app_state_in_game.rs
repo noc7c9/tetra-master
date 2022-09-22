@@ -213,16 +213,28 @@ fn setup(
 }
 
 fn select_and_deselect_card(
+    turn: Res<Turn>,
     mut active_card: ResMut<ActiveCard>,
     hovered_card: Res<HoveredCard>,
     btns: Res<Input<MouseButton>>,
+    owner: Query<&Owner>,
 ) {
     if btns.just_pressed(MouseButton::Left) {
-        active_card.0 = if active_card.0 == hovered_card.0 {
-            None
+        let owner = hovered_card.0.map(|entity| owner.get(entity).unwrap().0);
+
+        // clicked card belongs to the player whose turn it is
+        if owner == Some(turn.0) {
+            active_card.0 = if active_card.0 == hovered_card.0 {
+                // clicking the active card, deactivates it
+                None
+            } else {
+                // otherwise activate the card
+                hovered_card.0
+            };
         } else {
-            hovered_card.0
-        };
+            // clicked something else, deactivate active card
+            active_card.0 = None;
+        }
     }
 }
 
@@ -310,21 +322,18 @@ fn maintain_card_hover_marker(
     mut hover_end: EventReader<hover::EndEvent>,
     mut hover_start: EventReader<hover::StartEvent>,
     mut hovered_card: ResMut<HoveredCard>,
-    turn: Res<Turn>,
-    hover_areas: Query<(&Owner, &HandCardHoverArea)>,
+    hover_areas: Query<&HandCardHoverArea>,
 ) {
     for evt in hover_end.iter() {
-        if let Ok((_, &HandCardHoverArea(entity))) = hover_areas.get(evt.entity) {
+        if let Ok(&HandCardHoverArea(entity)) = hover_areas.get(evt.entity) {
             if hovered_card.0 == Some(entity) {
                 hovered_card.0 = None;
             }
         }
     }
     for evt in hover_start.iter() {
-        if let Ok((owner, &HandCardHoverArea(entity))) = hover_areas.get(evt.entity) {
-            if turn.0 == owner.0 {
-                hovered_card.0 = Some(entity);
-            }
+        if let Ok(&HandCardHoverArea(entity)) = hover_areas.get(evt.entity) {
+            hovered_card.0 = Some(entity);
         }
     }
 }
