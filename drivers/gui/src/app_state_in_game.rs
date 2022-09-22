@@ -17,6 +17,7 @@ pub struct Plugin;
 impl bevy::app::Plugin for Plugin {
     fn build(&self, app: &mut App) {
         app.add_event::<NextTurn>()
+            .add_event::<Flip>()
             .add_system_set(SystemSet::on_enter(AppState::InGame).with_system(setup))
             .add_system_set(
                 SystemSet::on_update(AppState::InGame)
@@ -37,7 +38,8 @@ impl bevy::app::Plugin for Plugin {
                             .before(maintain_card_hover_marker)
                             .before(maintain_cell_hover_marker),
                     )
-                    .with_system(handle_flip_card),
+                    .with_system(handle_next_turn)
+                    .with_system(handle_flip),
                 // .with_system(animate_coin)
             )
             .add_system_set(
@@ -48,6 +50,10 @@ impl bevy::app::Plugin for Plugin {
 
 struct NextTurn {
     to: core::Player,
+}
+
+struct Flip {
+    cell: u8,
 }
 
 #[derive(Debug)]
@@ -242,6 +248,7 @@ fn select_and_deselect_card(
 fn place_card(
     mut commands: Commands,
     mut next_turn: EventWriter<NextTurn>,
+    mut flip: EventWriter<Flip>,
     mut driver: ResMut<Driver>,
     mut active_card: ResMut<ActiveCard>,
     hovered_cell: Res<HoveredCell>,
@@ -266,6 +273,7 @@ fn place_card(
             for event in response.events {
                 match event {
                     core::Event::NextTurn { to } => next_turn.send(NextTurn { to }),
+                    core::Event::Flip { cell } => flip.send(Flip { cell }),
                     _ => todo!("{event:?}"),
                 }
             }
@@ -373,7 +381,7 @@ fn update_card_positions(
     }
 }
 
-fn handle_flip_card(
+fn handle_next_turn(
     mut next_turn: EventReader<NextTurn>,
     mut turn: ResMut<Turn>,
     mut sprite: Query<&mut TextureAtlasSprite, With<Coin>>,
@@ -384,6 +392,24 @@ fn handle_flip_card(
             core::Player::P1 => 0,
             core::Player::P2 => 4,
         };
+    }
+}
+
+fn handle_flip(
+    mut flip: EventReader<Flip>,
+    app_assets: Res<AppAssets>,
+    mut query: Query<(&PlacedCard, &mut Handle<Image>)>,
+) {
+    for evt in flip.iter() {
+        for (&PlacedCard(cell), mut image) in &mut query {
+            if cell == evt.cell as usize {
+                *image = if *image == app_assets.card_bg_red {
+                    app_assets.card_bg_blue.clone()
+                } else {
+                    app_assets.card_bg_red.clone()
+                };
+            }
+        }
     }
 }
 
