@@ -37,6 +37,7 @@ impl bevy::app::Plugin for Plugin {
                             .after(handle_battle)
                             .after(update_card_counter),
                     )
+                    .with_system(pick_battle)
                     .with_system(select_and_deselect_card)
                     .with_system(maintain_card_hover_marker)
                     .with_system(maintain_cell_hover_marker)
@@ -78,6 +79,12 @@ struct Battle {
 }
 
 #[derive(Debug)]
+enum Status {
+    Normal,
+    PickingBattle { choices: Vec<u8> },
+}
+
+#[derive(Debug)]
 struct HoveredCard(Option<Entity>);
 
 #[derive(Debug)]
@@ -113,12 +120,16 @@ struct PlacedCard(usize);
 #[derive(Component)]
 struct BattlerStatDisplay;
 
+#[derive(Component)]
+struct SelectIndicator;
+
 fn setup(
     mut commands: Commands,
     app_assets: Res<AppAssets>,
     blocked_cells: Res<BlockedCells>,
     player_hands: Query<(Entity, &Owner, &Transform), With<Card>>,
 ) {
+    commands.insert_resource(Status::Normal);
     commands.insert_resource(HoveredCard(None));
     commands.insert_resource(ActiveCard(None));
     commands.insert_resource(HoveredCell(None));
@@ -243,12 +254,17 @@ fn setup(
 }
 
 fn select_and_deselect_card(
+    status: Res<Status>,
     turn: Res<Turn>,
     mut active_card: ResMut<ActiveCard>,
     hovered_card: Res<HoveredCard>,
     btns: Res<Input<MouseButton>>,
     owner: Query<&Owner>,
 ) {
+    if let Status::PickingBattle { .. } = *status {
+        return;
+    }
+
     if btns.just_pressed(MouseButton::Left) {
         let owner = hovered_card.0.map(|entity| owner.get(entity).unwrap().0);
 
@@ -269,13 +285,94 @@ fn select_and_deselect_card(
 }
 
 #[allow(clippy::too_many_arguments)]
+fn pick_battle(
+    mut commands: Commands,
+    mut next_turn: EventWriter<NextTurn>,
+    mut flip: EventWriter<Flip>,
+    mut battle: EventWriter<Battle>,
+    mut driver: ResMut<Driver>,
+    mut status: ResMut<Status>,
+    app_assets: Res<AppAssets>,
+    hovered_cell: Res<HoveredCell>,
+    btns: Res<Input<MouseButton>>,
+    select_indicators: Query<Entity, With<SelectIndicator>>,
+) {
+    let choices = match &*status {
+        Status::PickingBattle { choices } => choices,
+        _ => return,
+    };
+
+    if btns.just_pressed(MouseButton::Left) {
+        if let Some(cell) = hovered_cell.0 {
+            if !choices.contains(&(cell as u8)) {
+                return;
+            }
+
+            // remove the select indicators
+            for entity in &select_indicators {
+                commands.entity(entity).despawn_recursive();
+            }
+
+            let response = driver
+                .0
+                .send(core::command::PickBattle { cell: cell as u8 })
+                .expect("PlaceCard command should work");
+
+            // FIXME: handling for PlaceCardOk is duplicated in place_card
+
+            if !response.pick_battle.is_empty() {
+                for cell in &response.pick_battle {
+                    let cell = *cell as usize;
+                    let mut translation = calc_board_card_screen_pos(cell);
+                    translation.z += 1.;
+                    commands
+                        .spawn_bundle(SpriteBundle {
+                            sprite: Sprite {
+                                anchor: Anchor::BottomLeft,
+                                ..default()
+                            },
+                            texture: app_assets.card_select_indicator.clone(),
+                            transform: Transform::from_translation(translation),
+                            ..default()
+                        })
+                        .insert(hover::Area::new(CELL_SIZE))
+                        .insert(BoardCell(cell))
+                        .insert(SelectIndicator);
+                }
+
+                *status = Status::PickingBattle {
+                    choices: response.pick_battle,
+                };
+            } else {
+                *status = Status::Normal;
+            }
+
+            for event in response.events {
+                match event {
+                    core::Event::NextTurn { to } => next_turn.send(NextTurn { to }),
+                    core::Event::Flip { cell } | core::Event::ComboFlip { cell } => {
+                        flip.send(Flip { cell })
+                    }
+                    core::Event::Battle {
+                        attacker, defender, ..
+                    } => battle.send(Battle { attacker, defender }),
+                    core::Event::GameOver { .. } => todo!("{event:?}"),
+                }
+            }
+        }
+    }
+}
+
+#[allow(clippy::too_many_arguments)]
 fn place_card(
     mut commands: Commands,
     mut next_turn: EventWriter<NextTurn>,
     mut flip: EventWriter<Flip>,
     mut battle: EventWriter<Battle>,
     mut driver: ResMut<Driver>,
+    mut status: ResMut<Status>,
     mut active_card: ResMut<ActiveCard>,
+    app_assets: Res<AppAssets>,
     hovered_cell: Res<HoveredCell>,
     btns: Res<Input<MouseButton>>,
     hand_idx: Query<&HandIdx>,
@@ -284,6 +381,10 @@ fn place_card(
     mut transforms: Query<&mut Transform>,
     mut battler_stat_displays: Query<Entity, With<BattlerStatDisplay>>,
 ) {
+    if let Status::PickingBattle { .. } = *status {
+        return;
+    }
+
     if btns.just_pressed(MouseButton::Left) {
         if let (Some(card_entity), Some(cell)) = (active_card.0, hovered_cell.0) {
             // remove any battlers stats on the screen
@@ -300,6 +401,33 @@ fn place_card(
                     cell: cell as u8,
                 })
                 .expect("PlaceCard command should work");
+
+            if !response.pick_battle.is_empty() {
+                for cell in &response.pick_battle {
+                    let cell = *cell as usize;
+                    let mut translation = calc_board_card_screen_pos(cell);
+                    translation.z += 1.;
+                    commands
+                        .spawn_bundle(SpriteBundle {
+                            sprite: Sprite {
+                                anchor: Anchor::BottomLeft,
+                                ..default()
+                            },
+                            texture: app_assets.card_select_indicator.clone(),
+                            transform: Transform::from_translation(translation),
+                            ..default()
+                        })
+                        .insert(hover::Area::new(CELL_SIZE))
+                        .insert(BoardCell(cell))
+                        .insert(SelectIndicator);
+                }
+
+                *status = Status::PickingBattle {
+                    choices: response.pick_battle,
+                };
+            } else {
+                *status = Status::Normal;
+            }
 
             for event in response.events {
                 match event {

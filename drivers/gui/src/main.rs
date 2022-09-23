@@ -92,6 +92,7 @@ struct AppAssets {
     card_counter_center: Handle<Image>,
     card_counter_blue: [Handle<Image>; 11],
     card_counter_red: [Handle<Image>; 11],
+    card_select_indicator: Handle<Image>,
 }
 
 fn setup(
@@ -176,6 +177,8 @@ fn setup(
         asset_server.load("card-counter-red-09.png"),
         asset_server.load("card-counter-red-10.png"),
     ];
+
+    app_assets.card_select_indicator = asset_server.load("card-select-indicator.png");
 
     // change projection so that when the window is resized, the game will scale with it while
     // keeping the aspect ratio
