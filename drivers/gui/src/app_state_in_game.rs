@@ -1,7 +1,7 @@
 use crate::{
     common::{
         calc_board_card_screen_pos, calc_board_cell_screen_pos, calc_hand_card_screen_pos,
-        BlockedCells, Card, Driver, HandIdx, Owner, Turn, CELL_SIZE,
+        BlockedCells, Candidates, Card, Driver, HandIdx, Owner, Turn, CELL_SIZE,
     },
     hover, AppAssets, AppState, CARD_SIZE, COIN_SIZE, RENDER_HSIZE,
 };
@@ -19,7 +19,7 @@ impl bevy::app::Plugin for Plugin {
         app.add_event::<NextTurn>()
             .add_event::<Flip>()
             .add_event::<Battle>()
-            .add_system_set(SystemSet::on_enter(AppState::InGame).with_system(setup))
+            .add_system_set(SystemSet::on_enter(AppState::InGame).with_system(on_enter))
             .add_system_set(
                 SystemSet::on_update(AppState::InGame)
                     .with_system(
@@ -39,6 +39,7 @@ impl bevy::app::Plugin for Plugin {
                     )
                     .with_system(pick_battle)
                     .with_system(select_and_deselect_card)
+                    .with_system(restart_game)
                     .with_system(maintain_card_hover_marker)
                     .with_system(maintain_cell_hover_marker)
                     .with_system(
@@ -59,7 +60,9 @@ impl bevy::app::Plugin for Plugin {
                 // .with_system(animate_coin)
             )
             .add_system_set(
-                SystemSet::on_exit(AppState::InGame).with_system(crate::cleanup::<Cleanup>),
+                SystemSet::on_exit(AppState::InGame)
+                    .with_system(on_exit)
+                    .with_system(crate::cleanup::<Cleanup>),
             );
     }
 }
@@ -82,6 +85,7 @@ struct Battle {
 enum Status {
     Normal,
     PickingBattle { choices: Vec<u8> },
+    GameOver,
 }
 
 #[derive(Debug)]
@@ -123,7 +127,7 @@ struct BattlerStatDisplay;
 #[derive(Component)]
 struct SelectIndicator;
 
-fn setup(
+fn on_enter(
     mut commands: Commands,
     app_assets: Res<AppAssets>,
     blocked_cells: Res<BlockedCells>,
@@ -253,6 +257,13 @@ fn setup(
         .insert(Cleanup);
 }
 
+fn on_exit(mut commands: Commands) {
+    commands.remove_resource::<Status>();
+    commands.remove_resource::<HoveredCard>();
+    commands.remove_resource::<ActiveCard>();
+    commands.remove_resource::<HoveredCell>();
+}
+
 fn select_and_deselect_card(
     status: Res<Status>,
     turn: Res<Turn>,
@@ -261,7 +272,7 @@ fn select_and_deselect_card(
     btns: Res<Input<MouseButton>>,
     owner: Query<&Owner>,
 ) {
-    if let Status::PickingBattle { .. } = *status {
+    if !matches!(*status, Status::Normal) {
         return;
     }
 
@@ -356,7 +367,48 @@ fn pick_battle(
                     core::Event::Battle {
                         attacker, defender, ..
                     } => battle.send(Battle { attacker, defender }),
-                    core::Event::GameOver { .. } => todo!("{event:?}"),
+                    core::Event::GameOver { winner } => {
+                        *status = Status::GameOver;
+
+                        let text = match winner {
+                            None => "It was draw! Left Click to Start a New Game!",
+                            Some(core::Player::P1) => "Blue won! Left Click to Start a New Game!",
+                            Some(core::Player::P2) => "Red won! Left Click to Start a New Game!",
+                        };
+                        commands
+                            .spawn_bundle(NodeBundle {
+                                style: Style {
+                                    size: Size::new(Val::Percent(100.0), Val::Percent(100.0)),
+                                    justify_content: JustifyContent::Center,
+                                    ..default()
+                                },
+                                color: Color::NONE.into(),
+                                ..default()
+                            })
+                            .insert(Cleanup)
+                            .with_children(|parent| {
+                                parent.spawn_bundle(
+                                    TextBundle::from_section(
+                                        text,
+                                        TextStyle {
+                                            font: app_assets.font.clone(),
+                                            font_size: 40.0,
+                                            color: Color::WHITE,
+                                        },
+                                    )
+                                    .with_text_alignment(TextAlignment::CENTER)
+                                    .with_style(Style {
+                                        align_self: AlignSelf::FlexStart,
+                                        position_type: PositionType::Relative,
+                                        position: UiRect {
+                                            bottom: Val::Percent(25.0),
+                                            ..default()
+                                        },
+                                        ..default()
+                                    }),
+                                );
+                            });
+                    }
                 }
             }
         }
@@ -381,7 +433,7 @@ fn place_card(
     mut transforms: Query<&mut Transform>,
     mut battler_stat_displays: Query<Entity, With<BattlerStatDisplay>>,
 ) {
-    if let Status::PickingBattle { .. } = *status {
+    if !matches!(*status, Status::Normal) {
         return;
     }
 
@@ -438,7 +490,48 @@ fn place_card(
                     core::Event::Battle {
                         attacker, defender, ..
                     } => battle.send(Battle { attacker, defender }),
-                    core::Event::GameOver { .. } => todo!("{event:?}"),
+                    core::Event::GameOver { winner } => {
+                        *status = Status::GameOver;
+
+                        let text = match winner {
+                            None => "It was draw! Left Click to Start a New Game!",
+                            Some(core::Player::P1) => "Blue won! Left Click to Start a New Game!",
+                            Some(core::Player::P2) => "Red won! Left Click to Start a New Game!",
+                        };
+                        commands
+                            .spawn_bundle(NodeBundle {
+                                style: Style {
+                                    size: Size::new(Val::Percent(100.0), Val::Percent(100.0)),
+                                    justify_content: JustifyContent::Center,
+                                    ..default()
+                                },
+                                color: Color::NONE.into(),
+                                ..default()
+                            })
+                            .insert(Cleanup)
+                            .with_children(|parent| {
+                                parent.spawn_bundle(
+                                    TextBundle::from_section(
+                                        text,
+                                        TextStyle {
+                                            font: app_assets.font.clone(),
+                                            font_size: 40.0,
+                                            color: Color::WHITE,
+                                        },
+                                    )
+                                    .with_text_alignment(TextAlignment::CENTER)
+                                    .with_style(Style {
+                                        align_self: AlignSelf::FlexStart,
+                                        position_type: PositionType::Relative,
+                                        position: UiRect {
+                                            bottom: Val::Percent(25.0),
+                                            ..default()
+                                        },
+                                        ..default()
+                                    }),
+                                );
+                            });
+                    }
                 }
             }
 
@@ -467,6 +560,49 @@ fn place_card(
                 }
             }
         }
+    }
+}
+
+fn restart_game(
+    mut commands: Commands,
+    mut app_state: ResMut<State<AppState>>,
+    mut btns: ResMut<Input<MouseButton>>,
+    status: Res<Status>,
+    args: Res<crate::Args>,
+) {
+    if !matches!(*status, Status::GameOver { .. }) {
+        return;
+    }
+
+    if btns.just_pressed(MouseButton::Left) {
+        // start the new game
+        let mut driver = core::Driver::new(&args.implementation).log();
+        let cmd = core::command::Setup {
+            rng: None,
+            battle_system: Some(core::BattleSystem::Dice { sides: 6 }),
+            blocked_cells: None,
+            hand_candidates: None,
+        };
+        // TODO: handle the error
+        let response = driver.send(cmd).unwrap();
+        let c = response.hand_candidates;
+        commands.insert_resource(Candidates([Some(c[0]), Some(c[1]), Some(c[2])]));
+        commands.insert_resource(BlockedCells(
+            response
+                .blocked_cells
+                .into_iter()
+                .map(|c| c as usize)
+                .collect(),
+        ));
+        commands.insert_resource(Turn(core::Player::P1));
+
+        commands.insert_resource(Driver(driver));
+
+        // change the state
+        app_state.set(AppState::PickingHands).unwrap();
+
+        // required to workaround bug?
+        btns.reset(MouseButton::Left);
     }
 }
 
