@@ -473,41 +473,27 @@ fn update_card_counter(
     app_assets: Res<AppAssets>,
     mut red: Query<(&mut RedCardCounter, &mut Handle<Image>), Without<BlueCardCounter>>,
     mut blue: Query<(&mut BlueCardCounter, &mut Handle<Image>), Without<RedCardCounter>>,
-    placed_cards: Query<&Owner, Added<PlacedCard>>,
-    flipped_cards: Query<&Owner, (Changed<Owner>, With<PlacedCard>)>,
+    placed_cards: Query<&Owner, With<PlacedCard>>,
 ) {
-    let (mut red_count, mut red_image) = red.single_mut();
-    let (mut blue_count, mut blue_image) = blue.single_mut();
+    let (mut red_counter, mut red_image) = red.single_mut();
+    let (mut blue_counter, mut blue_image) = blue.single_mut();
 
-    // update on placing cards
+    let mut red = 0;
+    let mut blue = 0;
     for &Owner(owner) in &placed_cards {
         match owner {
             core::Player::P1 => {
-                blue_count.0 += 1;
+                blue += 1;
             }
             core::Player::P2 => {
-                red_count.0 += 1;
+                red += 1;
             }
         }
     }
-
-    // update on flipping cards
-    for &Owner(owner) in &flipped_cards {
-        match owner {
-            core::Player::P1 => {
-                blue_count.0 += 1;
-                red_count.0 -= 1;
-            }
-            core::Player::P2 => {
-                blue_count.0 -= 1;
-                red_count.0 += 1;
-            }
-        }
-    }
-
-    // update the textures
-    *red_image = app_assets.card_counter_red[red_count.0].clone();
-    *blue_image = app_assets.card_counter_blue[blue_count.0].clone();
+    red_counter.0 = red;
+    blue_counter.0 = blue;
+    *red_image = app_assets.card_counter_red[red].clone();
+    *blue_image = app_assets.card_counter_blue[blue].clone();
 }
 
 // fn animate_coin(
