@@ -1,17 +1,38 @@
 mod driver;
+mod ref_impl;
+
+pub use driver::Driver;
+pub use ref_impl::ReferenceImplementation;
+
+/*****************************************************************************************
+ * Command / Response
+ */
 
 pub mod command;
 pub mod response;
 
-pub use driver::Driver;
 pub use response::ErrorResponse;
 
-const HAND_CANDIDATES: usize = 3;
-const HAND_SIZE: usize = 5;
+pub trait CommandResponse: command::Command {
+    type Response: response::Response;
+}
 
-pub type Seed = u64;
-pub type Hand = [Card; HAND_SIZE];
-pub type HandCandidates = [Hand; HAND_CANDIDATES];
+impl CommandResponse for command::Setup {
+    type Response = response::SetupOk;
+}
+impl CommandResponse for command::PickHand {
+    type Response = response::PickHandOk;
+}
+impl CommandResponse for command::PlaceCard {
+    type Response = response::PlaceCardOk;
+}
+impl CommandResponse for command::PickBattle {
+    type Response = response::PlaceCardOk;
+}
+
+/*****************************************************************************************
+ * Error Types
+ */
 
 pub type Result<T> = std::result::Result<T, Error>;
 
@@ -62,13 +83,26 @@ impl From<std::io::Error> for Error {
     }
 }
 
+/*****************************************************************************************
+ * Common Types / Constants
+ */
+
+pub const MAX_NUMBER_OF_BLOCKS: u8 = 6;
+pub const BOARD_SIZE: usize = 4 * 4;
+pub const HAND_CANDIDATES: usize = 3;
+pub const HAND_SIZE: usize = 5;
+
+pub type Seed = u64;
+pub type Hand = [Card; HAND_SIZE];
+pub type HandCandidates = [Hand; HAND_CANDIDATES];
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Rng {
     Seeded { seed: Seed },
     External { rolls: Vec<u8> },
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum BattleSystem {
     Original,
     Dice { sides: u8 },
@@ -79,6 +113,15 @@ pub enum BattleSystem {
 pub enum Player {
     P1,
     P2,
+}
+
+impl Player {
+    pub fn opposite(self) -> Self {
+        match self {
+            Player::P1 => Player::P2,
+            Player::P2 => Player::P1,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -109,6 +152,13 @@ impl Arrows {
     pub fn has(self, other: Self) -> bool {
         (self.0 & other.0) != 0
     }
+
+    // returns an Arrows with all of the arrows pointing in the opposite direction
+    pub fn reverse(self) -> Self {
+        // wrapping shift by 4 bits
+        // this is effectively rotating the arrows by 180 degrees
+        Arrows(self.0 >> 4 | self.0 << 4)
+    }
 }
 
 impl std::ops::BitOr for Arrows {
@@ -136,6 +186,15 @@ impl Card {
         magical_defense: u8,
         arrows: Arrows,
     ) -> Self {
+        debug_assert!(attack <= 0xF, "attack outside expected range 0-F");
+        debug_assert!(
+            physical_defense <= 0xF,
+            "physical defense outside expected range 0-F"
+        );
+        debug_assert!(
+            magical_defense <= 0xF,
+            "magical defense outside expected range 0-F"
+        );
         Self {
             attack,
             card_type,

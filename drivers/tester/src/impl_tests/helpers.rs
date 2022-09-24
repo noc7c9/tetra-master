@@ -1,6 +1,6 @@
 use tetra_master_core::{
-    command, Arrows, BattleSystem, BattleWinner, Battler, Card, Driver, Error, ErrorResponse,
-    Event, Hand, HandCandidates, Player, Rng, Seed,
+    command, Arrows, BattleSystem, BattleWinner, Battler, Card, Error, ErrorResponse, Event, Hand,
+    HandCandidates, Player, Rng, Seed,
 };
 
 pub(super) const CARD: Card = Card::physical(0, 0, 0, Arrows(0));
@@ -8,16 +8,6 @@ pub(super) const HAND_CANDIDATES: HandCandidates = {
     const HAND: Hand = [CARD, CARD, CARD, CARD, CARD];
     [HAND, HAND, HAND]
 };
-
-pub(super) struct Ctx {
-    pub(super) implementation: String,
-}
-
-impl Ctx {
-    pub(super) fn new_driver(&self) -> Driver {
-        Driver::new(&self.implementation)
-    }
-}
 
 pub(super) struct Command;
 

@@ -4,6 +4,7 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
+nanorand = "0.7.0"
 nom = "7.1.1"
 owo-colors = "3.4.0"
 

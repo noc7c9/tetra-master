@@ -10,14 +10,28 @@
 
 use pretty_assertions::{assert_eq, assert_ne};
 use tetra_master_core::{
-    command, response, Arrows, BattleSystem, BattleWinner, Battler, Card, Digit, ErrorResponse,
-    Event, Player,
+    command, response, Arrows, BattleSystem, BattleWinner, Battler, Card, Digit, Driver,
+    ErrorResponse, Event, Player,
 };
 
 use crate::harness::{Harness, Suite};
 
 mod helpers;
 use helpers::*;
+
+pub(crate) enum Ctx<'a> {
+    External { implementation: &'a str },
+    Reference,
+}
+
+impl<'a> Ctx<'a> {
+    pub(super) fn new_driver(&self) -> Driver {
+        match self {
+            Ctx::External { implementation } => Driver::external(implementation),
+            Ctx::Reference => Driver::reference(),
+        }
+    }
+}
 
 fn setup_default() -> command::Setup {
     Command::setup()
@@ -1050,8 +1064,14 @@ fn stat_selection(s: &mut Suite<Ctx>) {
     });
 }
 
-pub(crate) fn run(implementation: String) {
-    let mut harness = Harness::new(Ctx { implementation });
+pub(crate) fn run(ctx: Ctx<'_>) {
+    if let Ctx::External { implementation } = ctx {
+        println!("Running tests on implementation: {}\n", implementation);
+    } else {
+        println!("Running tests on reference implementation\n",);
+    }
+
+    let mut harness = Harness::new(ctx);
 
     game_setup_tests(suite!(harness "Game Setup"));
 
@@ -1059,5 +1079,7 @@ pub(crate) fn run(implementation: String) {
 
     in_game_tests(suite!(harness "In-Game"));
 
-    harness.run();
+    let (_, counts) = harness.run();
+
+    counts.print();
 }

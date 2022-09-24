@@ -5,16 +5,24 @@ mod impl_tests;
 
 #[derive(Debug, clap::Parser)]
 struct Args {
-    implementation: String,
+    #[clap(value_name = "PATH")]
+    /// Path to the external implementation to use, if omitted the reference implementation will be
+    /// used
+    implementation: Option<String>,
 }
 
 fn main() -> anyhow::Result<()> {
-    let args = {
-        use clap::Parser;
-        Args::parse()
+    use clap::Parser;
+
+    let args = Args::parse();
+
+    let ctx = if let Some(implementation) = &args.implementation {
+        impl_tests::Ctx::External { implementation }
+    } else {
+        impl_tests::Ctx::Reference
     };
 
-    impl_tests::run(args.implementation);
+    impl_tests::run(ctx);
 
     Ok(())
 }

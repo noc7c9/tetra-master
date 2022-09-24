@@ -64,7 +64,11 @@ fn mouse_input(
 ) {
     if btns.just_pressed(MouseButton::Left) {
         // start the new game
-        let mut driver = core::Driver::new(&args.implementation).log();
+        let mut driver = match &args.implementation {
+            Some(implementation) => core::Driver::external(implementation),
+            None => core::Driver::reference(),
+        }
+        .log();
         let cmd = core::command::Setup {
             rng: None,
             battle_system: None,

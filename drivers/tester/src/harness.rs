@@ -70,11 +70,27 @@ enum Marker {
 }
 
 #[derive(Debug, Default)]
-struct Counts {
+pub struct Counts {
     total: usize,
     skipped: usize,
     passed: usize,
     failed: usize,
+}
+
+impl Counts {
+    pub fn print(&self) {
+        println!();
+        if self.failed > 0 {
+            print!("{} {}, ", self.failed.red(), "failed".red());
+        }
+        if self.skipped > 0 {
+            print!("{} {}, ", self.skipped.yellow(), "skipped".yellow());
+        }
+        if self.passed > 0 {
+            print!("{} {}, ", self.passed.green(), "passed".green());
+        }
+        println!("{} total", self.total);
+    }
 }
 
 struct State<Ctx> {
@@ -176,26 +192,12 @@ impl<Ctx: RefUnwindSafe> Harness<Ctx> {
         self.inner.suite_skip(name)
     }
 
-    pub(crate) fn run(mut self) -> Ctx {
-        println!("Running tests...\n");
-
+    pub(crate) fn run(mut self) -> (Ctx, Counts) {
         self.state.has_focused_items = self.inner.has_focused_items();
 
         let counts = self.inner.run(&mut self.state);
 
-        println!();
-        if counts.failed > 0 {
-            print!("{} {}, ", counts.failed.red(), "failed".red());
-        }
-        if counts.skipped > 0 {
-            print!("{} {}, ", counts.skipped.yellow(), "skipped".yellow());
-        }
-        if counts.passed > 0 {
-            print!("{} {}, ", counts.passed.green(), "passed".green());
-        }
-        println!("{} total", counts.total);
-
-        self.state.ctx
+        (self.state.ctx, counts)
     }
 }
 
@@ -415,7 +417,7 @@ mod tests {
         test!(h "b"; |m| m.push("b"));
         test!(h "c"; |m| m.push("c"));
 
-        assert_eq!(h.run(), vec!["a", "b", "c"]);
+        assert_eq!(h.run().0, vec!["a", "b", "c"]);
     }
 
     #[test]
@@ -427,7 +429,7 @@ mod tests {
         test!(h "c"; |m| m.push("c"));
         skip_test!(h "d"; |m| m.push("d"));
 
-        assert_eq!(h.run(), vec!["a", "c"]);
+        assert_eq!(h.run().0, vec!["a", "c"]);
     }
 
     #[test]
@@ -438,7 +440,7 @@ mod tests {
         focus_test!(h "b"; |m| m.push("b"));
         test!(h "c"; |m| m.push("c"));
 
-        assert_eq!(h.run(), vec!["b"]);
+        assert_eq!(h.run().0, vec!["b"]);
     }
 
     #[test]
@@ -451,7 +453,7 @@ mod tests {
         test!(h "d"; |m| m.push("d"));
         focus_test!(h "e"; |m| m.push("e"));
 
-        assert_eq!(h.run(), vec!["b", "e"]);
+        assert_eq!(h.run().0, vec!["b", "e"]);
     }
 
     #[test]
@@ -464,7 +466,7 @@ mod tests {
         test!(h "d"; |m| m.push("d"));
         skip_test!(h "e"; |m| m.push("e"));
 
-        assert_eq!(h.run(), vec!["b"]);
+        assert_eq!(h.run().0, vec!["b"]);
     }
 
     #[test]
@@ -482,7 +484,7 @@ mod tests {
 
         test!(h "b"; |m| m.push("b"));
 
-        assert_eq!(h.run(), vec!["a", "S a", "S b", "S c", "b"]);
+        assert_eq!(h.run().0, vec!["a", "S a", "S b", "S c", "b"]);
     }
 
     #[test]
@@ -501,7 +503,7 @@ mod tests {
 
         test!(h "b"; |m| m.push("b"));
 
-        assert_eq!(h.run(), vec!["a", "S a", "S c", "b"]);
+        assert_eq!(h.run().0, vec!["a", "S a", "S c", "b"]);
     }
 
     #[test]
@@ -519,7 +521,7 @@ mod tests {
 
         test!(h "b"; |m| m.push("b"));
 
-        assert_eq!(h.run(), vec!["S b"]);
+        assert_eq!(h.run().0, vec!["S b"]);
     }
 
     #[test]
@@ -538,7 +540,7 @@ mod tests {
 
         test!(h "b"; |m| m.push("b"));
 
-        assert_eq!(h.run(), vec!["S b", "S e"]);
+        assert_eq!(h.run().0, vec!["S b", "S e"]);
     }
 
     #[test]
@@ -558,7 +560,7 @@ mod tests {
 
         test!(h "b"; |m| m.push("b"));
 
-        assert_eq!(h.run(), vec!["S b"]);
+        assert_eq!(h.run().0, vec!["S b"]);
     }
 
     #[test]
@@ -582,7 +584,7 @@ mod tests {
             focus_test!(s "S c"; |m| m.push("S c"));
         }
 
-        assert_eq!(h.run(), vec!["a", "S b", "SS a", "SS c", "S c"]);
+        assert_eq!(h.run().0, vec!["a", "S b", "SS a", "SS c", "S c"]);
     }
 
     #[test]
@@ -616,7 +618,7 @@ mod tests {
         }
         test!(h "b"; |m| m.push("b"));
 
-        assert_eq!(h.run(), vec!["SSSSS focused"]);
+        assert_eq!(h.run().0, vec!["SSSSS focused"]);
     }
 
     #[test]
@@ -634,7 +636,7 @@ mod tests {
 
         test!(h "b"; |m| m.push("b"));
 
-        assert_eq!(h.run(), vec!["a", "b"]);
+        assert_eq!(h.run().0, vec!["a", "b"]);
     }
 
     #[test]
@@ -652,7 +654,7 @@ mod tests {
 
         test!(h "b"; |m| m.push("b"));
 
-        assert_eq!(h.run(), vec!["S a", "S b", "S c"]);
+        assert_eq!(h.run().0, vec!["S a", "S b", "S c"]);
     }
 
     #[test]
@@ -670,7 +672,7 @@ mod tests {
 
         test!(h "b"; |m| m.push("b"));
 
-        assert_eq!(h.run(), vec!["S a", "S c"]);
+        assert_eq!(h.run().0, vec!["S a", "S c"]);
     }
 
     #[test]
@@ -688,7 +690,7 @@ mod tests {
 
         test!(h "b"; |m| m.push("b"));
 
-        assert_eq!(h.run(), vec!["a", "b"]);
+        assert_eq!(h.run().0, vec!["a", "b"]);
     }
 
     #[test]
@@ -712,7 +714,7 @@ mod tests {
 
         test!(h "b"; |m| m.push("b"));
 
-        assert_eq!(h.run(), vec!["a", "b"]);
+        assert_eq!(h.run().0, vec!["a", "b"]);
     }
 
     #[test]
@@ -735,7 +737,7 @@ mod tests {
 
         test!(h "b"; |m| m.push("b"));
 
-        assert_eq!(h.run(), vec!["S a", "S c"]);
+        assert_eq!(h.run().0, vec!["S a", "S c"]);
     }
 
     #[test]
@@ -758,7 +760,7 @@ mod tests {
 
         test!(h "b"; |m| m.push("b"));
 
-        assert_eq!(h.run(), vec!["a", "b"]);
+        assert_eq!(h.run().0, vec!["a", "b"]);
     }
 
     #[test]
@@ -788,6 +790,6 @@ mod tests {
 
         test!(h "b"; |m| m.push("b"));
 
-        assert_eq!(h.run(), vec!["a", "b"]);
+        assert_eq!(h.run().0, vec!["a", "b"]);
     }
 }

@@ -1,49 +1,139 @@
-use owo_colors::OwoColorize;
-use std::io::{BufRead, Write};
-
 use crate::{
-    command::{self, Command},
-    response::{self, Response},
-    Error, Result,
+    command::Command,
+    ref_impl::{ReferenceImplementation, Step},
+    response::{ErrorResponse, Response},
+    CommandResponse, Error, Result,
 };
 
-pub trait CommandResponse: Command {
-    type Response: Response;
+pub enum Driver {
+    External(ExternalDriver),
+    Reference(ReferenceDriver),
 }
 
-impl CommandResponse for command::Setup {
-    type Response = response::SetupOk;
-}
-impl CommandResponse for command::PickHand {
-    type Response = response::PickHandOk;
-}
-impl CommandResponse for command::PlaceCard {
-    type Response = response::PlaceCardOk;
-}
-impl CommandResponse for command::PickBattle {
-    type Response = response::PlaceCardOk;
+impl Driver {
+    pub fn external(implementation: &str) -> Self {
+        Self::External(ExternalDriver::new(implementation))
+    }
+
+    pub fn reference() -> Self {
+        Self::Reference(ReferenceDriver::new())
+    }
+
+    pub fn send<C>(&mut self, cmd: C) -> Result<C::Response>
+    where
+        C: CommandResponse + Step + std::fmt::Debug,
+        C::Response: std::fmt::Debug,
+    {
+        match self {
+            Self::External(d) => d.send(cmd),
+            Self::Reference(d) => d.send(cmd),
+        }
+    }
+
+    pub fn log(mut self) -> Self {
+        match &mut self {
+            Self::External(d) => d.log(),
+            Self::Reference(d) => d.log(),
+        }
+        self
+    }
 }
 
-// Basic Driver that talks to the given Rx, Tx types
-struct BaseDriver<Rx, Tx> {
-    receiver: Rx,
-    transmitter: Tx,
-    buffer: String,
+// Talks to the embedded reference implementation
+pub struct ReferenceDriver {
+    ref_impl: ReferenceImplementation,
     logging: bool,
 }
 
-impl<Rx, Tx> BaseDriver<Rx, Tx>
-where
-    Rx: BufRead,
-    Tx: Write,
-{
-    fn new(receiver: Rx, transmitter: Tx) -> Self {
+impl ReferenceDriver {
+    fn new() -> Self {
         Self {
-            receiver,
-            transmitter,
-            buffer: String::new(),
+            ref_impl: ReferenceImplementation::new(),
             logging: false,
         }
+    }
+
+    fn log(&mut self) {
+        self.logging = true;
+    }
+
+    fn send<C>(&mut self, cmd: C) -> Result<C::Response>
+    where
+        C: CommandResponse + Step + std::fmt::Debug,
+        C::Response: std::fmt::Debug,
+    {
+        use owo_colors::OwoColorize;
+
+        if self.logging {
+            eprintln!("{} {cmd:?}", " TX ".black().on_purple());
+        }
+
+        let res = self.ref_impl.step(cmd);
+
+        if self.logging {
+            eprintln!("{} {res:?}", " RX ".black().on_blue());
+        }
+
+        res
+    }
+}
+
+// Talks to an implementation that's run as an external process
+pub struct ExternalDriver {
+    proc: std::process::Child,
+
+    receiver: std::io::BufReader<std::process::ChildStdout>,
+    transmitter: std::process::ChildStdin,
+
+    buffer: String,
+    logging: bool,
+
+    _stderr_thread_handle: std::thread::JoinHandle<()>,
+}
+
+impl ExternalDriver {
+    fn new(implementation: &str) -> Self {
+        use std::process::{Command, Stdio};
+
+        let mut proc = Command::new(implementation)
+            .args(["--headless"])
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .spawn()
+            .unwrap();
+
+        let proc_stdin = proc.stdin.take().unwrap();
+
+        let proc_stdout = proc.stdout.take().unwrap();
+        let proc_stdout = std::io::BufReader::new(proc_stdout);
+
+        // manually handle letting stderr passthrough to ensure output from the driver and the
+        // implementation don't get mixed up (at least in the middle of a line)
+        let proc_stderr = proc.stderr.take().unwrap();
+        let proc_stderr = std::io::BufReader::new(proc_stderr);
+        let thread_handle = std::thread::spawn(move || {
+            use std::io::BufRead;
+            for line in proc_stderr.lines() {
+                eprintln!("{}", line.unwrap());
+            }
+        });
+
+        Self {
+            proc,
+
+            receiver: proc_stdout,
+            transmitter: proc_stdin,
+
+            buffer: String::new(),
+            logging: false,
+
+            _stderr_thread_handle: thread_handle,
+        }
+    }
+
+    fn log(&mut self) {
+        self.logging = true;
     }
 
     fn send<C: CommandResponse>(&mut self, cmd: C) -> Result<C::Response> {
@@ -52,6 +142,9 @@ where
     }
 
     fn tx<C: Command>(&mut self, cmd: C) -> Result<()> {
+        use owo_colors::OwoColorize;
+        use std::io::Write;
+
         self.buffer.clear();
         cmd.serialize(&mut self.buffer)?;
 
@@ -66,6 +159,9 @@ where
     }
 
     fn rx<R: Response>(&mut self) -> Result<R> {
+        use owo_colors::OwoColorize;
+        use std::io::BufRead;
+
         self.buffer.clear();
         self.receiver.read_line(&mut self.buffer)?;
 
@@ -73,7 +169,7 @@ where
             eprint!("{} {}", " RX ".black().on_blue(), self.buffer.blue());
         }
 
-        if let Ok(error_response) = response::ErrorResponse::deserialize(&self.buffer) {
+        if let Ok(error_response) = ErrorResponse::deserialize(&self.buffer) {
             return Err(Error::ErrorResponse(error_response));
         }
 
@@ -81,65 +177,10 @@ where
     }
 }
 
-// Driver for talking to an implementation that's run as an external process
-pub struct Driver {
-    proc: std::process::Child,
-    base_driver:
-        BaseDriver<std::io::BufReader<std::process::ChildStdout>, std::process::ChildStdin>,
-    _stderr_thread_handle: std::thread::JoinHandle<()>,
-}
-
-impl Driver {
-    pub fn send<C: CommandResponse>(&mut self, cmd: C) -> Result<C::Response> {
-        self.base_driver.send(cmd)
-    }
-
-    pub fn log(mut self) -> Self {
-        self.base_driver.logging = true;
-        self
-    }
-}
-
-impl Drop for Driver {
+impl Drop for ExternalDriver {
     fn drop(&mut self) {
         // if killing the child fails, just ignore it
         // the OS should clean up after the tester process closes
         let _ = self.proc.kill();
-    }
-}
-
-impl Driver {
-    pub fn new(implementation: &str) -> Driver {
-        use std::process::{Command, Stdio};
-
-        let mut proc = Command::new(implementation)
-            .args(["--headless"])
-            .stdin(Stdio::piped())
-            .stdout(Stdio::piped())
-            .stderr(Stdio::piped())
-            .spawn()
-            .unwrap();
-        let stdin = proc.stdin.take().unwrap();
-
-        let stdout = proc.stdout.take().unwrap();
-        let stdout = std::io::BufReader::new(stdout);
-
-        // manually handle letting stderr passthrough to ensure output from the driver and the
-        // implementation don't get mixed up (at least in the middle of a line)
-        let stderr = proc.stderr.take().unwrap();
-        let stderr = std::io::BufReader::new(stderr);
-        let handle = std::thread::spawn(move || {
-            for line in stderr.lines() {
-                eprintln!("{}", line.unwrap());
-            }
-        });
-
-        let base_driver = BaseDriver::new(stdout, stdin);
-
-        Driver {
-            proc,
-            base_driver,
-            _stderr_thread_handle: handle,
-        }
     }
 }
