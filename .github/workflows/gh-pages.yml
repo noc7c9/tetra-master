@@ -1,0 +1,40 @@
+name: GitHub Pages
+
+on: [push]
+
+jobs:
+    build-and-deploy:
+        runs-on: ubuntu-latest
+        permissions:
+            contents: write
+        concurrency:
+            group: ${{ github.workflow }}-${{ github.ref }}
+        steps:
+            - name: Checkout code
+              uses: actions/checkout@v3
+
+            - name: Install Rust (nightly, wasm32-unknown-unknown)
+              uses: actions-rs/toolchain@v1
+              with:
+                  profile: minimal
+                  toolchain: nightly
+                  target: wasm32-unknown-unknown
+
+            - name: Install Trunk
+              uses: jetli/trunk-action@v0.1.0
+              with:
+                  version: 'latest'
+
+            - name: Build
+              run: |
+                  cd ./drivers/gui
+                  trunk build --release --public-url "SED_REPLACE_MARKER"
+                  # trunk doesn't support relative paths,
+                  # so change url after building
+                  sed --in-place 's/\/SED_REPLACE_MARKER/./g' ./dist/index.html
+
+            - name: Deploy
+              uses: peaceiris/actions-gh-pages@v3
+              with:
+                  github_token: ${{ secrets.GITHUB_TOKEN }}
+                  publish_dir: ./drivers/gui/dist/
