@@ -10,7 +10,7 @@ bevy = "0.8.1"
 
 anyhow = "1.0.61"
 clap = { version = "3.2.16", features = ["derive"] }
-nanorand = "0.7.0"
+rand = "0.8.5"
 
 # debug only
 bevy_prototype_lyon = "0.6.0"

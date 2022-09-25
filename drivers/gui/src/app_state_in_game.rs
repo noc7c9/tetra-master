@@ -6,7 +6,7 @@ use crate::{
     hover, AppAssets, AppState, CARD_SIZE, COIN_SIZE, RENDER_HSIZE,
 };
 use bevy::{prelude::*, sprite::Anchor};
-use nanorand::Rng;
+use rand::prelude::*;
 use tetra_master_core as core;
 
 const CARD_EMPHASIZE_OFFSET: Vec3 = Vec3::new(12., 0., 5.);
@@ -149,9 +149,9 @@ fn on_enter(
         .insert(Cleanup);
 
     // blocked cells
-    let mut rng = nanorand::tls_rng();
+    let mut rng = rand::thread_rng();
     for &cell in &blocked_cells.0 {
-        let texture_idx = rng.generate_range(..app_assets.blocked_cell.len());
+        let texture_idx = rng.gen_range(0..app_assets.blocked_cell.len());
         let transform = Transform::from_translation(calc_board_cell_screen_pos(cell).extend(0.2));
         commands
             .spawn_bundle(SpriteBundle {

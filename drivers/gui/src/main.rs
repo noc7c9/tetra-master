@@ -50,6 +50,7 @@ fn main() {
                 min_height: RENDER_SIZE.y,
                 ..default()
             },
+            fit_canvas_to_parent: true,
             ..default()
         })
         .insert_resource(Args::parse())

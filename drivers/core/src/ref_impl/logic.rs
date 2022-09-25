@@ -305,7 +305,7 @@ fn roll(battle_system: &mut BattleSystem, rng: &mut Rng, value: u8) -> u8 {
         // meant for making battles in tests predictable
         BattleSystem::Test => {
             let max = (value << 4) | 0xF;
-            let rng = rng.u8(..) as f64 / 0xFF as f64;
+            let rng = rng.u8(0..=u8::MAX) as f64 / 0xFF as f64;
             (rng * max as f64).round() as u8
         }
     }

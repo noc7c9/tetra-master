@@ -2,7 +2,7 @@ use super::{
     Arrows, Board, Card, CardType, Cell, HandCandidate, HandCandidates, HAND_CANDIDATES, HAND_SIZE,
     MAX_NUMBER_OF_BLOCKS,
 };
-use nanorand::Rng as _;
+use rand::{distributions::uniform::SampleRange, thread_rng, Rng as _, SeedableRng as _};
 
 type Seed = u64;
 
@@ -11,7 +11,7 @@ type Seed = u64;
 pub(super) enum Rng {
     Internal {
         initial_seed: Seed,
-        rng: nanorand::WyRand,
+        rng: rand_pcg::Pcg32,
     },
     External {
         random_numbers: std::collections::VecDeque<u8>,
@@ -20,13 +20,13 @@ pub(super) enum Rng {
 
 impl Rng {
     pub(super) fn new() -> Self {
-        Self::with_seed(nanorand::tls_rng().generate())
+        Self::with_seed(thread_rng().gen())
     }
 
     pub(super) fn with_seed(initial_seed: Seed) -> Self {
         Self::Internal {
             initial_seed,
-            rng: nanorand::WyRand::new_seed(initial_seed),
+            rng: rand_pcg::Pcg32::seed_from_u64(initial_seed),
         }
     }
 
@@ -43,9 +43,9 @@ impl Rng {
 
     // generate methods
 
-    pub(super) fn u8(&mut self, range: impl std::ops::RangeBounds<u8>) -> u8 {
+    pub(super) fn u8(&mut self, range: impl std::ops::RangeBounds<u8> + SampleRange<u8>) -> u8 {
         match self {
-            Self::Internal { rng, .. } => rng.generate_range(range),
+            Self::Internal { rng, .. } => rng.gen_range(range),
             Self::External { random_numbers } => {
                 // Simple way to map the given num to the range 0..max
                 // This isn't a perfect mapping but will suffice
@@ -87,11 +87,12 @@ impl Rng {
 
     fn f32(&mut self) -> f32 {
         match self {
-            Self::Internal { rng, .. } => rng.generate(),
+            Self::Internal { rng, .. } => rng.gen(),
             Self::External { .. } => {
                 let exponent = 0b0111_1111 << (f32::MANTISSA_DIGITS - 1);
-                let significant =
-                    (self.u8(..) as u32) << 16 | (self.u8(..) as u32) << 8 | self.u8(..) as u32;
+                let significant = (self.u8(0..=u8::MAX) as u32) << 16
+                    | (self.u8(0..=u8::MAX) as u32) << 8
+                    | self.u8(0..=u8::MAX) as u32;
                 f32::from_bits(exponent | significant) - 1.0
             }
         }
@@ -102,8 +103,8 @@ pub(super) fn random_board(rng: &mut Rng) -> Board {
     let mut board: Board = Default::default();
 
     // block cells
-    for _ in 0..rng.u8(..=MAX_NUMBER_OF_BLOCKS) {
-        let idx = rng.u8(..(HAND_SIZE as u8)) as usize;
+    for _ in 0..rng.u8(0..=MAX_NUMBER_OF_BLOCKS) {
+        let idx = rng.u8(0..(HAND_SIZE as u8)) as usize;
         board[idx] = Cell::Blocked;
     }
 
@@ -190,7 +191,7 @@ fn random_card(rng: &mut Rng) -> Card {
     fn randpick(rng: &mut Rng, values: &[u8]) -> u8 {
         let len = values.len();
         debug_assert!(len <= u8::MAX as usize);
-        let idx = rng.u8(..(len as u8)) as usize;
+        let idx = rng.u8(0..(len as u8)) as usize;
         values[idx]
     }
 
@@ -211,7 +212,7 @@ fn random_card(rng: &mut Rng) -> Card {
         _ => CardType::Assault,              // 5%
     };
 
-    let arrows = Arrows(rng.u8(..));
+    let arrows = Arrows(rng.u8(0..=u8::MAX));
 
     let attack = random_stat(rng);
     let physical_defense = random_stat(rng);
