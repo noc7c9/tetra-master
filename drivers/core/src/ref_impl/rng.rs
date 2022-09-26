@@ -84,19 +84,6 @@ impl Rng {
             }
         }
     }
-
-    fn f32(&mut self) -> f32 {
-        match self {
-            Self::Internal { rng, .. } => rng.gen(),
-            Self::External { .. } => {
-                let exponent = 0b0111_1111 << (f32::MANTISSA_DIGITS - 1);
-                let significant = (self.u8(0..=u8::MAX) as u32) << 16
-                    | (self.u8(0..=u8::MAX) as u32) << 8
-                    | self.u8(0..=u8::MAX) as u32;
-                f32::from_bits(exponent | significant) - 1.0
-            }
-        }
-    }
 }
 
 pub(super) fn random_board(rng: &mut Rng) -> Board {
@@ -196,20 +183,20 @@ fn random_card(rng: &mut Rng) -> Card {
     }
 
     fn random_stat(rng: &mut Rng) -> u8 {
-        match rng.f32() {
-            n if n < 0.05 => randpick(rng, &[0, 1]),          // 5%
-            n if n < 0.35 => randpick(rng, &[2, 3, 4, 5]),    // 30%
-            n if n < 0.8 => randpick(rng, &[6, 7, 8, 9, 10]), // 45%
-            n if n < 0.95 => randpick(rng, &[11, 12, 13]),    // 15%
-            _ => randpick(rng, &[14, 15]),                    // 5%
+        match rng.u8(0..=255) {
+            0..=12 => randpick(rng, &[0, 1]),             // 5%
+            13..=89 => randpick(rng, &[2, 3, 4, 5]),      // 30%
+            90..=204 => randpick(rng, &[6, 7, 8, 9, 10]), // 45%
+            205..=242 => randpick(rng, &[11, 12, 13]),    // 15%
+            _ => randpick(rng, &[14, 15]),                // 5%
         }
     }
 
-    let card_type = match rng.f32() {
-        n if n < 0.40 => CardType::Physical, // 40%
-        n if n < 0.80 => CardType::Magical,  // 40%
-        n if n < 0.95 => CardType::Exploit,  // 15%
-        _ => CardType::Assault,              // 5%
+    let card_type = match rng.u8(0..=255) {
+        0..=101 => CardType::Physical,  // 40%
+        102..=203 => CardType::Magical, // 40%
+        204..=241 => CardType::Exploit, // 15%
+        _ => CardType::Assault,         // 5%
     };
 
     let arrows = Arrows(rng.u8(0..=u8::MAX));
