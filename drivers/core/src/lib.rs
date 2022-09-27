@@ -1,7 +1,8 @@
 mod driver;
+mod random_setup;
 mod ref_impl;
 
-pub use driver::Driver;
+pub use driver::{Driver, Seed};
 pub use ref_impl::ReferenceImplementation;
 
 /*****************************************************************************************
@@ -19,6 +20,9 @@ pub trait CommandResponse: command::Command {
 
 impl CommandResponse for command::Setup {
     type Response = response::SetupOk;
+}
+impl CommandResponse for command::PushRngNumbers {
+    type Response = response::PushRngNumbersOk;
 }
 impl CommandResponse for command::PickHand {
     type Response = response::PickHandOk;
@@ -92,14 +96,12 @@ pub const BOARD_SIZE: usize = 4 * 4;
 pub const HAND_CANDIDATES: usize = 3;
 pub const HAND_SIZE: usize = 5;
 
-pub type Seed = u64;
 pub type Hand = [Card; HAND_SIZE];
 pub type HandCandidates = [Hand; HAND_CANDIDATES];
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum Rng {
-    Seeded { seed: Seed },
-    External { rolls: Vec<u8> },
+pub struct Rng {
+    numbers: Vec<u8>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

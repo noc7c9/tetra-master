@@ -1,6 +1,6 @@
 use crate::{
     Arrows, BattleSystem, BattleWinner, Battler, Card, CardType, Digit, Event, Hand,
-    HandCandidates, Player, Seed,
+    HandCandidates, Player,
 };
 use nom::{
     branch::alt,
@@ -38,7 +38,6 @@ impl Response for ErrorResponse {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SetupOk {
-    pub seed: Option<Seed>,
     pub battle_system: BattleSystem,
     pub blocked_cells: Vec<u8>,
     pub hand_candidates: HandCandidates,
@@ -47,6 +46,18 @@ pub struct SetupOk {
 impl Response for SetupOk {
     fn deserialize(i: &str) -> Result<Self, Error> {
         let (_, res) = setup_ok(i).map_err(|e| e.to_owned())?;
+        Ok(res)
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PushRngNumbersOk {
+    pub numbers_left: usize,
+}
+
+impl Response for PushRngNumbersOk {
+    fn deserialize(i: &str) -> Result<Self, Error> {
+        let (_, res) = push_rng_numbers_ok(i).map_err(|e| e.to_owned())?;
         Ok(res)
     }
 }
@@ -120,6 +131,12 @@ impl FromStrHex for u8 {
 }
 
 impl FromStrHex for u64 {
+    fn from_str_hex(s: &str) -> Result<Self, std::num::ParseIntError> {
+        Self::from_str_radix(s, 16)
+    }
+}
+
+impl FromStrHex for usize {
     fn from_str_hex(s: &str) -> Result<Self, std::num::ParseIntError> {
         Self::from_str_radix(s, 16)
     }
@@ -241,17 +258,23 @@ fn error(i: &str) -> IResult<&str, ErrorResponse> {
 
 fn setup_ok(i: &str) -> IResult<&str, SetupOk> {
     response("setup-ok", |i| {
-        let (i, seed) = opt(prop("seed", hex_digit_1_n(16)))(i)?;
         let (i, battle_system) = prop("battle-system", battle_system)(i)?;
         let (i, blocked_cells) = prop("blocked-cells", blocked_cells)(i)?;
         let (i, hand_candidates) = prop("hand-candidates", hand_candidates)(i)?;
         let setup_ok = SetupOk {
-            seed,
             battle_system,
             blocked_cells,
             hand_candidates,
         };
         Ok((i, setup_ok))
+    })(i)
+}
+
+fn push_rng_numbers_ok(i: &str) -> IResult<&str, PushRngNumbersOk> {
+    response("push-rng-numbers-ok", |i| {
+        let (i, numbers_left) = prop("numbers-left", hex_digit_1_n(8))(i)?;
+        let push_rng_numbers_ok = PushRngNumbersOk { numbers_left };
+        Ok((i, push_rng_numbers_ok))
     })(i)
 }
 
@@ -455,10 +478,9 @@ mod tests {
         " (0P00_0 0P00_0 0P00_0 0P00_0 0P00_0))"
     );
     #[test_case(
-        format!(concat!("(setup-ok (seed 7B) (battle-system dice 9) (blocked-cells {})",
+        format!(concat!("(setup-ok (battle-system dice 9) (blocked-cells {})",
                                  " (hand-candidates {}))\n"), BLOCKED_CELLS, HAND_CANDIDATES)
         => SetupOk {
-            seed: Some(123),
             battle_system: BattleSystem::Dice { sides: 9 },
             blocked_cells: vec![2, 3, 0xf],
             hand_candidates: [
@@ -472,7 +494,6 @@ mod tests {
         format!("(setup-ok (battle-system dice 9) (blocked-cells {}) (hand-candidates {}))\n",
                 BLOCKED_CELLS, HAND_CANDIDATES)
         => SetupOk {
-            seed: None,
             battle_system: BattleSystem::Dice { sides: 9 },
             blocked_cells: vec![2, 3, 0xf],
             hand_candidates: [
@@ -483,6 +504,13 @@ mod tests {
         }
     )]
     fn setup_ok(i: String) -> SetupOk {
+        Response::deserialize(&i).unwrap()
+    }
+
+    #[test_case("(push-rng-numbers-ok (numbers-left 0))\n" => PushRngNumbersOk { numbers_left: 0 })]
+    #[test_case("(push-rng-numbers-ok (numbers-left aBc123))\n"
+        => PushRngNumbersOk { numbers_left: 0xABC123 })]
+    fn push_rng_numbers_ok(i: &str) -> PushRngNumbersOk {
         Response::deserialize(&i).unwrap()
     }
 

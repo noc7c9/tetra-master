@@ -11,7 +11,7 @@
 use pretty_assertions::{assert_eq, assert_ne};
 use tetra_master_core::{
     command, response, Arrows, BattleSystem, BattleWinner, Battler, Card, Digit, Driver,
-    ErrorResponse, Event, Player,
+    ErrorResponse, Event, Player, Seed,
 };
 
 use crate::harness::{Harness, Suite};
@@ -27,15 +27,31 @@ pub(crate) enum Ctx<'a> {
 impl<'a> Ctx<'a> {
     pub(super) fn new_driver(&self) -> Driver {
         match self {
-            Ctx::External { implementation } => Driver::external(implementation),
-            Ctx::Reference => Driver::reference(),
+            Ctx::External { implementation } => Driver::external(Some(0), implementation),
+            Ctx::Reference => Driver::reference(Some(0)),
         }
+    }
+
+    pub(super) fn new_driver_with_seed(&self, seed: Option<Seed>) -> Driver {
+        match self {
+            Ctx::External { implementation } => Driver::external(seed, implementation),
+            Ctx::Reference => Driver::reference(seed),
+        }
+    }
+
+    pub(super) fn new_driver_with_rng(&self, numbers: &[u8]) -> Driver {
+        let mut driver = self.new_driver().turn_off_auto_feed_rng();
+        driver
+            .send(command::PushRngNumbers {
+                numbers: numbers.to_vec(),
+            })
+            .unwrap();
+        driver
     }
 }
 
 fn setup_default() -> command::Setup {
     Command::setup()
-        .seed(0)
         .battle_system(BattleSystem::Test)
         .blocked_cells(&[])
         .hand_candidates(&HAND_CANDIDATES)
@@ -43,17 +59,18 @@ fn setup_default() -> command::Setup {
 
 fn game_setup_tests(s: &mut Suite<Ctx>) {
     test!(s "Setup without args should use random initialization"; |ctx| {
-        let first = ctx.new_driver().send(Command::setup())?;
-        let second = ctx.new_driver().send(Command::setup())?;
+        let first = ctx.new_driver_with_seed(None).send_random_setup(BattleSystem::Original)?;
+        let second = ctx.new_driver_with_seed(None).send_random_setup(BattleSystem::Original)?;
 
         assert_ne!(first, second);
     });
 
     test!(s "Setup with set seed should use random initialization with given seed"; |ctx| {
-        let first = ctx.new_driver().send(Command::setup())?;
-        let seed = first.seed.unwrap();
+        let mut driver = ctx.new_driver_with_seed(None);
+        let first = driver.send_random_setup(BattleSystem::Original)?;
+        let seed = driver.initial_seed;
 
-        let second = ctx.new_driver().send(Command::setup().seed(seed))?;
+        let second = ctx.new_driver_with_seed(Some(seed)).send_random_setup(BattleSystem::Original)?;
 
         assert_eq!(first, second);
     });
@@ -286,7 +303,7 @@ fn in_game_tests(s: &mut Suite<Ctx>) {
 
     let ss = suite!(s "Battles");
     test!(ss "place card that results in a battle, attacker wins"; |ctx| {
-        let mut driver = ctx.new_driver();
+        let mut driver = ctx.new_driver_with_rng(&[255, 0]);
         let defender = Card::physical(0, 3, 7, Arrows::ALL);
         let attacker = Card::exploit(0xC, 0, 0, Arrows::ALL);
         let hand_candidates = [
@@ -294,11 +311,7 @@ fn in_game_tests(s: &mut Suite<Ctx>) {
             [attacker, CARD, CARD, CARD, CARD],
             [CARD, CARD, CARD, CARD, CARD],
         ];
-        driver.send(
-            setup_default()
-                .rolls(&[255, 0])
-                .hand_candidates(&hand_candidates),
-        )?;
+        driver.send(setup_default().hand_candidates(&hand_candidates))?;
         driver.send(Command::pick_hand(0))?;
         driver.send(Command::pick_hand(1))?;
 
@@ -320,7 +333,7 @@ fn in_game_tests(s: &mut Suite<Ctx>) {
         );
     });
     test!(ss "place card that results in a battle, defender wins"; |ctx| {
-        let mut driver = ctx.new_driver();
+        let mut driver = ctx.new_driver_with_rng(&[0, 255]);
         let defender = Card::physical(0, 3, 7, Arrows::ALL);
         let attacker = Card::exploit(0xC, 0, 0, Arrows::ALL);
         let hand_candidates = [
@@ -328,11 +341,7 @@ fn in_game_tests(s: &mut Suite<Ctx>) {
             [attacker, CARD, CARD, CARD, CARD],
             [CARD, CARD, CARD, CARD, CARD],
         ];
-        driver.send(
-            setup_default()
-                .rolls(&[0, 255])
-                .hand_candidates(&hand_candidates),
-        )?;
+        driver.send(setup_default().hand_candidates(&hand_candidates))?;
         driver.send(Command::pick_hand(0))?;
         driver.send(Command::pick_hand(1))?;
 
@@ -354,7 +363,7 @@ fn in_game_tests(s: &mut Suite<Ctx>) {
         );
     });
     test!(ss "place card that results in a battle, draw"; |ctx| {
-        let mut driver = ctx.new_driver();
+        let mut driver = ctx.new_driver_with_rng(&[100, 100]);
         let defender = Card::physical(0, 3, 7, Arrows::ALL);
         let attacker = Card::exploit(0x3, 0, 0, Arrows::ALL);
         let hand_candidates = [
@@ -362,11 +371,7 @@ fn in_game_tests(s: &mut Suite<Ctx>) {
             [attacker, CARD, CARD, CARD, CARD],
             [CARD, CARD, CARD, CARD, CARD],
         ];
-        driver.send(
-            setup_default()
-                .rolls(&[100, 100])
-                .hand_candidates(&hand_candidates),
-        )?;
+        driver.send(setup_default().hand_candidates(&hand_candidates))?;
         driver.send(Command::pick_hand(0))?;
         driver.send(Command::pick_hand(1))?;
 
@@ -388,7 +393,7 @@ fn in_game_tests(s: &mut Suite<Ctx>) {
         );
     });
     test!(ss "flip other undefended cards after attacker wins battle"; |ctx| {
-        let mut driver = ctx.new_driver();
+        let mut driver = ctx.new_driver_with_rng(&[255, 0]);
         let defender = Card::physical(0, 3, 7, Arrows::DOWN);
         let attacker = Card::exploit(0xC, 0, 0, Arrows::ALL);
         let hand_candidates = [
@@ -396,11 +401,7 @@ fn in_game_tests(s: &mut Suite<Ctx>) {
             [attacker, CARD, CARD, CARD, CARD],
             [CARD, CARD, CARD, CARD, CARD],
         ];
-        driver.send(
-            setup_default()
-                .rolls(&[255, 0])
-                .hand_candidates(&hand_candidates),
-        )?;
+        driver.send(setup_default().hand_candidates(&hand_candidates))?;
         driver.send(Command::pick_hand(0))?;
         driver.send(Command::pick_hand(1))?;
 
@@ -438,7 +439,7 @@ fn in_game_tests(s: &mut Suite<Ctx>) {
         );
     });
     test!(ss "don't flip other undefended cards after attacker loses battle"; |ctx| {
-        let mut driver = ctx.new_driver();
+        let mut driver = ctx.new_driver_with_rng(&[0, 255]);
         let defender = Card::physical(0, 3, 7, Arrows::DOWN);
         let attacker = Card::exploit(0xC, 0, 0, Arrows::ALL);
         let hand_candidates = [
@@ -446,11 +447,7 @@ fn in_game_tests(s: &mut Suite<Ctx>) {
             [attacker, CARD, CARD, CARD, CARD],
             [CARD, CARD, CARD, CARD, CARD],
         ];
-        driver.send(
-            setup_default()
-                .rolls(&[0, 255])
-                .hand_candidates(&hand_candidates),
-        )?;
+        driver.send(setup_default().hand_candidates(&hand_candidates))?;
         driver.send(Command::pick_hand(0))?;
         driver.send(Command::pick_hand(1))?;
 
@@ -486,7 +483,7 @@ fn in_game_tests(s: &mut Suite<Ctx>) {
 
     let ss = suite!(s "Combos");
     test!(ss "place card that results in a combo"; |ctx| {
-        let mut driver = ctx.new_driver();
+        let mut driver = ctx.new_driver_with_rng(&[255, 0]);
         let defender = Card::physical(0, 3, 7, Arrows::ALL);
         let attacker = Card::exploit(0xC, 0, 0, Arrows::ALL);
         let hand_candidates = [
@@ -494,11 +491,7 @@ fn in_game_tests(s: &mut Suite<Ctx>) {
             [attacker, CARD, CARD, CARD, CARD],
             [CARD, CARD, CARD, CARD, CARD],
         ];
-        driver.send(
-            setup_default()
-                .rolls(&[255, 0])
-                .hand_candidates(&hand_candidates),
-        )?;
+        driver.send(setup_default().hand_candidates(&hand_candidates))?;
         driver.send(Command::pick_hand(0))?;
         driver.send(Command::pick_hand(1))?;
 
@@ -523,7 +516,7 @@ fn in_game_tests(s: &mut Suite<Ctx>) {
         );
     });
     test!(ss "combo flip cards that are pointed to by the defender if they lose"; |ctx| {
-        let mut driver = ctx.new_driver();
+        let mut driver = ctx.new_driver_with_rng(&[255, 0]);
         let defender = Card::physical(0, 0, 0, Arrows::ALL);
         let attacker = Card::physical(0, 0, 0, Arrows::ALL);
         let hand_candidates = [
@@ -531,7 +524,7 @@ fn in_game_tests(s: &mut Suite<Ctx>) {
             [CARD, CARD, CARD, attacker, CARD],
             [CARD, CARD, CARD, CARD, CARD],
         ];
-        driver.send(setup_default().hand_candidates(&hand_candidates).rolls(&[255, 0]))?;
+        driver.send(setup_default().hand_candidates(&hand_candidates))?;
         driver.send(Command::pick_hand(0))?;
         driver.send(Command::pick_hand(1))?;
 
@@ -562,7 +555,7 @@ fn in_game_tests(s: &mut Suite<Ctx>) {
         ]);
     });
     test!(ss "combo flip cards that are pointed to by the attacker if they lose"; |ctx| {
-        let mut driver = ctx.new_driver();
+        let mut driver = ctx.new_driver_with_rng(&[0, 255]);
         let defender = Card::physical(0, 0, 0, Arrows::UP);
         let attacker = Card::physical(0, 0, 0, Arrows::ALL);
         let hand_candidates = [
@@ -570,7 +563,7 @@ fn in_game_tests(s: &mut Suite<Ctx>) {
             [CARD, CARD, CARD, attacker, CARD],
             [CARD, CARD, CARD, CARD, CARD],
         ];
-        driver.send(setup_default().hand_candidates(&hand_candidates).rolls(&[0, 255]))?;
+        driver.send(setup_default().hand_candidates(&hand_candidates))?;
         driver.send(Command::pick_hand(0))?;
         driver.send(Command::pick_hand(1))?;
 
@@ -601,13 +594,13 @@ fn in_game_tests(s: &mut Suite<Ctx>) {
         ]);
     });
     test!(ss "don't flip back undefended cards if they are flipped due to combos"; |ctx| {
-        let mut driver = ctx.new_driver();
+        let mut driver = ctx.new_driver_with_rng(&[255, 0]);
         let hand_candidates = [
             [CARD, CARD.arrows(Arrows::ALL), CARD, CARD, CARD],
             [CARD.arrows(Arrows::ALL), CARD, CARD, CARD, CARD],
             [CARD, CARD, CARD, CARD, CARD],
         ];
-        driver.send(setup_default().hand_candidates(&hand_candidates).rolls(&[255, 0]))?;
+        driver.send(setup_default().hand_candidates(&hand_candidates))?;
         driver.send(Command::pick_hand(0))?;
         driver.send(Command::pick_hand(1))?;
 
@@ -632,7 +625,7 @@ fn in_game_tests(s: &mut Suite<Ctx>) {
 
     let ss = suite!(s "Battle Choices");
     test!(ss "place card that results in a choice"; |ctx| {
-        let mut driver = ctx.new_driver();
+        let mut driver = ctx.new_driver_with_rng(&[255, 0, 0, 255]);
         let defender1 = Card::physical(0, 3, 7, Arrows::ALL);
         let defender2 = Card::physical(0, 9, 4, Arrows::ALL);
         let attacker = Card::exploit(0xC, 0, 0, Arrows::ALL);
@@ -641,11 +634,7 @@ fn in_game_tests(s: &mut Suite<Ctx>) {
             [attacker, CARD, CARD, CARD, CARD],
             [CARD, CARD, CARD, CARD, CARD],
         ];
-        driver.send(
-            setup_default()
-                .rolls(&[255, 0, 0, 255])
-                .hand_candidates(&hand_candidates),
-        )?;
+        driver.send(setup_default().hand_candidates(&hand_candidates))?;
         driver.send(Command::pick_hand(0))?;
         driver.send(Command::pick_hand(1))?;
 
@@ -703,7 +692,7 @@ fn in_game_tests(s: &mut Suite<Ctx>) {
         assert_eq!(error, ErrorResponse::InvalidBattlePick { cell: 0xC });
     });
     test!(ss "continue offering choices when multiple battles are still available"; |ctx| {
-        let mut driver = ctx.new_driver();
+        let mut driver = ctx.new_driver_with_rng(&[255, 0, 255, 0, 255, 0, 255, 0]);
         let defender0 = Card::physical(0, 2, 0, Arrows::DOWN);
         let defender1 = Card::physical(0, 4, 0, Arrows::LEFT);
         let defender2 = Card::physical(0, 6, 0, Arrows::UP);
@@ -714,11 +703,7 @@ fn in_game_tests(s: &mut Suite<Ctx>) {
             [attacker, CARD, CARD, CARD, CARD],
             [CARD, CARD, CARD, CARD, CARD],
         ];
-        driver.send(
-            setup_default()
-                .rolls(&[255, 0, 255, 0, 255, 0, 255, 0])
-                .hand_candidates(&hand_candidates),
-        )?;
+        driver.send(setup_default().hand_candidates(&hand_candidates))?;
         driver.send(Command::pick_hand(0))?;
         driver.send(Command::pick_hand(1))?;
 
@@ -775,7 +760,7 @@ fn in_game_tests(s: &mut Suite<Ctx>) {
         ]);
     });
     test!(ss "don't continue offering choices if attacker loses"; |ctx| {
-        let mut driver = ctx.new_driver();
+        let mut driver = ctx.new_driver_with_rng(&[0, 255]);
         let defender0 = Card::physical(0, 2, 0, Arrows::DOWN);
         let defender1 = Card::physical(0, 4, 0, Arrows::LEFT);
         let defender2 = Card::physical(0, 6, 0, Arrows::UP);
@@ -786,7 +771,7 @@ fn in_game_tests(s: &mut Suite<Ctx>) {
             [attacker, CARD, CARD, CARD, CARD],
             [CARD, CARD, CARD, CARD, CARD],
         ];
-        driver.send(setup_default().rolls(&[0, 255]).hand_candidates(&hand_candidates))?;
+        driver.send(setup_default().hand_candidates(&hand_candidates))?;
         driver.send(Command::pick_hand(0))?;
         driver.send(Command::pick_hand(1))?;
 
@@ -815,7 +800,7 @@ fn in_game_tests(s: &mut Suite<Ctx>) {
         ]);
     });
     test!(ss "handle game over when attacker loses battle after a choice"; |ctx| {
-        let mut driver = ctx.new_driver();
+        let mut driver = ctx.new_driver_with_rng(&[0, 255]);
         let defender0 = Card::physical(0, 0, 0, Arrows::DOWN);
         let defender1 = Card::physical(0, 0, 0, Arrows::UP);
         let attacker = Card::physical(0, 0, 0, Arrows::UP | Arrows::DOWN);
@@ -824,7 +809,7 @@ fn in_game_tests(s: &mut Suite<Ctx>) {
             [CARD, CARD, CARD, CARD, attacker],
             [CARD, CARD, CARD, CARD, CARD],
         ];
-        driver.send(setup_default().rolls(&[0, 255]).hand_candidates(&hand_candidates))?;
+        driver.send(setup_default().hand_candidates(&hand_candidates))?;
         driver.send(Command::pick_hand(0))?;
         driver.send(Command::pick_hand(1))?;
 
