@@ -1,6 +1,6 @@
 use tetra_master_core::{
-    command, Arrows, BattleSystem, BattleWinner, Battler, Card, Error, ErrorResponse, Event, Hand,
-    HandCandidates, Player, Rng, Seed,
+    command, Arrows, BattleSystem, BattleWinner, Battler, Card, Driver, DriverBuilder, Error,
+    ErrorResponse, Event, Hand, HandCandidates, Player,
 };
 
 pub(super) const CARD: Card = Card::physical(0, 0, 0, Arrows(0));
@@ -9,15 +9,30 @@ pub(super) const HAND_CANDIDATES: HandCandidates = {
     [HAND, HAND, HAND]
 };
 
+pub(super) trait DriverBuilderExt {
+    fn build_with_rng(self, numbers: &[u8]) -> Driver;
+}
+
+impl DriverBuilderExt for DriverBuilder {
+    fn build_with_rng(self, numbers: &[u8]) -> Driver {
+        let mut driver = self.no_auto_feed_rng().build();
+        driver
+            .send(command::PushRngNumbers {
+                numbers: numbers.to_vec(),
+            })
+            .unwrap();
+        driver
+    }
+}
+
 pub(super) struct Command;
 
 impl Command {
     pub(super) fn setup() -> command::Setup {
         command::Setup {
-            rng: None,
-            battle_system: None,
-            blocked_cells: None,
-            hand_candidates: None,
+            battle_system: BattleSystem::Test,
+            blocked_cells: vec![],
+            hand_candidates: HAND_CANDIDATES,
         }
     }
 
@@ -35,37 +50,24 @@ impl Command {
 }
 
 pub(super) trait SetupExt {
-    fn seed(self, seed: Seed) -> Self;
-    fn rolls(self, rolls: &[u8]) -> Self;
     fn battle_system(self, value: BattleSystem) -> Self;
     fn blocked_cells(self, value: &[u8]) -> Self;
     fn hand_candidates(self, value: &HandCandidates) -> Self;
 }
 
 impl SetupExt for command::Setup {
-    fn seed(mut self, seed: Seed) -> Self {
-        self.rng = Some(Rng::Seeded { seed });
-        self
-    }
-
-    fn rolls(mut self, rolls: &[u8]) -> Self {
-        let rolls = rolls.into();
-        self.rng = Some(Rng::External { rolls });
-        self
-    }
-
     fn battle_system(mut self, value: BattleSystem) -> Self {
-        self.battle_system = Some(value);
+        self.battle_system = value;
         self
     }
 
     fn blocked_cells(mut self, value: &[u8]) -> Self {
-        self.blocked_cells = Some(value.into());
+        self.blocked_cells = value.into();
         self
     }
 
     fn hand_candidates(mut self, value: &HandCandidates) -> Self {
-        self.hand_candidates = Some(*value);
+        self.hand_candidates = *value;
         self
     }
 }
