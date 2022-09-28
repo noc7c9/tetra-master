@@ -1,14 +1,11 @@
 use crate::{
     self as core, command,
     response::{self, ErrorResponse},
-    Arrows, BattleSystem, BattleWinner, Card, CardType, CommandResponse, Error, Player, BOARD_SIZE,
-    HAND_CANDIDATES, HAND_SIZE, MAX_NUMBER_OF_BLOCKS,
+    BattleSystem, BattleWinner, Card, CommandResponse, Error, Player, BOARD_SIZE, HAND_CANDIDATES,
+    HAND_SIZE,
 };
 
 mod logic;
-mod rng;
-
-use rng::Rng;
 
 type Hand = [Option<Card>; HAND_SIZE];
 type HandCandidate = [Card; HAND_SIZE];
@@ -34,6 +31,67 @@ impl Default for Cell {
     }
 }
 
+// Rng that relies on numbers been pre-fed into it
+#[derive(Debug, Clone, Default)]
+pub(crate) struct Rng {
+    // pub(crate) for testing
+    pub(crate) numbers: std::collections::VecDeque<u8>,
+}
+
+impl Rng {
+    fn push_numbers(&mut self, numbers: &[u8]) {
+        self.numbers.extend(numbers.iter())
+    }
+
+    fn gen_u8(&mut self, range: impl std::ops::RangeBounds<u8>) -> u8 {
+        // Simple way to map the given num to the range 0..max
+        // This isn't a perfect mapping but will suffice
+        // src: https://lemire.me/blog/2016/06/27/a-fast-alternative-to-the-modulo-reduction
+        fn bound(num: u8, max: u8) -> u8 {
+            ((num as u16 * max as u16) >> 8) as u8
+        }
+
+        use std::ops::Bound::*;
+
+        let min = match range.start_bound() {
+            Included(x) => *x,
+            Excluded(x) => *x + 1,
+            Unbounded => u8::MIN,
+        };
+        let max = match range.end_bound() {
+            Included(x) => *x,
+            Excluded(x) => *x - 1,
+            Unbounded => u8::MAX,
+        };
+        debug_assert!(min <= max);
+
+        let num = self
+            .numbers
+            .pop_front()
+            .expect("Ran out of external random numbers");
+
+        if min == u8::MIN {
+            if max == u8::MAX {
+                num
+            } else {
+                bound(num, max)
+            }
+        } else {
+            min + bound(num, max - min + 1)
+        }
+    }
+}
+
+/*****************************************************************************************
+ * PreSetup Types
+ */
+
+#[derive(Debug)]
+pub struct PreSetupState {
+    // pub(crate) for testing
+    pub(crate) rng: Option<Rng>,
+}
+
 /*****************************************************************************************
  * PickingHands Types
  */
@@ -48,62 +106,16 @@ enum PickingHandsStatus {
 #[derive(Debug, Clone)]
 pub struct PickingHandsState {
     status: PickingHandsStatus,
-    rng: Rng,
+    // pub(crate) for testing
+    pub(crate) rng: Rng,
     board: Board,
     hand_candidates: HandCandidates,
+    battle_system: BattleSystem,
 }
 
 impl PickingHandsState {
-    fn builder() -> PickingHandsStateBuilder {
-        PickingHandsStateBuilder {
-            rng: None,
-            board: None,
-            hand_candidates: None,
-        }
-    }
-
     fn is_complete(&self) -> bool {
         matches!(self.status, PickingHandsStatus::Complete { .. })
-    }
-}
-
-#[derive(Debug)]
-struct PickingHandsStateBuilder {
-    rng: Option<Rng>,
-    board: Option<Board>,
-    hand_candidates: Option<HandCandidates>,
-}
-
-impl PickingHandsStateBuilder {
-    fn rng(mut self, rng: Option<Rng>) -> Self {
-        self.rng = rng;
-        self
-    }
-
-    fn board(mut self, board: Option<Board>) -> Self {
-        self.board = board;
-        self
-    }
-
-    fn hand_candidates(mut self, hand_candidates: Option<HandCandidates>) -> Self {
-        self.hand_candidates = hand_candidates;
-        self
-    }
-
-    fn build(self) -> PickingHandsState {
-        let status = PickingHandsStatus::P1Picking;
-        let mut rng = self.rng.unwrap_or_else(Rng::new);
-        let board = self.board.unwrap_or_else(|| rng::random_board(&mut rng));
-        let hand_candidates = self
-            .hand_candidates
-            .unwrap_or_else(|| rng::random_hand_candidates(&mut rng));
-
-        PickingHandsState {
-            status,
-            rng,
-            board,
-            hand_candidates,
-        }
     }
 }
 
@@ -126,7 +138,8 @@ enum InGameStatus {
 #[derive(Debug, Clone)]
 pub struct InGameState {
     status: InGameStatus,
-    rng: Rng,
+    // pub(crate) for testing
+    pub(crate) rng: Rng,
     turn: Player,
     board: Board,
     p1_hand: Hand,
@@ -135,10 +148,7 @@ pub struct InGameState {
 }
 
 impl InGameState {
-    fn from_pre_game_state(
-        pre_game_state: &mut PickingHandsState,
-        battle_system: BattleSystem,
-    ) -> Self {
+    fn from_pre_game_state(pre_game_state: &mut PickingHandsState) -> Self {
         fn convert_hand([a, b, c, d, e]: HandCandidate) -> Hand {
             [Some(a), Some(b), Some(c), Some(d), Some(e)]
         }
@@ -155,6 +165,8 @@ impl InGameState {
         };
         let p1_hand = convert_hand(pre_game_state.hand_candidates[p1_pick as usize]);
         let p2_hand = convert_hand(pre_game_state.hand_candidates[p2_pick as usize]);
+
+        let battle_system = pre_game_state.battle_system;
 
         Self {
             status,
@@ -191,14 +203,16 @@ pub type ReferenceImplementation = GlobalState;
 
 #[derive(Debug)]
 pub enum GlobalState {
-    PreSetup,
-    PickingHands(PickingHandsState, BattleSystem),
+    PreSetup(PreSetupState),
+    PickingHands(PickingHandsState),
     InGame(InGameState),
 }
 
 impl GlobalState {
     pub fn new() -> Self {
-        GlobalState::PreSetup
+        GlobalState::PreSetup(PreSetupState {
+            rng: Some(Rng::default()),
+        })
     }
 
     pub fn step<C: Step>(&mut self, cmd: C) -> core::Result<C::Response> {
@@ -221,26 +235,23 @@ pub trait Step: CommandResponse {
 
 impl Step for command::Setup {
     fn step(self, global: &mut GlobalState) -> Result<Self::Response, ErrorResponse> {
-        if let GlobalState::PreSetup = global {
-            let battle_system = self.battle_system.unwrap_or(core::BattleSystem::Original);
+        if let GlobalState::PreSetup(ref mut state) = global {
+            let board = {
+                let mut board: Board = Default::default();
+                for cell in self.blocked_cells {
+                    board[cell as usize] = Cell::Blocked;
+                }
+                board
+            };
 
-            let state = PickingHandsState::builder()
-                .rng(self.rng.map(|rng| match rng {
-                    core::Rng::Seeded { seed } => Rng::with_seed(seed),
-                    // FIXME: remove conversion, why is it a VecDeque?
-                    core::Rng::External { rolls } => Rng::new_external(rolls.into_iter().collect()),
-                }))
-                .hand_candidates(self.hand_candidates)
-                .board(self.blocked_cells.map(|blocked_cells| {
-                    let mut board: Board = Default::default();
-                    for cell in blocked_cells {
-                        board[cell as usize] = Cell::Blocked;
-                    }
-                    board
-                }))
-                .build();
+            let state = PickingHandsState {
+                status: PickingHandsStatus::P1Picking,
+                rng: state.rng.take().unwrap(),
+                board,
+                hand_candidates: self.hand_candidates,
+                battle_system: self.battle_system,
+            };
 
-            let seed = state.rng.initial_seed();
             let blocked_cells = state
                 .board
                 .iter()
@@ -253,14 +264,14 @@ impl Step for command::Setup {
                     }
                 })
                 .collect();
+            let battle_system = state.battle_system;
             let hand_candidates = state.hand_candidates;
 
-            *global = GlobalState::PickingHands(state, battle_system);
+            *global = GlobalState::PickingHands(state);
 
             Ok(response::SetupOk {
-                seed,
-                battle_system,
                 blocked_cells,
+                battle_system,
                 hand_candidates,
             })
         } else {
@@ -269,16 +280,30 @@ impl Step for command::Setup {
     }
 }
 
+impl Step for command::PushRngNumbers {
+    fn step(self, global: &mut GlobalState) -> Result<Self::Response, ErrorResponse> {
+        let rng = match global {
+            GlobalState::PreSetup(PreSetupState { rng }) => rng.as_mut().unwrap(),
+            GlobalState::PickingHands(PickingHandsState { rng, .. }) => rng,
+            GlobalState::InGame(InGameState { rng, .. }) => rng,
+        };
+
+        rng.push_numbers(&self.numbers);
+        let numbers_left = rng.numbers.len();
+        Ok(response::PushRngNumbersOk { numbers_left })
+    }
+}
+
 impl Step for command::PickHand {
     fn step(self, global: &mut GlobalState) -> Result<Self::Response, ErrorResponse> {
-        if let GlobalState::PickingHands(ref mut state, battle_system) = global {
+        if let GlobalState::PickingHands(ref mut state) = global {
             let res = match logic::pre_game_next(state, self) {
                 Err(err) => Err(err),
                 _ => Ok(response::PickHandOk),
             };
 
             if state.is_complete() {
-                let state = InGameState::from_pre_game_state(state, *battle_system);
+                let state = InGameState::from_pre_game_state(state);
                 *global = GlobalState::InGame(state);
             }
 

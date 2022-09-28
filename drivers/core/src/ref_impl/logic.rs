@@ -170,7 +170,7 @@ fn resolve_interactions(state: &mut InGameState, events: &mut Vec<Event>, attack
 
     // if the attacker won or if there was no battle
     // handle free flips
-    if winner == Some(BattleWinner::Attacker) || winner == None {
+    if winner == Some(BattleWinner::Attacker) || winner.is_none() {
         for cell in non_defenders {
             let defender = match &mut state.board[cell as usize] {
                 Cell::Card(card) => card,
@@ -293,19 +293,19 @@ fn roll(battle_system: &mut BattleSystem, rng: &mut Rng, value: u8) -> u8 {
             let min = value << 4; // range: 00, 10, 20, ..., F0
             let max = min | 0xF; // range: 0F, 1F, 2F, ..., FF
 
-            let stat1 = rng.u8(min..=max);
-            let stat2 = rng.u8(0..=stat1);
+            let stat1 = rng.gen_u8(min..=max);
+            let stat2 = rng.gen_u8(..=stat1);
             stat1 - stat2
         }
         BattleSystem::Dice { sides } => {
             // roll {value} dice and return the sum
-            (0..value).map(|_| rng.u8(1..=*sides)).sum()
+            (0..value).map(|_| rng.gen_u8(1..=*sides)).sum()
         }
         // rolls are proportional to the rng number and falls in the range 0x00 - 0x{value}F
         // meant for making battles in tests predictable
         BattleSystem::Test => {
             let max = (value << 4) | 0xF;
-            let rng = rng.u8(0..=u8::MAX) as f64 / 0xFF as f64;
+            let rng = rng.gen_u8(..) as f64 / 0xFF as f64;
             (rng * max as f64).round() as u8
         }
     }

@@ -1,4 +1,4 @@
-use crate::{BattleSystem, Card, CardType, HandCandidates, Rng};
+use crate::{BattleSystem, Card, CardType, HandCandidates};
 use std::fmt::Result as FResult;
 
 // TODO: replace this with a bespoke Error enum
@@ -10,10 +10,9 @@ pub trait Command {
 
 #[derive(Debug)]
 pub struct Setup {
-    pub rng: Option<Rng>,
-    pub battle_system: Option<BattleSystem>,
-    pub blocked_cells: Option<Vec<u8>>,
-    pub hand_candidates: Option<HandCandidates>,
+    pub battle_system: BattleSystem,
+    pub blocked_cells: Vec<u8>,
+    pub hand_candidates: HandCandidates,
 }
 
 impl Command for Setup {
@@ -23,41 +22,50 @@ impl Command for Setup {
         o.list(|o| {
             o.atom("setup")?;
 
-            if let Some(rng) = self.rng {
-                o.list(|o| {
-                    o.atom("rng")?;
-                    match rng {
-                        Rng::Seeded { seed } => o.atoms(("seed", DisplayHex(seed))),
-                        Rng::External { rolls } => {
-                            o.atom("external")?;
-                            o.array(rolls, |o, roll| o.atom(DisplayHex(roll)))
-                        }
-                    }
-                })?;
-            }
+            o.list(|o| {
+                o.atom("battle-system")?;
+                match self.battle_system {
+                    BattleSystem::Original => o.atom("original"),
+                    BattleSystem::Dice { sides } => o.atoms(("dice", DisplayHex(sides))),
+                    BattleSystem::Test => o.atom("test"),
+                }
+            })?;
 
-            if let Some(battle_system) = self.battle_system {
-                o.list(|o| {
-                    o.atom("battle-system")?;
-                    match battle_system {
-                        BattleSystem::Original => o.atom("original"),
-                        BattleSystem::Dice { sides } => o.atoms(("dice", DisplayHex(sides))),
-                        BattleSystem::Test => o.atom("test"),
-                    }
-                })?;
-            }
+            o.list(|o| {
+                o.atom("blocked-cells")?;
+                write_blocked_cells(o, &self.blocked_cells)
+            })?;
 
-            if let Some(blocked_cells) = self.blocked_cells {
-                o.list(|o| {
-                    o.atom("blocked-cells")?;
-                    write_blocked_cells(o, &blocked_cells)
-                })?;
-            }
+            o.list(|o| {
+                o.atom("hand-candidates")?;
+                write_hand_candidates(o, &self.hand_candidates)
+            })?;
 
-            if let Some(hand_candidates) = self.hand_candidates {
+            Ok(())
+        })?;
+
+        out.push('\n');
+
+        Ok(())
+    }
+}
+
+#[derive(Debug)]
+pub struct PushRngNumbers {
+    pub numbers: Vec<u8>,
+}
+
+impl Command for PushRngNumbers {
+    fn serialize(self, out: &mut String) -> Result<(), Error> {
+        let mut o = Sexpr::new(out);
+
+        o.list(|o| {
+            o.atom("push-rng-numbers")?;
+
+            if !self.numbers.is_empty() {
                 o.list(|o| {
-                    o.atom("hand-candidates")?;
-                    write_hand_candidates(o, &hand_candidates)
+                    o.atom("numbers")?;
+                    o.array(self.numbers, |o, number| o.atom(DisplayHex(number)))
                 })?;
             }
 
@@ -253,7 +261,7 @@ mod tests {
     use test_case::test_case;
 
     use super::*;
-    use crate::{Arrows, BattleSystem, Card, HandCandidates, Rng};
+    use crate::{Arrows, BattleSystem, Card, HandCandidates};
 
     fn assert_eq<T, U>(expected: T) -> impl Fn(U)
     where
@@ -308,82 +316,32 @@ mod tests {
     }
 
     #[test_case(Setup {
-        rng: None,
-        battle_system: None,
-        blocked_cells: None,
-        hand_candidates: None,
-    } => using assert_eq("(setup)\n"))]
-    #[test_case(Setup {
-        rng: Some(Rng::Seeded{ seed: 123 }),
-        battle_system: None,
-        blocked_cells: None,
-        hand_candidates: None,
-    } => using assert_eq("(setup (rng seed 7B))\n"))]
-    #[test_case(Setup {
-        rng: Some(Rng::External { rolls: vec![24, 3, 5, 2, 134, 3, 5, 2, 94, 4] }),
-        battle_system: None,
-        blocked_cells: None,
-        hand_candidates: None,
-    } => using assert_eq("(setup (rng external (18 3 5 2 86 3 5 2 5E 4)))\n"))]
-    #[test_case(Setup {
-        rng: None,
-        battle_system: Some(BattleSystem::Original),
-        blocked_cells: None,
-        hand_candidates: None,
-    } => using assert_eq("(setup (battle-system original))\n"))]
-    #[test_case(Setup {
-        rng: None,
-        battle_system: Some(BattleSystem::Dice { sides: 13 }),
-        blocked_cells: None,
-        hand_candidates: None,
-    } => using assert_eq("(setup (battle-system dice D))\n"))]
-    #[test_case(Setup {
-        rng: None,
-        battle_system: Some(BattleSystem::Test),
-        blocked_cells: None,
-        hand_candidates: None,
-    } => using assert_eq("(setup (battle-system test))\n"))]
-    #[test_case(Setup {
-        rng: None,
-        battle_system: None,
-        blocked_cells: Some(vec![]),
-        hand_candidates: None,
-    } => using assert_eq("(setup (blocked-cells ()))\n"))]
-    #[test_case(Setup {
-        rng: None,
-        battle_system: None,
-        blocked_cells: Some(vec![2, 0xA]),
-        hand_candidates: None,
-    } => using assert_eq("(setup (blocked-cells (2 A)))\n"))]
-    #[test_case(Setup {
-        rng: None,
-        battle_system: None,
-        blocked_cells: None,
-        hand_candidates: Some([
+        battle_system: BattleSystem::Dice { sides: 8 },
+        blocked_cells: vec![2, 8, 0xA],
+        hand_candidates: [
             [C1P23_4, C5M67_8, C9XAB_C, CDAEF_0, C5M67_8],
             [C5M67_8, C1P23_4, CDAEF_0, C5M67_8, C9XAB_C],
             [CDAEF_0, C5M67_8, C9XAB_C, C5M67_8, C1P23_4],
-        ]),
-    } => using assert_eq(concat!("(setup (hand-candidates",
-                                         " ((1P23_4 5M67_8 9XAB_C DAEF_0 5M67_8)",
-                                         " (5M67_8 1P23_4 DAEF_0 5M67_8 9XAB_C)",
-                                         " (DAEF_0 5M67_8 9XAB_C 5M67_8 1P23_4))))\n")))]
-    #[test_case(Setup {
-        rng: Some(Rng::Seeded{ seed: 123 }),
-        battle_system: Some(BattleSystem::Dice { sides: 8 }),
-        blocked_cells: Some(vec![2, 8, 0xA]),
-        hand_candidates: Some([
-            [C1P23_4, C5M67_8, C9XAB_C, CDAEF_0, C5M67_8],
-            [C5M67_8, C1P23_4, CDAEF_0, C5M67_8, C9XAB_C],
-            [CDAEF_0, C5M67_8, C9XAB_C, C5M67_8, C1P23_4],
-        ]),
-    } => using assert_eq(concat!("(setup (rng seed 7B) (battle-system dice 8)",
+        ],
+    } => using assert_eq(concat!("(setup (battle-system dice 8)",
                                        " (blocked-cells (2 8 A))",
                                        " (hand-candidates ",
                                           "((1P23_4 5M67_8 9XAB_C DAEF_0 5M67_8)",
                                           " (5M67_8 1P23_4 DAEF_0 5M67_8 9XAB_C)",
                                           " (DAEF_0 5M67_8 9XAB_C 5M67_8 1P23_4))))\n")))]
     fn setup(input: Setup) -> String {
+        let mut o = String::new();
+        input.serialize(&mut o).unwrap();
+        o
+    }
+
+    #[test_case(PushRngNumbers {
+        numbers: vec![24, 3, 5, 2, 134, 3, 5, 2, 94, 4],
+    } => using assert_eq("(push-rng-numbers (numbers (18 3 5 2 86 3 5 2 5E 4)))\n"))]
+    #[test_case(PushRngNumbers {
+        numbers: vec![],
+    } => using assert_eq("(push-rng-numbers)\n"))]
+    fn push_rng_numbers(input: PushRngNumbers) -> String {
         let mut o = String::new();
         input.serialize(&mut o).unwrap();
         o
