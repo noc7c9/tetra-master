@@ -328,7 +328,7 @@ impl Step for command::PlaceCard {
                 &[]
             };
 
-            Ok(response::PlaceCardOk {
+            Ok(response::PlayOk {
                 pick_battle: choices.iter().map(|(cell, _)| *cell).collect(),
                 events,
             })
@@ -352,7 +352,7 @@ impl Step for command::PickBattle {
                 &[]
             };
 
-            Ok(response::PlaceCardOk {
+            Ok(response::PlayOk {
                 pick_battle: choices.iter().map(|(cell, _)| *cell).collect(),
                 events,
             })

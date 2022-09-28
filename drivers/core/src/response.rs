@@ -73,14 +73,14 @@ impl Response for PickHandOk {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct PlaceCardOk {
+pub struct PlayOk {
     pub pick_battle: Vec<u8>,
     pub events: Vec<Event>,
 }
 
-impl Response for PlaceCardOk {
+impl Response for PlayOk {
     fn deserialize(i: &str) -> Result<Self, Error> {
-        let (_, res) = place_card_ok(i).map_err(|e| e.to_owned())?;
+        let (_, res) = play_ok(i).map_err(|e| e.to_owned())?;
         Ok(res)
     }
 }
@@ -282,7 +282,7 @@ fn pick_hand_ok(i: &str) -> IResult<&str, PickHandOk> {
     response("pick-hand-ok", |i| Ok((i, PickHandOk)))(i)
 }
 
-fn place_card_ok(i: &str) -> IResult<&str, PlaceCardOk> {
+fn play_ok(i: &str) -> IResult<&str, PlayOk> {
     fn next_turn(i: &str) -> IResult<&str, Event> {
         let (i, to) = prop("next-turn", player)(i)?;
         Ok((i, Event::NextTurn { to }))
@@ -356,14 +356,14 @@ fn place_card_ok(i: &str) -> IResult<&str, PlaceCardOk> {
         alt((next_turn, flip, combo_flip, battle, game_over))(i)
     }
 
-    response("place-card-ok", |i| {
-        let (i, events) = prop("events", separated_list0(multispace1, event))(i)?;
+    response("play-ok", |i| {
+        let (i, events) = opt(prop("events", separated_list0(multispace1, event)))(i)?;
         let (i, pick_battle) = opt(prop("pick-battle", array(hex_digit_1_n(1))))(i)?;
-        let place_card_ok = PlaceCardOk {
+        let play_ok = PlayOk {
             pick_battle: pick_battle.unwrap_or_default(),
-            events,
+            events: events.unwrap_or_default(),
         };
-        Ok((i, place_card_ok))
+        Ok((i, play_ok))
     })(i)
 }
 
@@ -520,38 +520,42 @@ mod tests {
     }
 
     use Event::*;
-    #[test_case("(place-card-ok (events))\n"
-        => PlaceCardOk { pick_battle: vec![], events: vec![] })]
-    #[test_case("(place-card-ok (events (next-turn player1)))\n"
-        => PlaceCardOk { pick_battle: vec![], events: vec![NextTurn { to: Player::P1 }] })]
-    #[test_case("(place-card-ok (events (next-turn player2)))\n"
-        => PlaceCardOk { pick_battle: vec![], events: vec![NextTurn { to: Player::P2 }] })]
-    #[test_case("(place-card-ok (events (flip 4)))\n"
-        => PlaceCardOk { pick_battle: vec![], events: vec![Flip { cell: 4 }] })]
-    #[test_case("(place-card-ok (events (flip 2) (flip A) (flip 7)))\n"
-        => PlaceCardOk { pick_battle: vec![],
+    #[test_case("(play-ok (events))\n"
+        => PlayOk { pick_battle: vec![], events: vec![] })]
+    #[test_case("(play-ok (events (next-turn player1)))\n"
+        => PlayOk { pick_battle: vec![], events: vec![NextTurn { to: Player::P1 }] })]
+    #[test_case("(play-ok (events (next-turn player2)))\n"
+        => PlayOk { pick_battle: vec![], events: vec![NextTurn { to: Player::P2 }] })]
+    #[test_case("(play-ok (events (flip 4)))\n"
+        => PlayOk { pick_battle: vec![], events: vec![Flip { cell: 4 }] })]
+    #[test_case("(play-ok (events (flip 2) (flip A) (flip 7)))\n"
+        => PlayOk { pick_battle: vec![],
             events: vec![Flip { cell: 2 }, Flip { cell: 0xA }, Flip { cell: 7 }] })]
-    #[test_case("(place-card-ok (events (combo-flip A)))\n"
-        => PlaceCardOk { events: vec![ComboFlip { cell: 0xA }], pick_battle: vec![] })]
-    #[test_case("(place-card-ok (events (combo-flip 3) (combo-flip C)))\n"
-        => PlaceCardOk { pick_battle: vec![],
+    #[test_case("(play-ok (events (combo-flip A)))\n"
+        => PlayOk { events: vec![ComboFlip { cell: 0xA }], pick_battle: vec![] })]
+    #[test_case("(play-ok (events (combo-flip 3) (combo-flip C)))\n"
+        => PlayOk { pick_battle: vec![],
             events: vec![ComboFlip { cell: 3 }, ComboFlip { cell: 0xC }] })]
-    #[test_case("(place-card-ok (events (battle (1 A D 2) (8 m 3 Cd) attacker)))\n"
-        => PlaceCardOk { pick_battle: vec![],
+    #[test_case("(play-ok (events (battle (1 A D 2) (8 m 3 Cd) attacker)))\n"
+        => PlayOk { pick_battle: vec![],
             events: vec![Battle {
                 attacker: Battler { cell: 1, digit: Digit::Attack, value: 0xD, roll: 2 },
                 defender: Battler { cell: 8, digit: Digit::MagicalDefense, value: 3, roll: 0xCD },
                 winner: BattleWinner::Attacker,
             }] })]
-    #[test_case("(place-card-ok (events (game-over player1)))\n"
-        => PlaceCardOk { pick_battle: vec![], events: vec![GameOver { winner: Some(Player::P1) }] })]
-    #[test_case("(place-card-ok (events (game-over player2)))\n"
-        => PlaceCardOk { pick_battle: vec![], events: vec![GameOver { winner: Some(Player::P2) }] })]
-    #[test_case("(place-card-ok (events (game-over draw)))\n"
-        => PlaceCardOk { pick_battle: vec![], events: vec![GameOver { winner: None }] })]
-    #[test_case("(place-card-ok (events) (pick-battle (2 3 4)))\n"
-        => PlaceCardOk { pick_battle: vec![2, 3, 4], events: vec![] })]
-    fn place_card_ok(i: &str) -> PlaceCardOk {
+    #[test_case("(play-ok (events (game-over player1)))\n"
+        => PlayOk { pick_battle: vec![], events: vec![GameOver { winner: Some(Player::P1) }] })]
+    #[test_case("(play-ok (events (game-over player2)))\n"
+        => PlayOk { pick_battle: vec![], events: vec![GameOver { winner: Some(Player::P2) }] })]
+    #[test_case("(play-ok (events (game-over draw)))\n"
+        => PlayOk { pick_battle: vec![], events: vec![GameOver { winner: None }] })]
+    #[test_case("(play-ok (events) (pick-battle (2 3 4)))\n"
+        => PlayOk { pick_battle: vec![2, 3, 4], events: vec![] })]
+    #[test_case("(play-ok (pick-battle (F 4)))\n"
+        => PlayOk { pick_battle: vec![15, 4], events: vec![] })]
+    #[test_case("(play-ok (events) (pick-battle ()))\n"
+        => PlayOk { pick_battle: vec![], events: vec![] })]
+    fn place_card_ok(i: &str) -> PlayOk {
         Response::deserialize(i).unwrap()
     }
 }

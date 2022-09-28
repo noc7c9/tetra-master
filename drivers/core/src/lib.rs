@@ -28,10 +28,10 @@ impl CommandResponse for command::PickHand {
     type Response = response::PickHandOk;
 }
 impl CommandResponse for command::PlaceCard {
-    type Response = response::PlaceCardOk;
+    type Response = response::PlayOk;
 }
 impl CommandResponse for command::PickBattle {
-    type Response = response::PlaceCardOk;
+    type Response = response::PlayOk;
 }
 
 /*****************************************************************************************
