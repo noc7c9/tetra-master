@@ -30,9 +30,9 @@ pub(crate) enum Entry {
 }
 
 impl Entry {
-    pub(crate) fn pre_game_setup(seed: Option<Seed>, p1_pick: usize, p2_pick: usize) -> Self {
+    pub(crate) fn pre_game_setup(p1_pick: usize, p2_pick: usize) -> Self {
         Entry::PreGameSetup {
-            seed,
+            seed: None,
             p1_pick,
             p2_pick,
         }

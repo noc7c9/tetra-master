@@ -38,8 +38,7 @@ pub(crate) fn pre_game_next(
             let p2_pick = input.pick;
             state.status = PreGameStatus::Complete { p1_pick, p2_pick };
 
-            let seed = state.rng.initial_seed();
-            log.append(Entry::pre_game_setup(seed, p1_pick, p2_pick));
+            log.append(Entry::pre_game_setup(p1_pick, p2_pick));
 
             // append the first next turn log event to ensure the turn tracking works properly
             log.append(Entry::next_turn(Player::P1));

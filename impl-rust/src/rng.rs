@@ -5,95 +5,81 @@ use crate::{
 
 pub(crate) type Seed = u64;
 
-/// Wrapper around fastrand::Rng that keeps track of the initial seed
 #[derive(Debug, Clone)]
-pub(crate) enum Rng {
-    Internal {
-        initial_seed: Seed,
-        rng: fastrand::Rng,
-    },
-    External {
-        random_numbers: std::collections::VecDeque<u8>,
-    },
+pub(crate) struct Rng {
+    random_numbers: std::collections::VecDeque<u8>,
 }
 
 impl Rng {
     pub(crate) fn new() -> Self {
-        Self::with_seed(fastrand::u64(..))
+        panic!("Rng::new");
     }
 
-    pub(crate) fn with_seed(initial_seed: Seed) -> Self {
-        Self::Internal {
-            initial_seed,
-            rng: fastrand::Rng::with_seed(initial_seed),
+    pub(crate) fn with_seed(_initial_seed: Seed) -> Self {
+        panic!("Rng::with_seed");
+    }
+
+    pub(crate) fn new_external() -> Self {
+        Self {
+            random_numbers: Default::default(),
         }
     }
 
-    pub(crate) fn new_external(random_numbers: std::collections::VecDeque<u8>) -> Self {
-        Self::External { random_numbers }
+    pub(crate) fn push_numbers(&mut self, numbers: Vec<u8>) {
+        self.random_numbers.extend(numbers)
     }
 
-    pub(crate) fn initial_seed(&self) -> Option<Seed> {
-        match self {
-            Self::Internal { initial_seed, .. } => Some(*initial_seed),
-            Self::External { .. } => None,
-        }
+    pub(crate) fn numbers_left(&mut self) -> usize {
+        self.random_numbers.len()
     }
 
     // generate methods
 
     pub(crate) fn u8(&mut self, range: impl std::ops::RangeBounds<u8>) -> u8 {
-        match self {
-            Self::Internal { rng, .. } => rng.u8(range),
-            Self::External { random_numbers } => {
-                // Simple way to map the given num to the range 0..max
-                // This isn't a perfect mapping but will suffice
-                // src: https://lemire.me/blog/2016/06/27/a-fast-alternative-to-the-modulo-reduction
-                fn bound(num: u8, max: u8) -> u8 {
-                    ((num as u16 * max as u16) >> 8) as u8
-                }
+        // eprintln!("u8 ({} left)", random_numbers.len());
 
-                use std::ops::Bound::*;
+        // Simple way to map the given num to the range 0..max
+        // This isn't a perfect mapping but will suffice
+        // src: https://lemire.me/blog/2016/06/27/a-fast-alternative-to-the-modulo-reduction
+        fn bound(num: u8, max: u8) -> u8 {
+            ((num as u16 * max as u16) >> 8) as u8
+        }
 
-                let min = match range.start_bound() {
-                    Included(x) => *x,
-                    Excluded(x) => *x + 1,
-                    Unbounded => u8::MIN,
-                };
-                let max = match range.end_bound() {
-                    Included(x) => *x,
-                    Excluded(x) => *x - 1,
-                    Unbounded => u8::MAX,
-                };
-                debug_assert!(min <= max);
+        use std::ops::Bound::*;
 
-                let random_number = random_numbers
-                    .pop_front()
-                    .expect("Ran out of external random numbers");
+        let min = match range.start_bound() {
+            Included(x) => *x,
+            Excluded(x) => *x + 1,
+            Unbounded => u8::MIN,
+        };
+        let max = match range.end_bound() {
+            Included(x) => *x,
+            Excluded(x) => *x - 1,
+            Unbounded => u8::MAX,
+        };
+        debug_assert!(min <= max);
 
-                if min == u8::MIN {
-                    if max == u8::MAX {
-                        random_number
-                    } else {
-                        bound(random_number, max)
-                    }
-                } else {
-                    min + bound(random_number, max - min + 1)
-                }
+        let random_number = self
+            .random_numbers
+            .pop_front()
+            .expect("Ran out of external random numbers");
+
+        if min == u8::MIN {
+            if max == u8::MAX {
+                random_number
+            } else {
+                bound(random_number, max)
             }
+        } else {
+            min + bound(random_number, max - min + 1)
         }
     }
 
     fn f32(&mut self) -> f32 {
-        match self {
-            Self::Internal { rng, .. } => rng.f32(),
-            Self::External { .. } => {
-                let exponent = 0b0111_1111 << (f32::MANTISSA_DIGITS - 1);
-                let significant =
-                    (self.u8(..) as u32) << 16 | (self.u8(..) as u32) << 8 | self.u8(..) as u32;
-                f32::from_bits(exponent | significant) - 1.0
-            }
-        }
+        let exponent = 0b0111_1111 << (f32::MANTISSA_DIGITS - 1);
+        let significant =
+            (self.u8(..) as u32) << 16 | (self.u8(..) as u32) << 8 | self.u8(..) as u32;
+        f32::from_bits(exponent | significant) - 1.0
     }
 }
 

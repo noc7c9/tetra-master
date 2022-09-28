@@ -1,7 +1,7 @@
 use crate::{
     logic, Arrows, BattleStat, BattleSystem, BattleWinner, Board, Card, CardType, Cell, Entry,
     GameInput, GameInputBattle, GameInputPlace, GameLog, GameState, GameStatus, HandCandidate,
-    HandCandidates, Player, PreGameInput, PreGameState, Rng, Seed, Sexpr, Token,
+    HandCandidates, Player, PreGameInput, PreGameState, Rng, Sexpr, Token,
 };
 use std::fmt::Write;
 
@@ -9,7 +9,7 @@ use std::fmt::Write;
 enum Error {
     // HandCandidatesTooShort,
     // HandCandidateTooShort,
-    InvalidRng { input: String },
+    // InvalidRng { input: String },
     InvalidBattleSystem { input: String },
     InvalidCardType { input: String },
     InvalidHexNumber(std::num::ParseIntError),
@@ -32,7 +32,7 @@ impl std::fmt::Display for Error {
         match self {
             // HandCandidatesTooShort => f.write_str("hand candidates list too short"),
             // HandCandidateTooShort => f.write_str("hand candidate list too short"),
-            InvalidRng { input } => write!(f, "'{input}' is not a valid rng"),
+            // InvalidRng { input } => write!(f, "'{input}' is not a valid rng"),
             InvalidBattleSystem { input } => write!(f, "'{input}' is not a valid battle system"),
             InvalidCardType { input } => write!(f, "'{input}' is not a valid card type"),
             InvalidHexNumber(inner) => inner.fmt(f),
@@ -93,6 +93,8 @@ pub(crate) fn run() -> std::result::Result<(), Box<dyn std::error::Error>> {
     let mut current_state = HeadlessState::NotInGame;
     let mut log = GameLog::new();
 
+    let mut rng = Some(Rng::new_external());
+
     loop {
         use std::io::{BufRead, Write};
 
@@ -113,6 +115,25 @@ pub(crate) fn run() -> std::result::Result<(), Box<dyn std::error::Error>> {
             return Ok(());
         }
 
+        // handle rng command
+        if cmd_name == "push-rng-numbers" {
+            let rng = match &mut current_state {
+                HeadlessState::NotInGame => rng.as_mut().unwrap(),
+                HeadlessState::InPreGame(state, _) => &mut state.rng,
+                HeadlessState::InGame(state) => &mut state.rng,
+            };
+
+            let numbers = parse::push_rng_numbers(cmd)?;
+            rng.push_numbers(numbers);
+
+            buf.clear();
+            write::push_rng_numbers_ok(&mut buf, rng.numbers_left())?;
+            out.write_all(buf.as_bytes())?;
+            out.flush()?;
+
+            continue;
+        }
+
         // handle command
         match current_state {
             HeadlessState::NotInGame => {
@@ -122,7 +143,7 @@ pub(crate) fn run() -> std::result::Result<(), Box<dyn std::error::Error>> {
                     let battle_system = setup.battle_system.unwrap_or(BattleSystem::Original);
 
                     let state = PreGameState::builder()
-                        .rng(setup.rng)
+                        .rng(rng.take())
                         .hand_candidates(setup.hand_candidates)
                         .board(setup.blocked_cells.map(|blocked_cells| {
                             let mut board: Board = Default::default();
@@ -133,7 +154,6 @@ pub(crate) fn run() -> std::result::Result<(), Box<dyn std::error::Error>> {
                         }))
                         .build();
 
-                    let seed = state.rng.initial_seed();
                     let blocked_cells = state.board.iter().enumerate().filter_map(|(idx, cell)| {
                         if let Cell::Blocked = cell {
                             Some(idx)
@@ -144,13 +164,7 @@ pub(crate) fn run() -> std::result::Result<(), Box<dyn std::error::Error>> {
                     let hand_candidates = &state.hand_candidates;
 
                     buf.clear();
-                    write::setup_ok(
-                        &mut buf,
-                        seed,
-                        &battle_system,
-                        blocked_cells,
-                        hand_candidates,
-                    )?;
+                    write::setup_ok(&mut buf, &battle_system, blocked_cells, hand_candidates)?;
 
                     out.write_all(buf.as_bytes())?;
                     out.flush()?;
@@ -207,9 +221,9 @@ pub(crate) fn run() -> std::result::Result<(), Box<dyn std::error::Error>> {
                 if let Err(err) = logic::game_next(&mut state, &mut log, input) {
                     write::error(&mut buf, err.into())?;
                 } else if let GameStatus::WaitingBattle { choices, .. } = &state.status {
-                    write::place_card_ok(&mut buf, log.new_entries(), &state.status, choices)?;
+                    write::play_ok(&mut buf, log.new_entries(), &state.status, choices)?;
                 } else {
-                    write::place_card_ok(&mut buf, log.new_entries(), &state.status, &[])?;
+                    write::play_ok(&mut buf, log.new_entries(), &state.status, &[])?;
                 }
 
                 out.write_all(buf.as_bytes())?;
@@ -240,13 +254,11 @@ mod parse {
 
     #[derive(Debug)]
     pub(super) struct Setup {
-        pub(super) rng: Option<Rng>,
         pub(super) battle_system: Option<BattleSystem>,
         pub(super) blocked_cells: Option<Vec<usize>>,
         pub(super) hand_candidates: Option<HandCandidates>,
     }
     pub(super) fn setup(mut cmd: Sexpr) -> Result<Setup> {
-        let mut rng = None;
         let mut battle_system = None;
         let mut blocked_cells = None;
         let mut hand_candidates = None;
@@ -256,9 +268,6 @@ mod parse {
                 Some(Token::ListStart) => {
                     let arg = cmd.atom();
                     match arg {
-                        "rng" => {
-                            rng = Some(self::rng(&mut cmd)?);
-                        }
                         "battle-system" => {
                             battle_system = Some(self::battle_system(&mut cmd)?);
                         }
@@ -276,11 +285,28 @@ mod parse {
             }
         }
         Ok(Setup {
-            rng,
             battle_system,
             blocked_cells,
             hand_candidates,
         })
+    }
+
+    pub(super) fn push_rng_numbers(mut cmd: Sexpr) -> Result<Vec<u8>> {
+        let mut numbers = Vec::new();
+        if let Some(Token::ListStart) = cmd.next() {
+            let name = cmd.atom();
+            if name == "numbers" {
+                cmd.list_start();
+                while let Some(Token::Atom(v)) = cmd.next() {
+                    numbers.push(u8::from_str_radix(v, 16)?);
+                }
+
+                cmd.list_end();
+            } else {
+                panic!("Invalid property: {name}")
+            }
+        }
+        Ok(numbers)
     }
 
     pub(super) fn pick_hand(mut cmd: Sexpr) -> Result<usize> {
@@ -297,25 +323,6 @@ mod parse {
     pub(super) fn pick_battle(mut cmd: Sexpr) -> Result<usize> {
         let cell = prop(&mut cmd, "cell", |v| usize::from_str_radix(v, 16))?;
         Ok(cell)
-    }
-
-    fn rng(cmd: &mut Sexpr) -> Result<Rng> {
-        let kind = cmd.atom();
-        match kind {
-            "seed" => {
-                let seed = u64::from_str_radix(cmd.atom(), 16)?;
-                Ok(Rng::with_seed(seed))
-            }
-            "external" => {
-                cmd.list_start();
-                let mut rolls = std::collections::VecDeque::new();
-                while let Some(Token::Atom(v)) = cmd.next() {
-                    rolls.push_back(u8::from_str_radix(v, 16)?);
-                }
-                Ok(Rng::new_external(rolls))
-            }
-            _ => Err(Error::InvalidRng { input: kind.into() }),
-        }
     }
 
     fn battle_system(cmd: &mut Sexpr) -> Result<BattleSystem> {
@@ -405,16 +412,11 @@ mod write {
 
     pub(super) fn setup_ok(
         o: &mut String,
-        seed: Option<Seed>,
         battle_system: &BattleSystem,
         blocked_cells: impl Iterator<Item = usize>,
         hand_candidates: &HandCandidates,
     ) -> Result {
         write!(o, "(setup-ok")?;
-
-        if let Some(seed) = seed {
-            write!(o, " (seed {seed:X})")?;
-        }
 
         write!(o, " (battle-system ")?;
         write::battle_system(o, battle_system)?;
@@ -429,18 +431,23 @@ mod write {
         Ok(())
     }
 
+    pub(super) fn push_rng_numbers_ok(o: &mut String, numbers_left: usize) -> Result {
+        writeln!(o, "(push-rng-numbers-ok (numbers-left {numbers_left:X}))")?;
+        Ok(())
+    }
+
     pub(super) fn pick_hand_ok(o: &mut String) -> Result {
         writeln!(o, "(pick-hand-ok)")?;
         Ok(())
     }
 
-    pub(super) fn place_card_ok(
+    pub(super) fn play_ok(
         o: &mut String,
         entries: &[Entry],
         status: &GameStatus,
         pick_battle: &[(usize, Card)],
     ) -> Result {
-        write!(o, "(place-card-ok (events")?;
+        write!(o, "(play-ok (events")?;
 
         for entry in entries {
             match entry {
