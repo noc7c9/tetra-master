@@ -72,7 +72,7 @@ fn mouse_input(
         .build();
         // TODO: handle the error
         let response = driver
-            .send_random_setup(core::BattleSystem::Original)
+            .send_random_setup(core::BattleSystem::Dice { sides: 12 })
             .unwrap();
         let c = response.hand_candidates;
         commands.insert_resource(Candidates([Some(c[0]), Some(c[1]), Some(c[2])]));
