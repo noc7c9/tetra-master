@@ -50,8 +50,8 @@ impl Driver {
 
     pub fn send<C>(&mut self, cmd: C) -> Result<C::Response>
     where
-        C: CommandResponse + Step + std::fmt::Debug,
-        C::Response: std::fmt::Debug,
+        C: CommandResponse + Step + std::fmt::Display,
+        C::Response: std::fmt::Display,
     {
         let res = self.send_actual(cmd);
         self.auto_feed_rng()?;
@@ -78,14 +78,14 @@ impl Driver {
 
     fn send_actual<C>(&mut self, cmd: C) -> Result<C::Response>
     where
-        C: CommandResponse + Step + std::fmt::Debug,
-        C::Response: std::fmt::Debug,
+        C: CommandResponse + Step + std::fmt::Display,
+        C::Response: std::fmt::Display,
     {
         use owo_colors::OwoColorize;
 
         if self.log {
             let prefix = " TX ".black().on_bright_purple();
-            eprintln!("{} {:?}", prefix, cmd.bright_purple());
+            eprintln!("{} {}", prefix, cmd.bright_purple());
         }
 
         let res = match &mut self.inner {
@@ -95,7 +95,10 @@ impl Driver {
 
         if self.log {
             let prefix = " RX ".black().on_bright_blue();
-            eprintln!("{} {:?}", prefix, res.bright_blue());
+            match &res {
+                Ok(ok) => eprintln!("{} {}", prefix, ok.bright_blue()),
+                Err(err) => eprintln!("{} Err {}", prefix, err.bright_blue()),
+            }
         }
 
         res
@@ -200,8 +203,8 @@ impl ReferenceDriver {
 
     fn send<C>(&mut self, cmd: C) -> Result<C::Response>
     where
-        C: CommandResponse + Step + std::fmt::Debug,
-        C::Response: std::fmt::Debug,
+        C: CommandResponse + Step + std::fmt::Display,
+        C::Response: std::fmt::Display,
     {
         self.ref_impl.step(cmd)
     }

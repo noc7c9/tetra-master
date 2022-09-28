@@ -1,3 +1,4 @@
+mod display;
 mod driver;
 mod random_setup;
 mod ref_impl;

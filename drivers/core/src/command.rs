@@ -1,4 +1,4 @@
-use crate::{BattleSystem, Card, CardType, HandCandidates};
+use crate::{display::DisplayHex, BattleSystem, Card, CardType, HandCandidates};
 use std::fmt::Result as FResult;
 
 // TODO: replace this with a bespoke Error enum
@@ -162,14 +162,6 @@ fn write_hand_candidates(o: &mut Sexpr, hand_candidates: &HandCandidates) -> FRe
     o.array(hand_candidates, |o, hand| {
         o.array(hand, |o, card| write_card(o, *card))
     })
-}
-
-struct DisplayHex<T>(T);
-
-impl<T: std::fmt::UpperHex> std::fmt::Display for DisplayHex<T> {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> FResult {
-        write!(f, "{:X}", self.0)
-    }
 }
 
 use sexpr::Sexpr;
