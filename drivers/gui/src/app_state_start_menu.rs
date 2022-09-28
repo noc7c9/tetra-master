@@ -68,15 +68,12 @@ fn mouse_input(
             Some(implementation) => core::Driver::external(implementation),
             None => core::Driver::reference(),
         }
-        .log();
-        let cmd = core::command::Setup {
-            rng: None,
-            battle_system: None,
-            blocked_cells: None,
-            hand_candidates: None,
-        };
+        .log()
+        .build();
         // TODO: handle the error
-        let response = driver.send(cmd).unwrap();
+        let response = driver
+            .send_random_setup(core::BattleSystem::Original)
+            .unwrap();
         let c = response.hand_candidates;
         commands.insert_resource(Candidates([Some(c[0]), Some(c[1]), Some(c[2])]));
         commands.insert_resource(BlockedCells(
