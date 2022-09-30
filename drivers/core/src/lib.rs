@@ -44,7 +44,7 @@ pub type Result<T> = std::result::Result<T, Error>;
 #[derive(Debug)]
 pub enum Error {
     ErrorResponse(response::ErrorResponse),
-    SerializationError(std::fmt::Error),
+    SerializationError(command::Error),
     DeserializationError(response::Error),
     IOError(std::io::Error),
 }
