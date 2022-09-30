@@ -186,20 +186,24 @@ fn highlight_on_hover(
     };
 
     for evt in hover_end.iter() {
-        let candidate_idx = candidates.get(evt.entity).unwrap();
-        set_highlight(candidate_idx.0, None);
+        // might be missing if this triggers during clean up
+        if let Ok(candidate_idx) = candidates.get(evt.entity) {
+            set_highlight(candidate_idx.0, None);
 
-        hovered_candidate.0 = None;
+            hovered_candidate.0 = None;
+        }
     }
     for evt in hover_start.iter() {
-        let candidate_idx = candidates.get(evt.entity).unwrap();
-        let highlight = match *status {
-            Status::BluePicking => core::Player::P1,
-            Status::RedPicking => core::Player::P2,
-        };
-        set_highlight(candidate_idx.0, Some(highlight));
+        // might be missing if this triggers during clean up
+        if let Ok(candidate_idx) = candidates.get(evt.entity) {
+            let highlight = match *status {
+                Status::BluePicking => core::Player::P1,
+                Status::RedPicking => core::Player::P2,
+            };
+            set_highlight(candidate_idx.0, Some(highlight));
 
-        hovered_candidate.0 = Some((evt.entity, candidate_idx.0));
+            hovered_candidate.0 = Some((evt.entity, candidate_idx.0));
+        }
     }
 }
 
