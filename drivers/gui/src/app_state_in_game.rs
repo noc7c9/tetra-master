@@ -1,7 +1,8 @@
 use crate::{
     common::{
-        calc_board_card_screen_pos, calc_board_cell_screen_pos, calc_hand_card_screen_pos,
-        start_new_game, BlockedCells, Card, Driver, HandIdx, Owner, Turn, CELL_SIZE,
+        calc_board_card_screen_pos, calc_board_cell_screen_pos, calc_hand_card_active_screen_pos,
+        calc_hand_card_hovered_screen_pos, calc_hand_card_screen_pos, start_new_game, z_index,
+        BlockedCells, Card, Driver, HandIdx, Owner, Turn, CELL_SIZE,
     },
     hover, AppAssets, AppState, CARD_SIZE, COIN_SIZE, RENDER_HSIZE,
 };
@@ -9,7 +10,6 @@ use bevy::{prelude::*, sprite::Anchor};
 use rand::prelude::*;
 use tetra_master_core as core;
 
-const CARD_EMPHASIZE_OFFSET: Vec3 = Vec3::new(12., 0., 5.);
 const CARD_COUNTER_PADDING: Vec2 = Vec2::new(10., 5.);
 const COIN_PADDING: Vec2 = Vec2::new(20., 20.);
 
@@ -129,7 +129,7 @@ fn on_enter(
     commands
         .spawn_bundle(SpriteBundle {
             texture: app_assets.board.clone(),
-            transform: Transform::from_xyz(0., 0., 0.1),
+            transform: Transform::from_xyz(0., 0., z_index::BG + 0.1),
             ..default()
         })
         .insert(Cleanup);
@@ -138,7 +138,9 @@ fn on_enter(
     let mut rng = rand::thread_rng();
     for &cell in &blocked_cells.0 {
         let texture_idx = rng.gen_range(0..app_assets.blocked_cell.len());
-        let transform = Transform::from_translation(calc_board_cell_screen_pos(cell).extend(0.2));
+        let transform = Transform::from_translation(
+            calc_board_cell_screen_pos(cell).extend(z_index::BOARD_BLOCKED_CELL),
+        );
         commands
             .spawn_bundle(SpriteBundle {
                 sprite: Sprite {
@@ -158,7 +160,8 @@ fn on_enter(
             continue;
         }
 
-        let transform = Transform::from_translation(calc_board_cell_screen_pos(cell).extend(100.));
+        let position = calc_board_cell_screen_pos(cell).extend(z_index::BOARD_CELL_HOVER_AREA);
+        let transform = Transform::from_translation(position);
         commands
             .spawn()
             .insert(Cleanup)
@@ -197,7 +200,7 @@ fn on_enter(
                 ..default()
             },
             texture: app_assets.card_counter_center.clone(),
-            transform: Transform::from_xyz(x, y, 1.0),
+            transform: Transform::from_xyz(x, y, z_index::CARD_COUNTER),
             ..default()
         })
         .insert(Cleanup);
@@ -208,7 +211,7 @@ fn on_enter(
                 ..default()
             },
             texture: app_assets.card_counter_red[0].clone(),
-            transform: Transform::from_xyz(x, y, 1.0),
+            transform: Transform::from_xyz(x, y, z_index::CARD_COUNTER),
             ..default()
         })
         .insert(RedCardCounter(0))
@@ -220,13 +223,13 @@ fn on_enter(
                 ..default()
             },
             texture: app_assets.card_counter_blue[0].clone(),
-            transform: Transform::from_xyz(x, y, 1.0),
+            transform: Transform::from_xyz(x, y, z_index::CARD_COUNTER),
             ..default()
         })
         .insert(BlueCardCounter(0))
         .insert(Cleanup);
 
-    // coin
+    // turn indicator coin
     let x = RENDER_HSIZE.x - COIN_SIZE.x - COIN_PADDING.x;
     let y = -RENDER_HSIZE.y + COIN_PADDING.y;
     commands
@@ -237,7 +240,7 @@ fn on_enter(
                 ..default()
             },
             texture_atlas: app_assets.coin_flip.clone(),
-            transform: Transform::from_xyz(x, y, 1.0),
+            transform: Transform::from_xyz(x, y, z_index::TURN_INDICATOR_COIN),
             ..default()
         })
         .insert(Coin)
@@ -407,7 +410,7 @@ fn handle_play_ok(
     for cell in &play_ok.pick_battle {
         let cell = *cell as usize;
         let mut translation = calc_board_card_screen_pos(cell);
-        translation.z += 1.;
+        translation.z = z_index::BOARD_CARD_SELECT_INDICATOR;
         commands
             .spawn_bundle(SpriteBundle {
                 sprite: Sprite {
@@ -502,21 +505,19 @@ fn update_card_positions(
     if hovered_cell.is_changed() || hovered_card.is_changed() || active_card.is_changed() {
         // iterate over all the cards and set the position for all of them
         for (entity, owner, hand_idx, placed, mut transform) in &mut hand_cards {
-            transform.translation = calc_hand_card_screen_pos(owner.0, hand_idx.0);
-
             let is_hovered = hovered_card.0 == Some(entity);
             let is_active = active_card.0 == Some(entity);
             let is_over_cell = hovered_cell.0.is_some();
             if let Some(&PlacedCard(cell)) = placed {
                 transform.translation = calc_board_card_screen_pos(cell);
-            } else if is_hovered || (is_active && !is_over_cell) {
-                transform.translation.x += match owner.0 {
-                    core::Player::P1 => -CARD_EMPHASIZE_OFFSET.x,
-                    core::Player::P2 => CARD_EMPHASIZE_OFFSET.x,
-                };
-                transform.translation.z += CARD_EMPHASIZE_OFFSET.z;
+            } else if is_hovered {
+                transform.translation = calc_hand_card_hovered_screen_pos(owner.0, hand_idx.0);
+            } else if is_active && !is_over_cell {
+                transform.translation = calc_hand_card_active_screen_pos(owner.0, hand_idx.0);
             } else if is_over_cell && is_active {
                 transform.translation = calc_board_card_screen_pos(hovered_cell.0.unwrap());
+            } else {
+                transform.translation = calc_hand_card_screen_pos(owner.0, hand_idx.0);
             }
         }
     }
@@ -688,21 +689,8 @@ pub(crate) fn spawn_battler_stats(
     const WIDTH_3_DIGIT_2_POS: Vec2 = Vec2::new(16., 24.);
     const WIDTH_3_DIGIT_3_POS: Vec2 = Vec2::new(26., 24.);
 
-    fn spawn_digit(app_assets: &AppAssets, p: &mut ChildBuilder<'_, '_, '_>, index: u8, pos: Vec2) {
-        p.spawn_bundle(SpriteSheetBundle {
-            sprite: TextureAtlasSprite {
-                index: index as usize,
-                anchor: Anchor::BottomLeft,
-                ..default()
-            },
-            texture_atlas: app_assets.battle_digits.clone(),
-            transform: Transform::from_xyz(pos.x, pos.y, 0.),
-            ..default()
-        });
-    }
-
     let mut position = calc_board_card_screen_pos(battler.cell as usize);
-    position.z += 1.;
+    position.z = z_index::BOARD_CARD_STARTS;
     let transform = Transform::from_translation(position);
     commands
         .spawn()
@@ -712,6 +700,24 @@ pub(crate) fn spawn_battler_stats(
         .insert(ComputedVisibility::default())
         .insert(Cleanup)
         .with_children(|p| {
+            fn spawn_digit(
+                app_assets: &AppAssets,
+                p: &mut ChildBuilder<'_, '_, '_>,
+                index: u8,
+                position: Vec2,
+            ) {
+                p.spawn_bundle(SpriteSheetBundle {
+                    sprite: TextureAtlasSprite {
+                        index: index as usize,
+                        anchor: Anchor::BottomLeft,
+                        ..default()
+                    },
+                    texture_atlas: app_assets.battle_digits.clone(),
+                    transform: Transform::from_translation(position.extend(0.)),
+                    ..default()
+                });
+            }
+
             // show the stat roll
             match battler.roll {
                 0..=9 => {

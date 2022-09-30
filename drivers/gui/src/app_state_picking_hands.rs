@@ -1,7 +1,7 @@
 use crate::{
     common::{
-        calc_candidate_card_screen_pos, calc_hand_card_screen_pos, spawn_card, Candidates, Driver,
-        HandIdx, OptionalOwner, Owner, CANDIDATE_PADDING,
+        calc_candidate_card_screen_pos, calc_hand_card_screen_pos, spawn_card, z_index, Candidates,
+        Driver, HandIdx, OptionalOwner, Owner, CANDIDATE_PADDING,
     },
     hover, AppAssets, AppState, CARD_SIZE,
 };
@@ -48,8 +48,8 @@ fn on_enter(mut commands: Commands, app_assets: Res<AppAssets>, candidates: Res<
     for (candidate_idx, candidate) in candidates.0.iter().enumerate() {
         let candidate = candidate.unwrap(); // will all exist on_enter
         for (hand_idx, card) in candidate.iter().enumerate() {
-            let pos = calc_candidate_card_screen_pos(candidate_idx, hand_idx);
-            spawn_card(&mut commands, &app_assets, pos.extend(1.), *card)
+            let position = calc_candidate_card_screen_pos(candidate_idx, hand_idx);
+            spawn_card(&mut commands, &app_assets, position, *card)
                 .insert(OptionalOwner(None))
                 .insert(Cleanup)
                 .insert(HandIdx(hand_idx))
@@ -57,7 +57,8 @@ fn on_enter(mut commands: Commands, app_assets: Res<AppAssets>, candidates: Res<
         }
 
         let size = (CARD_SIZE.x * 5. + CANDIDATE_PADDING * 4., CARD_SIZE.y).into();
-        let position = calc_candidate_card_screen_pos(candidate_idx, 0).extend(0.);
+        let mut position = calc_candidate_card_screen_pos(candidate_idx, 0);
+        position.z = z_index::CANDIDATE_HAND_HOVER_AREA;
         let transform = Transform::from_translation(position);
         commands
             .spawn()

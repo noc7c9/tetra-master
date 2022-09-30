@@ -14,10 +14,10 @@ impl bevy::app::Plugin for Plugin {
 #[cfg(debug_assertions)]
 mod debug_only {
     use super::*;
+    use crate::common::z_index;
     use bevy::app::AppExit;
     use bevy_prototype_lyon::prelude::*;
 
-    const Z: f32 = 666.;
     const DEFAULT_FILL: Color = Color::CYAN;
     const OPACITY: f32 = 0.1;
 
@@ -86,7 +86,7 @@ mod debug_only {
                     p.spawn_bundle(GeometryBuilder::build_as(
                         &shape,
                         DrawMode::Fill(FillMode::color(fill)),
-                        Transform::from_xyz(0., 0., Z),
+                        Transform::from_xyz(0., 0., z_index::DEBUG),
                     ));
                 });
         }

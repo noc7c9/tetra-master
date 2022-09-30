@@ -7,6 +7,9 @@ const TOTAL_CARD_IMAGES: usize = 100;
 const PLAYER_HAND_VOFFSET: f32 = 27.;
 const PLAYER_HAND_PADDING: f32 = 4.;
 
+const PLAYER_HAND_ACTIVE_HOFFSET: f32 = 12.;
+const PLAYER_HAND_HOVERED_HOFFSET: f32 = 12.;
+
 const BOARD_POS: Vec2 = Vec2::new(-88.5, -95.5);
 pub const CELL_SIZE: Vec2 = Vec2::new(CARD_SIZE.x + 1., CARD_SIZE.y + 1.);
 
@@ -21,6 +24,30 @@ impl bevy::app::Plugin for Plugin {
             app.add_system(dont_allow_card_to_change);
         }
     }
+}
+
+pub mod z_index {
+    pub const BG: f32 = 0.;
+
+    pub const CARD_COUNTER: f32 = 1.;
+    pub const TURN_INDICATOR_COIN: f32 = 1.;
+
+    pub const CANDIDATE_HAND_CARD: f32 = 1.;
+
+    pub const HAND_CARD: f32 = 1.;
+    pub const HAND_CARD_ACTIVE: f32 = 5.;
+    pub const HAND_CARD_HOVERED: f32 = 10.;
+
+    pub const BOARD_CARD: f32 = 1.;
+    pub const BOARD_BLOCKED_CELL: f32 = 1.;
+    pub const BOARD_CARD_STARTS: f32 = 2.;
+    pub const BOARD_CARD_SELECT_INDICATOR: f32 = 2.;
+
+    // hover areas
+    pub const CANDIDATE_HAND_HOVER_AREA: f32 = 100.;
+    pub const BOARD_CELL_HOVER_AREA: f32 = 100.;
+
+    pub const DEBUG: f32 = 666.;
 }
 
 pub struct Driver(pub core::Driver);
@@ -206,12 +233,13 @@ fn card_to_image_index(card: core::Card) -> usize {
     hash % TOTAL_CARD_IMAGES
 }
 
-pub fn calc_candidate_card_screen_pos(candidate_idx: usize, hand_idx: usize) -> Vec2 {
+pub fn calc_candidate_card_screen_pos(candidate_idx: usize, hand_idx: usize) -> Vec3 {
     let candidate_idx = candidate_idx as f32;
     let hand_idx = hand_idx as f32;
-    Vec2::new(
+    Vec3::new(
         CARD_SIZE.x * -2.5 + CANDIDATE_PADDING * -2. + hand_idx * (CARD_SIZE.x + CANDIDATE_PADDING),
         CARD_SIZE.y * 0.5 + CANDIDATE_PADDING + candidate_idx * -(CARD_SIZE.y + CANDIDATE_PADDING),
+        z_index::CANDIDATE_HAND_CARD,
     )
 }
 
@@ -223,8 +251,28 @@ pub fn calc_hand_card_screen_pos(owner: core::Player, hand_idx: usize) -> Vec3 {
             core::Player::P2 => -RENDER_HSIZE.x + PLAYER_HAND_PADDING,
         },
         RENDER_HSIZE.y - CARD_SIZE.y - PLAYER_HAND_PADDING - PLAYER_HAND_VOFFSET * hand_idx,
-        1. + hand_idx,
+        z_index::HAND_CARD + hand_idx,
     )
+}
+
+pub fn calc_hand_card_active_screen_pos(owner: core::Player, hand_idx: usize) -> Vec3 {
+    let mut pos = calc_hand_card_screen_pos(owner, hand_idx);
+    pos.x += match owner {
+        core::Player::P1 => -PLAYER_HAND_ACTIVE_HOFFSET,
+        core::Player::P2 => PLAYER_HAND_ACTIVE_HOFFSET,
+    };
+    pos.z += z_index::HAND_CARD_ACTIVE;
+    pos
+}
+
+pub fn calc_hand_card_hovered_screen_pos(owner: core::Player, hand_idx: usize) -> Vec3 {
+    let mut pos = calc_hand_card_screen_pos(owner, hand_idx);
+    pos.x += match owner {
+        core::Player::P1 => -PLAYER_HAND_HOVERED_HOFFSET,
+        core::Player::P2 => PLAYER_HAND_HOVERED_HOFFSET,
+    };
+    pos.z += z_index::HAND_CARD_HOVERED;
+    pos
 }
 
 pub fn calc_board_cell_screen_pos(cell: usize) -> Vec2 {
@@ -238,7 +286,7 @@ pub fn calc_board_card_screen_pos(cell: usize) -> Vec3 {
     Vec3::new(
         BOARD_POS.x + (cell % 4) as f32 * CELL_SIZE.x + 0.5,
         BOARD_POS.y + (3 - cell / 4) as f32 * CELL_SIZE.y + 0.5,
-        2.,
+        z_index::BOARD_CARD,
     )
 }
 

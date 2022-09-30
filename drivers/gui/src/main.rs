@@ -199,7 +199,7 @@ fn setup(
     commands.insert_resource(ClearColor(CLEAR_COLOR));
     commands.spawn_bundle(SpriteBundle {
         texture: app_assets.background.clone(),
-        transform: Transform::from_xyz(0., 0., 0.),
+        transform: Transform::from_xyz(0., 0., common::z_index::BG),
         ..default()
     });
 
