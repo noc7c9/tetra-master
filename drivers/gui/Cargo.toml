@@ -6,11 +6,8 @@ edition = "2021"
 [dependencies]
 tetra-master-core = { path = "../core" }
 
-bevy = "0.8.1"
-
-anyhow = "1.0.61"
-clap = { version = "3.2.16", features = ["derive"] }
-rand = "0.8.5"
-
-# debug only
-bevy_prototype_lyon = "0.6.0"
+anyhow = { workspace = true }
+bevy = { workspace = true }
+bevy_prototype_lyon = { workspace = true }
+clap = { workspace = true }
+rand = { workspace = true }

@@ -2,6 +2,18 @@
 resolver = "2"
 members = ["core", "tester", "gui"]
 
+[workspace.dependencies]
+anyhow = "1.0.61"
+bevy = "0.8.1"
+bevy_prototype_lyon = "0.6.0"
+clap = { version = "3.2.16", features = ["derive"] }
+nom = "7.1.1"
+owo-colors = "3.4.0"
+pretty_assertions = "1.2.1"
+rand = "0.8.5"
+rand_pcg = "0.3.1"
+test-case = "2.2.1"
+
 [profile.dev.package."*"]
 opt-level = 3
 
