@@ -90,7 +90,7 @@ struct Cleanup;
 #[derive(Component)]
 struct Coin;
 
-#[derive(Component, Deref, DerefMut)]
+#[derive(Component)]
 struct AnimationTimer(Timer);
 
 #[derive(Component)]

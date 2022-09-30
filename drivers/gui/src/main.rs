@@ -1,4 +1,5 @@
 use bevy::prelude::*;
+use clap::Parser;
 
 mod debug;
 
@@ -28,7 +29,7 @@ enum AppState {
     InGame,
 }
 
-#[derive(Debug, clap::Parser)]
+#[derive(Debug, Parser)]
 struct Args {
     #[clap(value_name = "PATH")]
     /// Path to the external implementation to use, if omitted the reference implementation will be
@@ -37,8 +38,6 @@ struct Args {
 }
 
 fn main() {
-    use clap::Parser;
-
     App::new()
         .insert_resource(bevy::render::texture::ImageSettings::default_nearest())
         .insert_resource(WindowDescriptor {
