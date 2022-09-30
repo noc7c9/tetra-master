@@ -1,9 +1,5 @@
-use super::{
-    common::{BlockedCells, Candidates, Driver, Turn},
-    AppAssets, AppState,
-};
+use super::{common::start_new_game, AppAssets, AppState};
 use bevy::prelude::*;
-use tetra_master_core as core;
 
 pub struct Plugin;
 
@@ -63,32 +59,7 @@ fn mouse_input(
     args: Res<crate::Args>,
 ) {
     if btns.just_pressed(MouseButton::Left) {
-        // start the new game
-        let mut driver = match &args.implementation {
-            Some(implementation) => core::Driver::external(implementation),
-            None => core::Driver::reference(),
-        }
-        .log()
-        .build();
-        // TODO: handle the error
-        let response = driver
-            .send_random_setup(core::BattleSystem::Dice { sides: 12 })
-            .unwrap();
-        let c = response.hand_candidates;
-        commands.insert_resource(Candidates([Some(c[0]), Some(c[1]), Some(c[2])]));
-        commands.insert_resource(BlockedCells(
-            response
-                .blocked_cells
-                .into_iter()
-                .map(|c| c as usize)
-                .collect(),
-        ));
-        commands.insert_resource(Turn(core::Player::P1));
-
-        commands.insert_resource(Driver(driver));
-
-        // change the state
-        app_state.set(AppState::PickingHands).unwrap();
+        start_new_game(&mut commands, &mut app_state, &args);
 
         // required to workaround bug?
         btns.reset(MouseButton::Left);

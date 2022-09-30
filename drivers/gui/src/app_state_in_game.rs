@@ -1,7 +1,7 @@
 use crate::{
     common::{
         calc_board_card_screen_pos, calc_board_cell_screen_pos, calc_hand_card_screen_pos,
-        BlockedCells, Candidates, Card, Driver, HandIdx, Owner, Turn, CELL_SIZE,
+        start_new_game, BlockedCells, Card, Driver, HandIdx, Owner, Turn, CELL_SIZE,
     },
     hover, AppAssets, AppState, CARD_SIZE, COIN_SIZE, RENDER_HSIZE,
 };
@@ -17,9 +17,7 @@ pub struct Plugin;
 
 impl bevy::app::Plugin for Plugin {
     fn build(&self, app: &mut App) {
-        app.add_event::<NextTurn>()
-            .add_event::<Flip>()
-            .add_event::<Battle>()
+        app.add_event::<core::Event>()
             .add_system_set(SystemSet::on_enter(AppState::InGame).with_system(on_enter))
             .add_system_set(
                 SystemSet::on_update(AppState::InGame)
@@ -33,9 +31,10 @@ impl bevy::app::Plugin for Plugin {
                             // usually it should run before so that events can be handled on the
                             // same frame BUT we need commands to run and we can't use stages due to
                             // limitations in Bevy's State system
-                            .after(handle_next_turn)
-                            .after(handle_flip)
-                            .after(handle_battle)
+                            .after(handle_next_turn_event)
+                            .after(handle_flip_event)
+                            .after(handle_battle_event)
+                            .after(handle_game_over_event)
                             .after(update_card_counter),
                     )
                     .with_system(pick_battle)
@@ -54,9 +53,10 @@ impl bevy::app::Plugin for Plugin {
                             .before(maintain_card_hover_marker)
                             .before(maintain_cell_hover_marker),
                     )
-                    .with_system(handle_next_turn)
-                    .with_system(handle_flip)
-                    .with_system(handle_battle)
+                    .with_system(handle_next_turn_event)
+                    .with_system(handle_flip_event)
+                    .with_system(handle_battle_event)
+                    .with_system(handle_game_over_event)
                     .with_system(update_card_counter),
                 // .with_system(animate_coin)
             )
@@ -66,20 +66,6 @@ impl bevy::app::Plugin for Plugin {
                     .with_system(crate::cleanup::<Cleanup>),
             );
     }
-}
-
-struct NextTurn {
-    to: core::Player,
-}
-
-struct Flip {
-    cell: u8,
-}
-
-#[derive(Debug)]
-struct Battle {
-    attacker: core::Battler,
-    defender: core::Battler,
 }
 
 #[derive(Debug)]
@@ -300,9 +286,7 @@ fn select_and_deselect_card(
 #[allow(clippy::too_many_arguments)]
 fn pick_battle(
     mut commands: Commands,
-    mut next_turn: EventWriter<NextTurn>,
-    mut flip: EventWriter<Flip>,
-    mut battle: EventWriter<Battle>,
+    mut event: EventWriter<core::Event>,
     mut driver: ResMut<Driver>,
     mut status: ResMut<Status>,
     app_assets: Res<AppAssets>,
@@ -331,88 +315,7 @@ fn pick_battle(
                 .send(core::command::PickBattle { cell: cell as u8 })
                 .expect("PlaceCard command should work");
 
-            // FIXME: handling for PlaceCardOk is duplicated in place_card
-
-            if !response.pick_battle.is_empty() {
-                for cell in &response.pick_battle {
-                    let cell = *cell as usize;
-                    let mut translation = calc_board_card_screen_pos(cell);
-                    translation.z += 1.;
-                    commands
-                        .spawn_bundle(SpriteBundle {
-                            sprite: Sprite {
-                                anchor: Anchor::BottomLeft,
-                                ..default()
-                            },
-                            texture: app_assets.card_select_indicator.clone(),
-                            transform: Transform::from_translation(translation),
-                            ..default()
-                        })
-                        .insert(hover::Area::new(CELL_SIZE))
-                        .insert(BoardCell(cell))
-                        .insert(SelectIndicator);
-                }
-
-                *status = Status::PickingBattle {
-                    choices: response.pick_battle,
-                };
-            } else {
-                *status = Status::Normal;
-            }
-
-            for event in response.events {
-                match event {
-                    core::Event::NextTurn { to } => next_turn.send(NextTurn { to }),
-                    core::Event::Flip { cell } | core::Event::ComboFlip { cell } => {
-                        flip.send(Flip { cell })
-                    }
-                    core::Event::Battle {
-                        attacker, defender, ..
-                    } => battle.send(Battle { attacker, defender }),
-                    core::Event::GameOver { winner } => {
-                        *status = Status::GameOver;
-
-                        let text = match winner {
-                            None => "It was draw! Left Click to Start a New Game!",
-                            Some(core::Player::P1) => "Blue won! Left Click to Start a New Game!",
-                            Some(core::Player::P2) => "Red won! Left Click to Start a New Game!",
-                        };
-                        commands
-                            .spawn_bundle(NodeBundle {
-                                style: Style {
-                                    size: Size::new(Val::Percent(100.0), Val::Percent(100.0)),
-                                    justify_content: JustifyContent::Center,
-                                    ..default()
-                                },
-                                color: Color::NONE.into(),
-                                ..default()
-                            })
-                            .insert(Cleanup)
-                            .with_children(|parent| {
-                                parent.spawn_bundle(
-                                    TextBundle::from_section(
-                                        text,
-                                        TextStyle {
-                                            font: app_assets.font.clone(),
-                                            font_size: 40.0,
-                                            color: Color::WHITE,
-                                        },
-                                    )
-                                    .with_text_alignment(TextAlignment::CENTER)
-                                    .with_style(Style {
-                                        align_self: AlignSelf::FlexStart,
-                                        position_type: PositionType::Relative,
-                                        position: UiRect {
-                                            bottom: Val::Percent(25.0),
-                                            ..default()
-                                        },
-                                        ..default()
-                                    }),
-                                );
-                            });
-                    }
-                }
-            }
+            *status = handle_play_ok(response, &mut commands, &mut event, &app_assets);
         }
     }
 }
@@ -420,9 +323,7 @@ fn pick_battle(
 #[allow(clippy::too_many_arguments)]
 fn place_card(
     mut commands: Commands,
-    mut next_turn: EventWriter<NextTurn>,
-    mut flip: EventWriter<Flip>,
-    mut battle: EventWriter<Battle>,
+    mut event: EventWriter<core::Event>,
     mut driver: ResMut<Driver>,
     mut status: ResMut<Status>,
     mut active_card: ResMut<ActiveCard>,
@@ -456,86 +357,7 @@ fn place_card(
                 })
                 .expect("PlaceCard command should work");
 
-            if !response.pick_battle.is_empty() {
-                for cell in &response.pick_battle {
-                    let cell = *cell as usize;
-                    let mut translation = calc_board_card_screen_pos(cell);
-                    translation.z += 1.;
-                    commands
-                        .spawn_bundle(SpriteBundle {
-                            sprite: Sprite {
-                                anchor: Anchor::BottomLeft,
-                                ..default()
-                            },
-                            texture: app_assets.card_select_indicator.clone(),
-                            transform: Transform::from_translation(translation),
-                            ..default()
-                        })
-                        .insert(hover::Area::new(CELL_SIZE))
-                        .insert(BoardCell(cell))
-                        .insert(SelectIndicator);
-                }
-
-                *status = Status::PickingBattle {
-                    choices: response.pick_battle,
-                };
-            } else {
-                *status = Status::Normal;
-            }
-
-            for event in response.events {
-                match event {
-                    core::Event::NextTurn { to } => next_turn.send(NextTurn { to }),
-                    core::Event::Flip { cell } | core::Event::ComboFlip { cell } => {
-                        flip.send(Flip { cell })
-                    }
-                    core::Event::Battle {
-                        attacker, defender, ..
-                    } => battle.send(Battle { attacker, defender }),
-                    core::Event::GameOver { winner } => {
-                        *status = Status::GameOver;
-
-                        let text = match winner {
-                            None => "It was draw! Left Click to Start a New Game!",
-                            Some(core::Player::P1) => "Blue won! Left Click to Start a New Game!",
-                            Some(core::Player::P2) => "Red won! Left Click to Start a New Game!",
-                        };
-                        commands
-                            .spawn_bundle(NodeBundle {
-                                style: Style {
-                                    size: Size::new(Val::Percent(100.0), Val::Percent(100.0)),
-                                    justify_content: JustifyContent::Center,
-                                    ..default()
-                                },
-                                color: Color::NONE.into(),
-                                ..default()
-                            })
-                            .insert(Cleanup)
-                            .with_children(|parent| {
-                                parent.spawn_bundle(
-                                    TextBundle::from_section(
-                                        text,
-                                        TextStyle {
-                                            font: app_assets.font.clone(),
-                                            font_size: 40.0,
-                                            color: Color::WHITE,
-                                        },
-                                    )
-                                    .with_text_alignment(TextAlignment::CENTER)
-                                    .with_style(Style {
-                                        align_self: AlignSelf::FlexStart,
-                                        position_type: PositionType::Relative,
-                                        position: UiRect {
-                                            bottom: Val::Percent(25.0),
-                                            ..default()
-                                        },
-                                        ..default()
-                                    }),
-                                );
-                            });
-                    }
-                }
-            }
+            *status = handle_play_ok(response, &mut commands, &mut event, &app_assets);
 
             commands.entity(card_entity).insert(PlacedCard(cell));
 
@@ -565,6 +387,44 @@ fn place_card(
     }
 }
 
+fn handle_play_ok(
+    play_ok: core::response::PlayOk,
+    commands: &mut Commands,
+    event: &mut EventWriter<core::Event>,
+    app_assets: &AppAssets,
+) -> Status {
+    for evt in play_ok.events {
+        event.send(evt)
+    }
+
+    if play_ok.pick_battle.is_empty() {
+        return Status::Normal;
+    }
+
+    for cell in &play_ok.pick_battle {
+        let cell = *cell as usize;
+        let mut translation = calc_board_card_screen_pos(cell);
+        translation.z += 1.;
+        commands
+            .spawn_bundle(SpriteBundle {
+                sprite: Sprite {
+                    anchor: Anchor::BottomLeft,
+                    ..default()
+                },
+                texture: app_assets.card_select_indicator.clone(),
+                transform: Transform::from_translation(translation),
+                ..default()
+            })
+            .insert(hover::Area::new(CELL_SIZE))
+            .insert(BoardCell(cell))
+            .insert(SelectIndicator);
+    }
+
+    Status::PickingBattle {
+        choices: play_ok.pick_battle,
+    }
+}
+
 fn restart_game(
     mut commands: Commands,
     mut app_state: ResMut<State<AppState>>,
@@ -577,32 +437,7 @@ fn restart_game(
     }
 
     if btns.just_pressed(MouseButton::Left) {
-        // start the new game
-        let mut driver = match &args.implementation {
-            Some(implementation) => core::Driver::external(implementation),
-            None => core::Driver::reference(),
-        }
-        .log()
-        .build();
-        // TODO: handle the error
-        let response = driver
-            .send_random_setup(core::BattleSystem::Dice { sides: 12 })
-            .unwrap();
-        let c = response.hand_candidates;
-        commands.insert_resource(Candidates([Some(c[0]), Some(c[1]), Some(c[2])]));
-        commands.insert_resource(BlockedCells(
-            response
-                .blocked_cells
-                .into_iter()
-                .map(|c| c as usize)
-                .collect(),
-        ));
-        commands.insert_resource(Turn(core::Player::P1));
-
-        commands.insert_resource(Driver(driver));
-
-        // change the state
-        app_state.set(AppState::PickingHands).unwrap();
+        start_new_game(&mut commands, &mut app_state, &args);
 
         // required to workaround bug?
         btns.reset(MouseButton::Left);
@@ -684,55 +519,116 @@ fn update_card_positions(
     }
 }
 
-fn handle_next_turn(
-    mut next_turn: EventReader<NextTurn>,
+fn handle_next_turn_event(
+    mut event: EventReader<core::Event>,
     mut turn: ResMut<Turn>,
     mut sprite: Query<&mut TextureAtlasSprite, With<Coin>>,
 ) {
-    for NextTurn { to } in next_turn.iter() {
-        turn.0 = *to;
-        sprite.single_mut().index = match to {
-            core::Player::P1 => 0,
-            core::Player::P2 => 4,
-        };
+    for event in event.iter() {
+        if let core::Event::NextTurn { to } = event {
+            turn.0 = *to;
+            sprite.single_mut().index = match to {
+                core::Player::P1 => 0,
+                core::Player::P2 => 4,
+            };
+        }
     }
 }
 
-fn handle_flip(
-    mut flip: EventReader<Flip>,
+fn handle_flip_event(
+    mut event: EventReader<core::Event>,
     app_assets: Res<AppAssets>,
     mut query: Query<(&PlacedCard, &mut Handle<Image>, &mut Owner)>,
 ) {
-    for evt in flip.iter() {
-        let mut debug_found_card_in_evt = false;
-        for (&PlacedCard(cell), mut image, mut owner) in &mut query {
-            if cell == evt.cell as usize {
-                *image = if *image == app_assets.card_bg_red {
-                    owner.0 = core::Player::P1;
-                    app_assets.card_bg_blue.clone()
-                } else {
-                    owner.0 = core::Player::P2;
-                    app_assets.card_bg_red.clone()
-                };
-                debug_found_card_in_evt = true;
-                break;
+    for event in event.iter() {
+        if let core::Event::Flip { cell } | core::Event::ComboFlip { cell } = event {
+            let mut debug_found_card_in_evt = false;
+            for (&PlacedCard(placed_cell), mut image, mut owner) in &mut query {
+                if placed_cell == *cell as usize {
+                    *image = if *image == app_assets.card_bg_red {
+                        owner.0 = core::Player::P1;
+                        app_assets.card_bg_blue.clone()
+                    } else {
+                        owner.0 = core::Player::P2;
+                        app_assets.card_bg_red.clone()
+                    };
+                    debug_found_card_in_evt = true;
+                    break;
+                }
             }
+            debug_assert!(
+                debug_found_card_in_evt,
+                "Card in Flip event not a PlacedCard"
+            );
         }
-        debug_assert!(
-            debug_found_card_in_evt,
-            "Card in Flip event not a PlacedCard"
-        );
     }
 }
 
-fn handle_battle(
+fn handle_battle_event(
     mut commands: Commands,
-    mut battle: EventReader<Battle>,
+    mut event: EventReader<core::Event>,
     app_assets: Res<AppAssets>,
 ) {
-    for evt in battle.iter() {
-        spawn_battler_stats(&mut commands, &app_assets, evt.attacker);
-        spawn_battler_stats(&mut commands, &app_assets, evt.defender);
+    for event in event.iter() {
+        if let core::Event::Battle {
+            attacker, defender, ..
+        } = event
+        {
+            spawn_battler_stats(&mut commands, &app_assets, *attacker);
+            spawn_battler_stats(&mut commands, &app_assets, *defender);
+        }
+    }
+}
+
+fn handle_game_over_event(
+    mut commands: Commands,
+    mut event: EventReader<core::Event>,
+    mut status: ResMut<Status>,
+    app_assets: Res<AppAssets>,
+) {
+    for event in event.iter() {
+        if let core::Event::GameOver { winner } = event {
+            let text = match winner {
+                None => "It was draw! Left Click to Start a New Game!",
+                Some(core::Player::P1) => "Blue won! Left Click to Start a New Game!",
+                Some(core::Player::P2) => "Red won! Left Click to Start a New Game!",
+            };
+            commands
+                .spawn_bundle(NodeBundle {
+                    style: Style {
+                        size: Size::new(Val::Percent(100.0), Val::Percent(100.0)),
+                        justify_content: JustifyContent::Center,
+                        ..default()
+                    },
+                    color: Color::NONE.into(),
+                    ..default()
+                })
+                .insert(Cleanup)
+                .with_children(|parent| {
+                    parent.spawn_bundle(
+                        TextBundle::from_section(
+                            text,
+                            TextStyle {
+                                font: app_assets.font.clone(),
+                                font_size: 40.0,
+                                color: Color::WHITE,
+                            },
+                        )
+                        .with_text_alignment(TextAlignment::CENTER)
+                        .with_style(Style {
+                            align_self: AlignSelf::FlexStart,
+                            position_type: PositionType::Relative,
+                            position: UiRect {
+                                bottom: Val::Percent(25.0),
+                                ..default()
+                            },
+                            ..default()
+                        }),
+                    );
+                });
+
+            *status = Status::GameOver;
+        }
     }
 }
 

@@ -1,4 +1,4 @@
-use crate::{AppAssets, CARD_SIZE, RENDER_HSIZE};
+use crate::{AppAssets, AppState, CARD_SIZE, RENDER_HSIZE};
 use bevy::{prelude::*, sprite::Anchor};
 use tetra_master_core as core;
 
@@ -48,6 +48,39 @@ pub struct HandIdx(
     /// index into the hand, from top to bottom
     pub usize,
 );
+
+pub(crate) fn start_new_game(
+    commands: &mut Commands,
+    app_state: &mut State<AppState>,
+    args: &crate::Args,
+) {
+    // start the new game
+    let mut driver = match &args.implementation {
+        Some(implementation) => core::Driver::external(implementation),
+        None => core::Driver::reference(),
+    }
+    .log()
+    .build();
+    // TODO: handle the error
+    let response = driver
+        .send_random_setup(core::BattleSystem::Dice { sides: 12 })
+        .unwrap();
+    let c = response.hand_candidates;
+    commands.insert_resource(Candidates([Some(c[0]), Some(c[1]), Some(c[2])]));
+    commands.insert_resource(BlockedCells(
+        response
+            .blocked_cells
+            .into_iter()
+            .map(|c| c as usize)
+            .collect(),
+    ));
+    commands.insert_resource(Turn(core::Player::P1));
+
+    commands.insert_resource(Driver(driver));
+
+    // change the state
+    app_state.set(AppState::PickingHands).unwrap();
+}
 
 pub(crate) fn spawn_card<'w, 's, 'a>(
     commands: &'a mut Commands<'w, 's>,
