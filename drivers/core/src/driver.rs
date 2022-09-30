@@ -2,8 +2,7 @@ use crate::{
     command::{self, Command},
     random_setup,
     ref_impl::{ReferenceImplementation, Step},
-    response,
-    response::{ErrorResponse, Response},
+    response::{self, ErrorResponse, Response},
     BattleSystem, CommandResponse, Error, Result,
 };
 use rand::{thread_rng, Rng as _, SeedableRng as _};
