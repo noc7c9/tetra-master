@@ -327,8 +327,8 @@ fn place_card(
     mut driver: ResMut<Driver>,
     mut status: ResMut<Status>,
     mut active_card: ResMut<ActiveCard>,
+    mut hovered_cell: ResMut<HoveredCell>,
     app_assets: Res<AppAssets>,
-    hovered_cell: Res<HoveredCell>,
     btns: Res<Input<MouseButton>>,
     hand_idx: Query<&HandIdx>,
     hand_hover_areas: Query<(Entity, &HandCardHoverArea)>,
@@ -366,6 +366,9 @@ fn place_card(
 
             // clear active card
             active_card.0 = None;
+
+            // clear hovered cell
+            hovered_cell.0 = None;
 
             // remove the hand hover areas
             commands.entity(card_entity).remove::<HandCardHoverArea>();
