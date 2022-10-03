@@ -146,7 +146,7 @@ fn resolve_interactions(state: &mut InGameState, events: &mut Vec<Event>, attack
             continue;
         }
 
-        if defender.card.arrows.has(arrow.reverse()) {
+        if defender.card.arrows.has_any(arrow.reverse()) {
             defenders.push((defender_cell, defender.card));
         } else {
             non_defenders.push(defender_cell);
@@ -422,7 +422,7 @@ fn does_interact(attacker: OwnedCard, defender: OwnedCard, arrow_to_defender: Ar
     }
 
     // they interact if the attacking card has an arrow in the direction of the defender
-    attacker.card.arrows.has(arrow_to_defender)
+    attacker.card.arrows.has_any(arrow_to_defender)
 }
 
 // returns neighbouring cells along with the arrow that points at them

@@ -204,7 +204,7 @@ pub(crate) fn spawn_card<'w, 's, 'a>(
             (core::Arrows::LEFT, app_assets.card_arrow_left.clone()),
             (core::Arrows::UP_LEFT, app_assets.card_arrow_up_left.clone()),
         ] {
-            if card.arrows.has(*arrow) {
+            if card.arrows.has_any(*arrow) {
                 p.spawn_bundle(SpriteBundle {
                     sprite: Sprite {
                         anchor: Anchor::BottomLeft,

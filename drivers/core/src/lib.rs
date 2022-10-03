@@ -157,7 +157,8 @@ impl Arrows {
     pub const LEFT: Arrows = Arrows(0b0000_0010);
     pub const UP_LEFT: Arrows = Arrows(0b0000_0001);
 
-    pub fn has(self, other: Self) -> bool {
+    // return true if `self` point in *any* of the directions in `other`
+    pub fn has_any(self, other: Self) -> bool {
         (self.0 & other.0) != 0
     }
 
