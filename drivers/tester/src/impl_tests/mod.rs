@@ -55,14 +55,14 @@ fn game_setup_tests(s: &mut Suite<Ctx>) {
         let res = ctx.new_driver().build().send(Command::setup().blocked_cells(&[6u8, 3, 0xC]))?;
         let blocked_cells = res.blocked_cells;
 
-        assert_eq!(blocked_cells, vec![3, 6, 0xC]);
+        assert_eq!(blocked_cells, [3, 6, 0xC].into());
     });
 
     test!(s "Setup with set blocked_cells to nothing"; |ctx| {
         let res = ctx.new_driver().build().send(Command::setup().blocked_cells(&[]))?;
         let blocked_cells = res.blocked_cells;
 
-        assert_eq!(blocked_cells, vec![]);
+        assert_eq!(blocked_cells, [].into());
     });
 
     test!(s "Setup with set hand candidates"; |ctx| {
@@ -620,7 +620,7 @@ fn in_game_tests(s: &mut Suite<Ctx>) {
 
         let choices = driver.send(Command::place_card(0, 4))?.pick_battle;
 
-        assert_eq!(choices, vec![0, 8]);
+        assert_eq!(choices, [0, 8].into());
 
         let events = driver.send(Command::pick_battle(8))?.events;
 
@@ -692,11 +692,11 @@ fn in_game_tests(s: &mut Suite<Ctx>) {
         driver.send(Command::place_card(3, 9))?; // defender 2
 
         let res = driver.send(Command::place_card(0, 4))?;
-        assert_eq!(res.pick_battle, vec![0, 5, 8, 9]);
+        assert_eq!(res.pick_battle, [0, 5, 8, 9].into());
         assert_eq!(res.events, vec![]);
 
         let res = driver.send(Command::pick_battle(5))?;
-        assert_eq!(res.pick_battle, vec![0, 8, 9]);
+        assert_eq!(res.pick_battle, [0, 8, 9].into());
         assert_eq!(res.events, vec![
             Event::battle(
                 Battler::new(4, Digit::Attack, 1, 0x1F),
@@ -707,7 +707,7 @@ fn in_game_tests(s: &mut Suite<Ctx>) {
         ]);
 
         let res = driver.send(Command::pick_battle(8))?;
-        assert_eq!(res.pick_battle, vec![0, 9]);
+        assert_eq!(res.pick_battle, [0, 9].into());
         assert_eq!(res.events, vec![
             Event::battle(
                 Battler::new(4, Digit::Attack, 1, 0x1F),
@@ -718,7 +718,7 @@ fn in_game_tests(s: &mut Suite<Ctx>) {
         ]);
 
         let res = driver.send(Command::pick_battle(0))?;
-        assert_eq!(res.pick_battle, vec![]);
+        assert_eq!(res.pick_battle, [].into());
         assert_eq!(res.events, vec![
             Event::battle(
                 Battler::new(4, Digit::Attack, 1, 0x1F),
@@ -760,11 +760,11 @@ fn in_game_tests(s: &mut Suite<Ctx>) {
         driver.send(Command::place_card(3, 9))?; // defender 2
 
         let res = driver.send(Command::place_card(0, 4))?;
-        assert_eq!(res.pick_battle, vec![0, 5, 8, 9]);
+        assert_eq!(res.pick_battle, [0, 5, 8, 9].into());
         assert_eq!(res.events, vec![]);
 
         let res = driver.send(Command::pick_battle(5))?;
-        assert_eq!(res.pick_battle, vec![]);
+        assert_eq!(res.pick_battle, [].into());
         assert_eq!(res.events, vec![
             Event::battle(
                 Battler::new(4, Digit::Attack, 1, 0),

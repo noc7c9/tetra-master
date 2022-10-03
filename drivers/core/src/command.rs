@@ -1,4 +1,4 @@
-use crate::{display::DisplayHex, BattleSystem, Card, CardType, HandCandidates};
+use crate::{display::DisplayHex, BattleSystem, BoardCells, Card, CardType, HandCandidates};
 use std::fmt::Result as FResult;
 
 // TODO: replace this with a bespoke Error enum
@@ -11,7 +11,7 @@ pub trait Command {
 #[derive(Debug)]
 pub struct Setup {
     pub battle_system: BattleSystem,
-    pub blocked_cells: Vec<u8>,
+    pub blocked_cells: BoardCells,
     pub hand_candidates: HandCandidates,
 }
 
@@ -34,7 +34,7 @@ impl Command for Setup {
 
             o.list(|o| {
                 o.atom("blocked-cells")?;
-                write_blocked_cells(o, &self.blocked_cells)
+                write_blocked_cells(o, self.blocked_cells)
             })?;
 
             o.list(|o| {
@@ -155,7 +155,7 @@ fn write_card(o: &mut Sexpr, card: Card) -> FResult {
     o.atom_fmt(format_args!("{att:X}{typ}{phy:X}{mag:X}_{arr:X}"))
 }
 
-fn write_blocked_cells(o: &mut Sexpr, blocked_cells: &[u8]) -> FResult {
+fn write_blocked_cells(o: &mut Sexpr, blocked_cells: BoardCells) -> FResult {
     o.array(blocked_cells, |o, cell| o.atom(DisplayHex(cell)))
 }
 
@@ -285,13 +285,13 @@ mod tests {
         o
     }
 
-    #[test_case(vec![] => using assert_eq("()"))]
-    #[test_case(vec![1] => using assert_eq("(1)"))]
-    #[test_case(vec![0xa, 0xf, 3] => using assert_eq("(A F 3)"))]
-    #[test_case(vec![1, 2, 3, 4, 5, 6] => using assert_eq("(1 2 3 4 5 6)"))]
-    fn write_blocked_cells(input: Vec<u8>) -> String {
+    #[test_case([] => using assert_eq("()"))]
+    #[test_case([1] => using assert_eq("(1)"))]
+    #[test_case([0xa, 0xf, 3] => using assert_eq("(3 A F)"))]
+    #[test_case([1, 2, 3, 4, 5, 6] => using assert_eq("(1 2 3 4 5 6)"))]
+    fn write_blocked_cells(input: impl Into<BoardCells>) -> String {
         let mut o = String::new();
-        super::write_blocked_cells(&mut Sexpr::new(&mut o), &input).unwrap();
+        super::write_blocked_cells(&mut Sexpr::new(&mut o), input.into()).unwrap();
         o
     }
 
@@ -310,7 +310,7 @@ mod tests {
 
     #[test_case(Setup {
         battle_system: BattleSystem::Dice { sides: 8 },
-        blocked_cells: vec![2, 8, 0xA],
+        blocked_cells: [2, 8, 0xA].into(),
         hand_candidates: [
             [C1P23_4, C5M67_8, C9XAB_C, CDAEF_0, C5M67_8],
             [C5M67_8, C1P23_4, CDAEF_0, C5M67_8, C9XAB_C],

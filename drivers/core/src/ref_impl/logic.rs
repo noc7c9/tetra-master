@@ -1,6 +1,6 @@
 use super::{
-    BattleWinner, Card, Cell, InGameInput, InGameState, InGameStatus, OwnedCard, PickingHandsState,
-    PickingHandsStatus, Player, Rng,
+    BattleWinner, BoardCells, Card, Cell, InGameInput, InGameState, InGameStatus, OwnedCard,
+    PickingHandsState, PickingHandsStatus, Player, Rng,
 };
 use crate::{command, Arrows, BattleSystem, Battler, CardType, Digit, ErrorResponse, Event};
 
@@ -104,7 +104,7 @@ fn handle_waiting_battle(
     };
 
     // ensure input cell is a valid choice
-    if choices.iter().all(|&(cell, _)| cell != defender_cell) {
+    if choices.into_iter().all(|cell| cell != defender_cell) {
         return Err(ErrorResponse::InvalidBattlePick {
             cell: defender_cell,
         });
@@ -134,8 +134,8 @@ fn resolve_interactions(state: &mut InGameState, events: &mut Vec<Event>, attack
         _ => unreachable!("resolve_interactions can't be called with an invalid attacker_cell"),
     };
 
-    let mut defenders = vec![];
-    let mut non_defenders = vec![];
+    let mut defenders = BoardCells::NONE;
+    let mut non_defenders = BoardCells::NONE;
     for &(defender_cell, arrow) in get_possible_neighbours(attacker_cell) {
         let defender = match state.board[defender_cell as usize] {
             Cell::Card(card) => card,
@@ -147,15 +147,14 @@ fn resolve_interactions(state: &mut InGameState, events: &mut Vec<Event>, attack
         }
 
         if defender.card.arrows.has_any(arrow.reverse()) {
-            defenders.push((defender_cell, defender.card));
+            defenders.set(defender_cell);
         } else {
-            non_defenders.push(defender_cell);
+            non_defenders.set(defender_cell);
         }
     }
 
     // handle multiple possible battles
     if defenders.len() > 1 {
-        defenders.sort_unstable_by_key(|(cell, _)| *cell);
         state.status = InGameStatus::WaitingBattle {
             attacker_cell,
             choices: defenders,
@@ -165,8 +164,9 @@ fn resolve_interactions(state: &mut InGameState, events: &mut Vec<Event>, attack
 
     // handle battles
     let winner = defenders
-        .first()
-        .map(|(defender_cell, _)| battle(state, events, attacker_cell, *defender_cell));
+        .into_iter()
+        .next()
+        .map(|defender_cell| battle(state, events, attacker_cell, defender_cell));
 
     // if the attacker won or if there was no battle
     // handle free flips

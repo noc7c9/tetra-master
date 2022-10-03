@@ -1,5 +1,5 @@
 use crate::{
-    Arrows, BattleSystem, BattleWinner, Battler, Card, CardType, Digit, Event, Hand,
+    Arrows, BattleSystem, BattleWinner, Battler, BoardCells, Card, CardType, Digit, Event, Hand,
     HandCandidates, Player,
 };
 use nom::{
@@ -39,7 +39,7 @@ impl Response for ErrorResponse {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SetupOk {
     pub battle_system: BattleSystem,
-    pub blocked_cells: Vec<u8>,
+    pub blocked_cells: BoardCells,
     pub hand_candidates: HandCandidates,
 }
 
@@ -74,7 +74,7 @@ impl Response for PickHandOk {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PlayOk {
-    pub pick_battle: Vec<u8>,
+    pub pick_battle: BoardCells,
     pub events: Vec<Event>,
 }
 
@@ -184,8 +184,9 @@ fn battle_system(i: &str) -> IResult<&str, BattleSystem> {
     ))(i)
 }
 
-fn blocked_cells(i: &str) -> IResult<&str, Vec<u8>> {
-    array_verify(hex_digit_1_n(1), |v| v.len() < 6)(i)
+fn blocked_cells(i: &str) -> IResult<&str, BoardCells> {
+    let (i, cells) = array_verify(hex_digit_1_n(1), |v| v.len() < 6)(i)?;
+    Ok((i, cells.into()))
 }
 
 fn hand(i: &str) -> IResult<&str, Hand> {
@@ -358,7 +359,10 @@ fn play_ok(i: &str) -> IResult<&str, PlayOk> {
 
     response("play-ok", |i| {
         let (i, events) = opt(prop("events", separated_list0(multispace1, event)))(i)?;
-        let (i, pick_battle) = opt(prop("pick-battle", array(hex_digit_1_n(1))))(i)?;
+        let (i, pick_battle) = opt(prop(
+            "pick-battle",
+            map(array(hex_digit_1_n(1)), Into::into),
+        ))(i)?;
         let play_ok = PlayOk {
             pick_battle: pick_battle.unwrap_or_default(),
             events: events.unwrap_or_default(),
@@ -441,13 +445,13 @@ mod tests {
         super::hand_candidates(i).unwrap().1
     }
 
-    #[test_case("()" => Vec::<u8>::new())]
-    #[test_case("(1)" => vec![1])]
-    #[test_case("(2 a B F)" => vec![2,0xa,0xb,0xf])]
+    #[test_case("()" => BoardCells::NONE)]
+    #[test_case("(1)" => BoardCells::from([1]))]
+    #[test_case("(2 a B F)" => BoardCells::from([2,0xa,0xb,0xf]))]
     #[test_case("(0 0 0 0 0 0 0)" => panics)]
     #[test_case("(2a)" => panics)]
     #[test_case(" " => panics; "empty string")]
-    fn blocked_cells(i: &str) -> Vec<u8> {
+    fn blocked_cells(i: &str) -> BoardCells {
         super::blocked_cells(i).unwrap().1
     }
 
@@ -482,7 +486,7 @@ mod tests {
                                  " (hand-candidates {}))\n"), BLOCKED_CELLS, HAND_CANDIDATES)
         => SetupOk {
             battle_system: BattleSystem::Dice { sides: 9 },
-            blocked_cells: vec![2, 3, 0xf],
+            blocked_cells: [2, 3, 0xf].into(),
             hand_candidates: [
                 [C0P00, C0P00, C0P00, C0P00, C0P00],
                 [C0P00, C0P00, C0P00, C0P00, C0P00],
@@ -495,7 +499,7 @@ mod tests {
                 BLOCKED_CELLS, HAND_CANDIDATES)
         => SetupOk {
             battle_system: BattleSystem::Dice { sides: 9 },
-            blocked_cells: vec![2, 3, 0xf],
+            blocked_cells: [2, 3, 0xf].into(),
             hand_candidates: [
                 [C0P00, C0P00, C0P00, C0P00, C0P00],
                 [C0P00, C0P00, C0P00, C0P00, C0P00],
@@ -521,40 +525,45 @@ mod tests {
 
     use Event::*;
     #[test_case("(play-ok (events))\n"
-        => PlayOk { pick_battle: vec![], events: vec![] })]
+        => PlayOk { pick_battle: BoardCells::NONE, events: vec![] })]
     #[test_case("(play-ok (events (next-turn player1)))\n"
-        => PlayOk { pick_battle: vec![], events: vec![NextTurn { to: Player::P1 }] })]
+        => PlayOk { pick_battle: BoardCells::NONE, events: vec![NextTurn { to: Player::P1 }] })]
     #[test_case("(play-ok (events (next-turn player2)))\n"
-        => PlayOk { pick_battle: vec![], events: vec![NextTurn { to: Player::P2 }] })]
+        => PlayOk { pick_battle: BoardCells::NONE, events: vec![NextTurn { to: Player::P2 }] })]
     #[test_case("(play-ok (events (flip 4)))\n"
-        => PlayOk { pick_battle: vec![], events: vec![Flip { cell: 4 }] })]
+        => PlayOk { pick_battle: BoardCells::NONE, events: vec![Flip { cell: 4 }] })]
     #[test_case("(play-ok (events (flip 2) (flip A) (flip 7)))\n"
-        => PlayOk { pick_battle: vec![],
+        => PlayOk {
+            pick_battle: BoardCells::NONE,
             events: vec![Flip { cell: 2 }, Flip { cell: 0xA }, Flip { cell: 7 }] })]
     #[test_case("(play-ok (events (combo-flip A)))\n"
-        => PlayOk { events: vec![ComboFlip { cell: 0xA }], pick_battle: vec![] })]
+        => PlayOk {
+            pick_battle: BoardCells::NONE,
+            events: vec![ComboFlip { cell: 0xA }] })]
     #[test_case("(play-ok (events (combo-flip 3) (combo-flip C)))\n"
-        => PlayOk { pick_battle: vec![],
+        => PlayOk {
+            pick_battle: BoardCells::NONE,
             events: vec![ComboFlip { cell: 3 }, ComboFlip { cell: 0xC }] })]
     #[test_case("(play-ok (events (battle (1 A D 2) (8 m 3 Cd) attacker)))\n"
-        => PlayOk { pick_battle: vec![],
+        => PlayOk {
+            pick_battle: BoardCells::NONE,
             events: vec![Battle {
                 attacker: Battler { cell: 1, digit: Digit::Attack, value: 0xD, roll: 2 },
                 defender: Battler { cell: 8, digit: Digit::MagicalDefense, value: 3, roll: 0xCD },
                 winner: BattleWinner::Attacker,
             }] })]
     #[test_case("(play-ok (events (game-over player1)))\n"
-        => PlayOk { pick_battle: vec![], events: vec![GameOver { winner: Some(Player::P1) }] })]
+        => PlayOk { pick_battle: BoardCells::NONE, events: vec![GameOver { winner: Some(Player::P1) }] })]
     #[test_case("(play-ok (events (game-over player2)))\n"
-        => PlayOk { pick_battle: vec![], events: vec![GameOver { winner: Some(Player::P2) }] })]
+        => PlayOk { pick_battle: BoardCells::NONE, events: vec![GameOver { winner: Some(Player::P2) }] })]
     #[test_case("(play-ok (events (game-over draw)))\n"
-        => PlayOk { pick_battle: vec![], events: vec![GameOver { winner: None }] })]
+        => PlayOk { pick_battle: BoardCells::NONE, events: vec![GameOver { winner: None }] })]
     #[test_case("(play-ok (events) (pick-battle (2 3 4)))\n"
-        => PlayOk { pick_battle: vec![2, 3, 4], events: vec![] })]
+        => PlayOk { pick_battle: [2, 3, 4].into(), events: vec![] })]
     #[test_case("(play-ok (pick-battle (F 4)))\n"
-        => PlayOk { pick_battle: vec![15, 4], events: vec![] })]
+        => PlayOk { pick_battle: [15, 4].into(), events: vec![] })]
     #[test_case("(play-ok (events) (pick-battle ()))\n"
-        => PlayOk { pick_battle: vec![], events: vec![] })]
+        => PlayOk { pick_battle: BoardCells::NONE, events: vec![] })]
     fn place_card_ok(i: &str) -> PlayOk {
         Response::deserialize(i).unwrap()
     }

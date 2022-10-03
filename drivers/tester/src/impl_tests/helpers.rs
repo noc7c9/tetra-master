@@ -1,6 +1,6 @@
 use tetra_master_core::{
-    command, Arrows, BattleSystem, BattleWinner, Battler, Card, Driver, DriverBuilder, Error,
-    ErrorResponse, Event, Hand, HandCandidates, Player,
+    command, Arrows, BattleSystem, BattleWinner, Battler, BoardCells, Card, Driver, DriverBuilder,
+    Error, ErrorResponse, Event, Hand, HandCandidates, Player,
 };
 
 pub(super) const CARD: Card = Card::physical(0, 0, 0, Arrows(0));
@@ -31,7 +31,7 @@ impl Command {
     pub(super) fn setup() -> command::Setup {
         command::Setup {
             battle_system: BattleSystem::Test,
-            blocked_cells: vec![],
+            blocked_cells: BoardCells::NONE,
             hand_candidates: HAND_CANDIDATES,
         }
     }

@@ -71,7 +71,7 @@ impl bevy::app::Plugin for Plugin {
 #[derive(Debug)]
 enum Status {
     Normal,
-    PickingBattle { choices: Vec<u8> },
+    PickingBattle { choices: core::BoardCells },
     GameOver,
 }
 
@@ -304,7 +304,7 @@ fn pick_battle(
 
     if btns.just_pressed(MouseButton::Left) {
         if let Some(cell) = hovered_cell.0 {
-            if !choices.contains(&(cell as u8)) {
+            if !choices.has(cell as u8) {
                 return;
             }
 
@@ -407,8 +407,8 @@ fn handle_play_ok(
         return Status::Normal;
     }
 
-    for cell in &play_ok.pick_battle {
-        let cell = *cell as usize;
+    for cell in play_ok.pick_battle {
+        let cell = cell as usize;
         let mut translation = calc_board_card_screen_pos(cell);
         translation.z = z_index::BOARD_CARD_SELECT_INDICATOR;
         commands

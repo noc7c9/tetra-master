@@ -115,7 +115,7 @@ impl Display for command::Setup {
             f,
             "Setup battle-system:{:?} blocked-cells:{} hand-candidates:{}",
             self.battle_system,
-            DisplayList::new(self.blocked_cells.iter().map(DisplayHex)),
+            DisplayList::new(self.blocked_cells.into_iter().map(DisplayHex)),
             DisplayList::new(self.hand_candidates.iter().map(DisplayHand)),
         )
     }
@@ -174,7 +174,7 @@ impl std::fmt::Display for response::PlayOk {
             write!(
                 f,
                 " pick-battle:{}",
-                DisplayList::new(self.pick_battle.iter().map(DisplayHex))
+                DisplayList::new(self.pick_battle.into_iter().map(DisplayHex))
             )?;
         }
         write!(f, " events:{}", DisplayList::new(self.events.iter()))

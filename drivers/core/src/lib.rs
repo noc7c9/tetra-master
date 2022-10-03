@@ -225,6 +225,125 @@ impl Card {
     }
 }
 
+// A type representing a selection of board cells implemented as a bitset
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+pub struct BoardCells(pub u16);
+
+impl BoardCells {
+    pub const NONE: BoardCells = BoardCells(0b0000_0000_0000_0000);
+    pub const ALL: BoardCells = BoardCells(0b1111_1111_1111_1111);
+
+    pub fn has(&self, cell: u8) -> bool {
+        debug_assert!(cell < 16);
+        let cell = 1 << cell as u16;
+        self.0 & cell != 0
+    }
+
+    pub fn set(&mut self, cell: u8) {
+        debug_assert!(cell < 16);
+        let cell = 1 << cell as u16;
+        self.0 |= cell;
+    }
+
+    pub fn unset(&mut self, cell: u8) {
+        debug_assert!(cell < 16);
+        let cell = 1 << cell as u16;
+        self.0 &= !cell;
+    }
+
+    pub fn len(&self) -> usize {
+        self.into_iter().count()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        *self == BoardCells::NONE
+    }
+}
+
+impl Default for BoardCells {
+    fn default() -> Self {
+        BoardCells::NONE
+    }
+}
+
+impl From<&[u8]> for BoardCells {
+    fn from(cells: &[u8]) -> Self {
+        debug_assert!(cells.len() <= 16);
+        let mut board_cells = BoardCells::NONE;
+        for cell in cells {
+            board_cells.set(*cell);
+        }
+        board_cells
+    }
+}
+
+macro_rules! impl_for_array {
+    ($len:expr) => {
+        impl From<[u8; $len]> for BoardCells {
+            fn from(cells: [u8; $len]) -> Self {
+                cells.as_slice().into()
+            }
+        }
+    };
+}
+
+impl_for_array!(0);
+impl_for_array!(1);
+impl_for_array!(2);
+impl_for_array!(3);
+impl_for_array!(4);
+impl_for_array!(5);
+impl_for_array!(6);
+impl_for_array!(7);
+impl_for_array!(8);
+impl_for_array!(9);
+impl_for_array!(10);
+impl_for_array!(11);
+impl_for_array!(12);
+impl_for_array!(13);
+impl_for_array!(14);
+impl_for_array!(15);
+
+impl From<Vec<u8>> for BoardCells {
+    fn from(cells: Vec<u8>) -> Self {
+        cells.as_slice().into()
+    }
+}
+
+impl IntoIterator for BoardCells {
+    type Item = u8;
+    type IntoIter = BoardCellsIter;
+    fn into_iter(self) -> BoardCellsIter {
+        BoardCellsIter::new(self)
+    }
+}
+
+pub struct BoardCellsIter {
+    cells: BoardCells,
+    index: u8,
+}
+
+impl BoardCellsIter {
+    fn new(cells: BoardCells) -> Self {
+        Self { cells, index: 0 }
+    }
+}
+
+impl Iterator for BoardCellsIter {
+    type Item = u8;
+    fn next(&mut self) -> std::option::Option<u8> {
+        while self.index < 16 {
+            if self.cells.has(self.index) {
+                let next = Some(self.index);
+                self.index += 1;
+                return next;
+            }
+            self.index += 1;
+        }
+        None
+    }
+}
+
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
 pub enum Event {
     NextTurn {

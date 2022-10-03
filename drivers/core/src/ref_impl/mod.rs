@@ -1,8 +1,8 @@
 use crate::{
     self as core, command,
     response::{self, ErrorResponse},
-    BattleSystem, BattleWinner, Card, CommandResponse, Error, Player, BOARD_SIZE, HAND_CANDIDATES,
-    HAND_SIZE,
+    BattleSystem, BattleWinner, BoardCells, Card, CommandResponse, Error, Player, BOARD_SIZE,
+    HAND_CANDIDATES, HAND_SIZE,
 };
 
 mod logic;
@@ -128,7 +128,7 @@ enum InGameStatus {
     WaitingPlace,
     WaitingBattle {
         attacker_cell: u8,
-        choices: Vec<(u8, Card)>,
+        choices: BoardCells,
     },
     GameOver {
         winner: Option<Player>,
@@ -252,18 +252,7 @@ impl Step for command::Setup {
                 battle_system: self.battle_system,
             };
 
-            let blocked_cells = state
-                .board
-                .iter()
-                .enumerate()
-                .filter_map(|(idx, cell)| {
-                    if let Cell::Blocked = cell {
-                        Some(idx as u8)
-                    } else {
-                        None
-                    }
-                })
-                .collect();
+            let blocked_cells = self.blocked_cells;
             let battle_system = state.battle_system;
             let hand_candidates = state.hand_candidates;
 
@@ -322,14 +311,14 @@ impl Step for command::PlaceCard {
             let mut events = Vec::new();
             logic::game_next(state, &mut events, input)?;
 
-            let choices = if let InGameStatus::WaitingBattle { choices, .. } = &state.status {
-                choices.as_slice()
+            let pick_battle = if let InGameStatus::WaitingBattle { choices, .. } = &state.status {
+                *choices
             } else {
-                &[]
+                BoardCells::NONE
             };
 
             Ok(response::PlayOk {
-                pick_battle: choices.iter().map(|(cell, _)| *cell).collect(),
+                pick_battle,
                 events,
             })
         } else {
@@ -346,14 +335,14 @@ impl Step for command::PickBattle {
             let mut events = Vec::new();
             logic::game_next(state, &mut events, input)?;
 
-            let choices = if let InGameStatus::WaitingBattle { choices, .. } = &state.status {
-                choices.as_slice()
+            let pick_battle = if let InGameStatus::WaitingBattle { choices, .. } = &state.status {
+                *choices
             } else {
-                &[]
+                BoardCells::NONE
             };
 
             Ok(response::PlayOk {
-                pick_battle: choices.iter().map(|(cell, _)| *cell).collect(),
+                pick_battle,
                 events,
             })
         } else {

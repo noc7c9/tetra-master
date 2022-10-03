@@ -1,14 +1,21 @@
 use super::{
-    driver, Arrows, Card, CardType, Hand, HandCandidates, HAND_CANDIDATES, HAND_SIZE,
+    driver, Arrows, BoardCells, Card, CardType, Hand, HandCandidates, BOARD_SIZE, HAND_CANDIDATES,
     MAX_NUMBER_OF_BLOCKS,
 };
 use rand::Rng as _;
 
-pub(super) fn random_blocked_cells(rng: &mut driver::Rng) -> Vec<u8> {
-    // FIXME: this will generate duplicates which *should* be okay...?
-    (0..rng.gen_range(0..=MAX_NUMBER_OF_BLOCKS))
-        .map(|_| rng.gen_range(0..(HAND_SIZE as u8)))
-        .collect()
+pub(super) fn random_blocked_cells(rng: &mut driver::Rng) -> BoardCells {
+    let mut blocked_cells = BoardCells::NONE;
+    for _ in 0..rng.gen_range(0..=MAX_NUMBER_OF_BLOCKS) {
+        loop {
+            let cell = rng.gen_range(0..(BOARD_SIZE as u8));
+            if !blocked_cells.has(cell) {
+                blocked_cells.set(cell);
+                break;
+            }
+        }
+    }
+    blocked_cells
 }
 
 pub(super) fn random_hand_candidates(rng: &mut driver::Rng) -> HandCandidates {
