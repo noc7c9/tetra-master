@@ -301,6 +301,7 @@ fn roll(battle_system: &mut BattleSystem, rng: &mut Rng, value: u8) -> u8 {
             // roll {value} dice and return the sum
             (0..value).map(|_| rng.gen_u8(1..=*sides)).sum()
         }
+        BattleSystem::Deterministic => value,
         // rolls are proportional to the rng number and falls in the range 0x00 - 0x{value}F
         // meant for making battles in tests predictable
         BattleSystem::Test => {

@@ -27,6 +27,7 @@ impl Command for Setup {
                 match self.battle_system {
                     BattleSystem::Original => o.atom("original"),
                     BattleSystem::Dice { sides } => o.atoms(("dice", DisplayHex(sides))),
+                    BattleSystem::Deterministic => o.atom("deterministic"),
                     BattleSystem::Test => o.atom("test"),
                 }
             })?;

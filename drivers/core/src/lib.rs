@@ -107,8 +107,13 @@ pub struct Rng {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum BattleSystem {
+    /// The original system from FF9
     Original,
+    /// Dice based system that throws dice based on the stat values
     Dice { sides: u8 },
+    /// Non-random system that directly compares the stat values
+    Deterministic,
+    /// A more predictable system intended for testing
     Test,
 }
 
