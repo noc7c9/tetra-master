@@ -100,11 +100,6 @@ pub const HAND_SIZE: usize = 5;
 pub type Hand = [Card; HAND_SIZE];
 pub type HandCandidates = [Hand; HAND_CANDIDATES];
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct Rng {
-    numbers: Vec<u8>,
-}
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum BattleSystem {
     /// The original system from FF9
