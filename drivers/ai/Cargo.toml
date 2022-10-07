@@ -1,0 +1,7 @@
+[package]
+name = "tetra-master-ai"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+tetra-master-core = { path = "../core" }

@@ -2962,6 +2962,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "tetra-master-ai"
+version = "0.1.0"
+dependencies = [
+ "tetra-master-core",
+]
+
+[[package]]
 name = "tetra-master-core"
 version = "0.1.0"
 dependencies = [

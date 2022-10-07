@@ -99,7 +99,7 @@ impl Command for PickHand {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct PlaceCard {
     pub card: u8,
     pub cell: u8,
@@ -121,7 +121,7 @@ impl Command for PlaceCard {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct PickBattle {
     pub cell: u8,
 }
