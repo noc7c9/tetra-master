@@ -5,6 +5,7 @@ edition = "2021"
 
 [dependencies]
 tetra-master-core = { path = "../core" }
+tetra-master-ai = { path = "../ai" }
 
 anyhow = { workspace = true }
 bevy = { workspace = true }

@@ -56,10 +56,16 @@ pub struct Driver(pub core::Driver);
 pub struct Turn(pub core::Player);
 
 #[derive(Debug)]
-pub struct Candidates(pub [Option<core::Hand>; 3]);
+pub struct Candidates(pub [core::Hand; 3]);
 
 #[derive(Debug)]
-pub struct BlockedCells(pub Vec<usize>);
+pub struct HandRed(pub core::Hand);
+
+#[derive(Debug)]
+pub struct HandBlue(pub core::Hand);
+
+#[derive(Debug)]
+pub struct BlockedCells(pub core::BoardCells);
 
 #[derive(Debug, Component, Clone)]
 pub struct Card(pub core::Card);
@@ -92,15 +98,9 @@ pub(crate) fn start_new_game(
     let response = driver
         .send_random_setup(core::BattleSystem::Dice { sides: 12 })
         .unwrap();
-    let c = response.hand_candidates;
-    commands.insert_resource(Candidates([Some(c[0]), Some(c[1]), Some(c[2])]));
-    commands.insert_resource(BlockedCells(
-        response
-            .blocked_cells
-            .into_iter()
-            .map(|c| c as usize)
-            .collect(),
-    ));
+
+    commands.insert_resource(Candidates(response.hand_candidates));
+    commands.insert_resource(BlockedCells(response.blocked_cells));
     commands.insert_resource(Turn(core::Player::P1));
 
     commands.insert_resource(Driver(driver));

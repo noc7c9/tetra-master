@@ -1,7 +1,7 @@
 use crate::{
     common::{
         calc_candidate_card_screen_pos, calc_hand_card_screen_pos, spawn_card, z_index, Candidates,
-        Driver, HandIdx, OptionalOwner, Owner, CANDIDATE_PADDING,
+        Driver, HandBlue, HandIdx, HandRed, OptionalOwner, Owner, CANDIDATE_PADDING,
     },
     hover, AppAssets, AppState, CARD_SIZE,
 };
@@ -46,7 +46,6 @@ fn on_enter(mut commands: Commands, app_assets: Res<AppAssets>, candidates: Res<
     commands.insert_resource(HoveredCandidate(None));
 
     for (candidate_idx, candidate) in candidates.0.iter().enumerate() {
-        let candidate = candidate.unwrap(); // will all exist on_enter
         for (hand_idx, card) in candidate.iter().enumerate() {
             let position = calc_candidate_card_screen_pos(candidate_idx, hand_idx);
             spawn_card(&mut commands, &app_assets, position, *card)
@@ -75,12 +74,14 @@ fn on_exit(mut commands: Commands) {
     commands.remove_resource::<HoveredCandidate>();
 }
 
+#[allow(clippy::too_many_arguments)]
 fn pick_hand(
     mut commands: Commands,
     mut app_state: ResMut<State<AppState>>,
     mut driver: ResMut<Driver>,
     mut status: ResMut<Status>,
     hovered_candidate: ResMut<HoveredCandidate>,
+    candidates: Res<Candidates>,
     btns: Res<Input<MouseButton>>,
     mut cards: Query<(Entity, &mut Transform, &HandIdx, &CandidateIdx)>,
 ) {
@@ -114,6 +115,9 @@ fn pick_hand(
                         // else {
                         // }
                     }
+
+                    // set the HandBlue resource
+                    commands.insert_resource(HandBlue(candidates.0[picked_candidate]));
 
                     // forward the game state
                     driver
@@ -153,6 +157,9 @@ fn pick_hand(
                             commands.entity(entity).despawn_recursive();
                         }
                     }
+
+                    // set the HandRed resource
+                    commands.insert_resource(HandRed(candidates.0[picked_candidate]));
 
                     // forward the game state
                     driver

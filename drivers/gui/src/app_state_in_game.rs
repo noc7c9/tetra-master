@@ -2,12 +2,13 @@ use crate::{
     common::{
         calc_board_card_screen_pos, calc_board_cell_screen_pos, calc_hand_card_active_screen_pos,
         calc_hand_card_hovered_screen_pos, calc_hand_card_screen_pos, start_new_game, z_index,
-        BlockedCells, Card, Driver, HandIdx, Owner, Turn, CELL_SIZE,
+        BlockedCells, Card, Driver, HandBlue, HandIdx, HandRed, Owner, Turn, CELL_SIZE,
     },
     hover, AppAssets, AppState, CARD_SIZE, COIN_SIZE, RENDER_HSIZE,
 };
 use bevy::{prelude::*, sprite::Anchor};
 use rand::prelude::*;
+use tetra_master_ai as ai;
 use tetra_master_core as core;
 
 const CARD_COUNTER_PADDING: Vec2 = Vec2::new(10., 5.);
@@ -57,7 +58,8 @@ impl bevy::app::Plugin for Plugin {
                     .with_system(handle_flip_event)
                     .with_system(handle_battle_event)
                     .with_system(handle_game_over_event)
-                    .with_system(update_card_counter),
+                    .with_system(update_card_counter)
+                    .with_system(ai_turn),
                 // .with_system(animate_coin)
             )
             .add_system_set(
@@ -83,6 +85,9 @@ struct ActiveCard(Option<Entity>);
 
 #[derive(Debug)]
 struct HoveredCell(Option<usize>);
+
+#[derive(Debug)]
+struct AI(ai::naive_minimax::State);
 
 #[derive(Component)]
 struct Cleanup;
@@ -118,6 +123,8 @@ fn on_enter(
     mut commands: Commands,
     app_assets: Res<AppAssets>,
     blocked_cells: Res<BlockedCells>,
+    hand_blue: Res<HandBlue>,
+    hand_red: Res<HandRed>,
     player_hands: Query<(Entity, &Owner, &Transform), With<Card>>,
 ) {
     commands.insert_resource(Status::Normal);
@@ -136,10 +143,10 @@ fn on_enter(
 
     // blocked cells
     let mut rng = rand::thread_rng();
-    for &cell in &blocked_cells.0 {
+    for cell in blocked_cells.0 {
         let texture_idx = rng.gen_range(0..app_assets.blocked_cell.len());
         let transform = Transform::from_translation(
-            calc_board_cell_screen_pos(cell).extend(z_index::BOARD_BLOCKED_CELL),
+            calc_board_cell_screen_pos(cell as usize).extend(z_index::BOARD_BLOCKED_CELL),
         );
         commands
             .spawn_bundle(SpriteBundle {
@@ -155,8 +162,8 @@ fn on_enter(
     }
 
     // board cell hover areas
-    for cell in 0..16 {
-        if blocked_cells.0.contains(&cell) {
+    for cell in 0usize..16 {
+        if blocked_cells.0.has(cell as u8) {
             continue;
         }
 
@@ -246,6 +253,16 @@ fn on_enter(
         .insert(Coin)
         .insert(AnimationTimer(Timer::from_seconds(0.05, true)))
         .insert(Cleanup);
+
+    // Setup the AI
+    let ai = ai::naive_minimax::State::new(
+        core::Player::P1,
+        blocked_cells.0,
+        hand_blue.0,
+        hand_red.0,
+        core::BattleSystem::Deterministic,
+    );
+    commands.insert_resource(AI(ai));
 }
 
 fn on_exit(mut commands: Commands) {
@@ -291,6 +308,7 @@ fn pick_battle(
     mut commands: Commands,
     mut event: EventWriter<core::Event>,
     mut driver: ResMut<Driver>,
+    mut ai: ResMut<AI>,
     mut status: ResMut<Status>,
     app_assets: Res<AppAssets>,
     hovered_cell: Res<HoveredCell>,
@@ -313,10 +331,10 @@ fn pick_battle(
                 commands.entity(entity).despawn_recursive();
             }
 
-            let response = driver
-                .0
-                .send(core::command::PickBattle { cell: cell as u8 })
-                .expect("PlaceCard command should work");
+            let cmd = core::command::PickBattle { cell: cell as u8 };
+            let response = driver.0.send(cmd).expect("PickBattle command should work");
+
+            ai.0.apply_in_place(ai::naive_minimax::Action::PickBattle(cmd));
 
             *status = handle_play_ok(response, &mut commands, &mut event, &app_assets);
         }
@@ -328,6 +346,7 @@ fn place_card(
     mut commands: Commands,
     mut event: EventWriter<core::Event>,
     mut driver: ResMut<Driver>,
+    mut ai: ResMut<AI>,
     mut status: ResMut<Status>,
     mut active_card: ResMut<ActiveCard>,
     mut hovered_cell: ResMut<HoveredCell>,
@@ -336,7 +355,7 @@ fn place_card(
     hand_idx: Query<&HandIdx>,
     hand_hover_areas: Query<(Entity, &HandCardHoverArea)>,
     board_hover_areas: Query<(Entity, &BoardCell)>,
-    mut transforms: Query<&mut Transform>,
+    transforms: Query<&mut Transform>,
     mut battler_stat_displays: Query<Entity, With<BattlerStatDisplay>>,
 ) {
     if !matches!(*status, Status::Normal) {
@@ -352,20 +371,22 @@ fn place_card(
 
             let card = hand_idx.get(card_entity).unwrap().0 as u8;
 
-            let response = driver
-                .0
-                .send(core::command::PlaceCard {
-                    card,
-                    cell: cell as u8,
-                })
-                .expect("PlaceCard command should work");
+            let cmd = core::command::PlaceCard {
+                card,
+                cell: cell as u8,
+            };
+            let response = driver.0.send(cmd).expect("PlaceCard command should work");
 
-            *status = handle_play_ok(response, &mut commands, &mut event, &app_assets);
+            ai.0.apply_in_place(ai::naive_minimax::Action::PlaceCard(cmd));
 
-            commands.entity(card_entity).insert(PlacedCard(cell));
-
-            // reposition the card
-            transforms.get_mut(card_entity).unwrap().translation = calc_board_card_screen_pos(cell);
+            place_card_common(
+                &mut commands,
+                hand_hover_areas,
+                board_hover_areas,
+                transforms,
+                card_entity,
+                cell,
+            );
 
             // clear active card
             active_card.0 = None;
@@ -373,22 +394,40 @@ fn place_card(
             // clear hovered cell
             hovered_cell.0 = None;
 
-            // remove the hand hover areas
-            commands.entity(card_entity).remove::<HandCardHoverArea>();
-            for (area_entity, hover_area) in &hand_hover_areas {
-                // remove sibling hover areas
-                if area_entity != card_entity && hover_area.0 == card_entity {
-                    commands.entity(area_entity).despawn_recursive();
-                }
-            }
+            *status = handle_play_ok(response, &mut commands, &mut event, &app_assets);
+        }
+    }
+}
 
-            // despawn the board cell hover areas
-            for (entity, board_cell) in &board_hover_areas {
-                if board_cell.0 == cell {
-                    commands.entity(entity).despawn_recursive();
-                    break;
-                }
-            }
+// common code for placing a card shared between player moves and AI moves
+fn place_card_common(
+    commands: &mut Commands,
+    hand_hover_areas: Query<(Entity, &HandCardHoverArea)>,
+    board_hover_areas: Query<(Entity, &BoardCell)>,
+    mut transforms: Query<&mut Transform>,
+    card_entity: Entity,
+    cell: usize,
+) {
+    // add the PlacedCard marker
+    commands.entity(card_entity).insert(PlacedCard(cell));
+
+    // reposition the card
+    transforms.get_mut(card_entity).unwrap().translation = calc_board_card_screen_pos(cell);
+
+    // remove the hand hover areas
+    commands.entity(card_entity).remove::<HandCardHoverArea>();
+    for (area_entity, hover_area) in &hand_hover_areas {
+        // remove sibling hover areas
+        if area_entity != card_entity && hover_area.0 == card_entity {
+            commands.entity(area_entity).despawn_recursive();
+        }
+    }
+
+    // despawn the board cell hover areas
+    for (entity, board_cell) in &board_hover_areas {
+        if board_cell.0 == cell {
+            commands.entity(entity).despawn_recursive();
+            break;
         }
     }
 }
@@ -675,11 +714,7 @@ fn update_card_counter(
 //     }
 // }
 
-pub(crate) fn spawn_battler_stats(
-    commands: &mut Commands,
-    app_assets: &AppAssets,
-    battler: core::Battler,
-) {
+fn spawn_battler_stats(commands: &mut Commands, app_assets: &AppAssets, battler: core::Battler) {
     const WIDTH_1_DIGIT_1_POS: Vec2 = Vec2::new(16., 24.);
 
     const WIDTH_2_DIGIT_1_POS: Vec2 = Vec2::new(11., 24.);
@@ -753,4 +788,70 @@ pub(crate) fn spawn_battler_stats(
                 ..default()
             });
         });
+}
+
+#[allow(clippy::too_many_arguments)]
+fn ai_turn(
+    mut commands: Commands,
+    mut event: EventWriter<core::Event>,
+    mut driver: ResMut<Driver>,
+    mut ai: ResMut<AI>,
+    mut status: ResMut<Status>,
+    app_assets: Res<AppAssets>,
+    turn: Res<Turn>,
+    hand_idx: Query<(Entity, &HandIdx, &Owner)>,
+    hand_hover_areas: Query<(Entity, &HandCardHoverArea)>,
+    board_hover_areas: Query<(Entity, &BoardCell)>,
+    transforms: Query<&mut Transform>,
+) {
+    // FIXME: this won't work if the AI makes a move that requires picking battles since the turn
+    // won't change in that case
+    if !turn.is_changed() || turn.0 == core::Player::P1 {
+        return;
+    }
+
+    println!("AI's Turn!");
+
+    println!("Calculating AI Move");
+    let now = std::time::Instant::now();
+    let ai_cmd = ai::naive_minimax::minimax_search(ai.0.clone());
+    println!(
+        "Time Taken: {} seconds",
+        now.elapsed().as_millis() as f64 / 1000.
+    );
+    println!("AI Move = {ai_cmd:?}");
+
+    let response = match ai_cmd {
+        ai::naive_minimax::Action::PlaceCard(ai_cmd) => {
+            let mut card_entity = None;
+            for (entity, hand_idx, owner) in &hand_idx {
+                if hand_idx.0 as u8 == ai_cmd.card && owner.0 == core::Player::P2 {
+                    card_entity = Some(entity);
+                    break;
+                }
+            }
+            let card_entity = card_entity.unwrap();
+            place_card_common(
+                &mut commands,
+                hand_hover_areas,
+                board_hover_areas,
+                transforms,
+                card_entity,
+                ai_cmd.cell as usize,
+            );
+
+            driver
+                .0
+                .send(ai_cmd)
+                .expect("AI PlaceCard command should work")
+        }
+        ai::naive_minimax::Action::PickBattle(ai_cmd) => driver
+            .0
+            .send(ai_cmd)
+            .expect("AI PickBattle command should work"),
+    };
+
+    ai.0.apply_in_place(ai_cmd);
+
+    *status = handle_play_ok(response, &mut commands, &mut event, &app_assets);
 }

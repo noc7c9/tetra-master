@@ -2989,6 +2989,7 @@ dependencies = [
  "bevy_prototype_lyon",
  "clap",
  "rand",
+ "tetra-master-ai",
  "tetra-master-core",
 ]
 
