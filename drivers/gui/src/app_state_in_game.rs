@@ -258,7 +258,8 @@ fn on_enter(
         3,
         &core::command::Setup {
             blocked_cells: blocked_cells.0,
-            hand_candidates: [hand_blue.0, hand_red.0, hand_red.0],
+            hand_blue: hand_blue.0,
+            hand_red: hand_red.0,
             battle_system: core::BattleSystem::Deterministic,
         },
     );

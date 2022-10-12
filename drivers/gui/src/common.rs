@@ -44,7 +44,7 @@ pub mod z_index {
     pub const BOARD_CARD_SELECT_INDICATOR: f32 = 2.;
 
     // hover areas
-    pub const CANDIDATE_HAND_HOVER_AREA: f32 = 100.;
+    // pub const CANDIDATE_HAND_HOVER_AREA: f32 = 100.;
     pub const BOARD_CELL_HOVER_AREA: f32 = 100.;
 
     pub const DEBUG: f32 = 666.;
@@ -55,8 +55,8 @@ pub struct Driver(pub core::Driver);
 #[derive(Debug)]
 pub struct Turn(pub core::Player);
 
-#[derive(Debug)]
-pub struct Candidates(pub [core::Hand; 3]);
+// #[derive(Debug)]
+// pub struct Candidates(pub [core::Hand; 3]);
 
 #[derive(Debug)]
 pub struct HandRed(pub core::Hand);
@@ -99,7 +99,9 @@ pub(crate) fn start_new_game(
         .send_random_setup(core::BattleSystem::Dice { sides: 12 })
         .unwrap();
 
-    commands.insert_resource(Candidates(response.hand_candidates));
+    // commands.insert_resource(Candidates(response.hand_candidates));
+    commands.insert_resource(HandBlue(response.hand_blue));
+    commands.insert_resource(HandRed(response.hand_red));
     commands.insert_resource(BlockedCells(response.blocked_cells));
     commands.insert_resource(Turn(core::Player::P1));
 
@@ -114,6 +116,7 @@ pub(crate) fn spawn_card<'w, 's, 'a>(
     app_assets: &AppAssets,
     translation: Vec3,
     card: core::Card,
+    owner: Option<core::Player>,
 ) -> bevy::ecs::system::EntityCommands<'w, 's, 'a> {
     let image_index = card_to_image_index(card);
     let mut entity_commands = commands.spawn_bundle(SpriteBundle {
@@ -121,7 +124,11 @@ pub(crate) fn spawn_card<'w, 's, 'a>(
             anchor: Anchor::BottomLeft,
             ..default()
         },
-        texture: app_assets.card_bg_gray.clone(),
+        texture: match owner {
+            None => app_assets.card_bg_gray.clone(),
+            Some(core::Player::P1) => app_assets.card_bg_blue.clone(),
+            Some(core::Player::P2) => app_assets.card_bg_red.clone(),
+        },
         transform: Transform::from_translation(translation),
         ..default()
     });

@@ -25,9 +25,6 @@ impl CommandResponse for command::Setup {
 impl CommandResponse for command::PushRngNumbers {
     type Response = response::PushRngNumbersOk;
 }
-impl CommandResponse for command::PickHand {
-    type Response = response::PickHandOk;
-}
 impl CommandResponse for command::PlaceCard {
     type Response = response::PlayOk;
 }
@@ -94,11 +91,9 @@ impl From<std::io::Error> for Error {
 
 pub const MAX_NUMBER_OF_BLOCKS: u8 = 6;
 pub const BOARD_SIZE: usize = 4 * 4;
-pub const HAND_CANDIDATES: usize = 3;
 pub const HAND_SIZE: usize = 5;
 
 pub type Hand = [Card; HAND_SIZE];
-pub type HandCandidates = [Hand; HAND_CANDIDATES];
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum BattleSystem {

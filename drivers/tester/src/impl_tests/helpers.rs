@@ -1,13 +1,11 @@
 use tetra_master_core::{
     command, Arrows, BattleSystem, BattleWinner, Battler, BoardCells, Card, Driver, DriverBuilder,
-    Error, ErrorResponse, Event, Hand, HandCandidates, Player,
+    Error, ErrorResponse, Event, Hand, Player,
 };
 
 pub(super) const CARD: Card = Card::physical(0, 0, 0, Arrows(0));
-pub(super) const HAND_CANDIDATES: HandCandidates = {
-    const HAND: Hand = [CARD, CARD, CARD, CARD, CARD];
-    [HAND, HAND, HAND]
-};
+pub(super) const HAND_BLUE: Hand = [CARD, CARD, CARD, CARD, CARD];
+pub(super) const HAND_RED: Hand = [CARD, CARD, CARD, CARD, CARD];
 
 pub(super) trait DriverBuilderExt {
     fn build_with_rng(self, numbers: &[u8]) -> Driver;
@@ -32,12 +30,9 @@ impl Command {
         command::Setup {
             battle_system: BattleSystem::Test,
             blocked_cells: BoardCells::NONE,
-            hand_candidates: HAND_CANDIDATES,
+            hand_blue: HAND_BLUE,
+            hand_red: HAND_RED,
         }
-    }
-
-    pub(super) fn pick_hand(hand: u8) -> command::PickHand {
-        command::PickHand { hand }
     }
 
     pub(super) fn place_card(card: u8, cell: u8) -> command::PlaceCard {
@@ -52,7 +47,8 @@ impl Command {
 pub(super) trait SetupExt {
     fn battle_system(self, value: BattleSystem) -> Self;
     fn blocked_cells(self, value: &[u8]) -> Self;
-    fn hand_candidates(self, value: &HandCandidates) -> Self;
+    fn hand_blue(self, value: &Hand) -> Self;
+    fn hand_red(self, value: &Hand) -> Self;
 }
 
 impl SetupExt for command::Setup {
@@ -66,8 +62,13 @@ impl SetupExt for command::Setup {
         self
     }
 
-    fn hand_candidates(mut self, value: &HandCandidates) -> Self {
-        self.hand_candidates = *value;
+    fn hand_blue(mut self, value: &Hand) -> Self {
+        self.hand_blue = *value;
+        self
+    }
+
+    fn hand_red(mut self, value: &Hand) -> Self {
+        self.hand_red = *value;
         self
     }
 }

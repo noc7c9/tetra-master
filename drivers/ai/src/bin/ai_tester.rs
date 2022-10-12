@@ -349,8 +349,6 @@ fn run_battle(game_seed: core::Seed, blue_ai: &Initializer, red_ai: &Initializer
     let mut ais = [blue_ai(&setup), red_ai(&setup)];
 
     driver.send(setup).unwrap();
-    driver.send(core::command::PickHand { hand: 0 }).unwrap();
-    driver.send(core::command::PickHand { hand: 1 }).unwrap();
 
     let mut active_ai = 0;
     let mut move_times = [Vec::with_capacity(7), Vec::with_capacity(7)];

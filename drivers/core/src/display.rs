@@ -113,10 +113,11 @@ impl Display for command::Setup {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
-            "Setup battle-system:{:?} blocked-cells:{} hand-candidates:{}",
+            "Setup battle-system:{:?} blocked-cells:{} hand-blue:{} hand-red:{}",
             self.battle_system,
             DisplayList::new(self.blocked_cells.into_iter().map(DisplayHex)),
-            DisplayList::new(self.hand_candidates.iter().map(DisplayHand)),
+            DisplayHand(&self.hand_blue),
+            DisplayHand(&self.hand_red),
         )
     }
 }
@@ -128,12 +129,6 @@ impl Display for command::PushRngNumbers {
             "PushRngNumbers {}",
             DisplayList::new(self.numbers.iter().map(DisplayHex)),
         )
-    }
-}
-
-impl Display for command::PickHand {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "PickHand hand:{:X}", self.hand)
     }
 }
 
@@ -158,12 +153,6 @@ impl Display for response::SetupOk {
 impl Display for response::PushRngNumbersOk {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "PushRngNumbersOk numbers-left:{:X}", self.numbers_left)
-    }
-}
-
-impl Display for response::PickHandOk {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "PickHandOk")
     }
 }
 

@@ -1,4 +1,4 @@
-use crate::{display::DisplayHex, BattleSystem, BoardCells, Card, CardType, HandCandidates};
+use crate::{display::DisplayHex, BattleSystem, BoardCells, Card, CardType, Hand};
 use std::fmt::Result as FResult;
 
 // TODO: replace this with a bespoke Error enum
@@ -12,7 +12,8 @@ pub trait Command {
 pub struct Setup {
     pub battle_system: BattleSystem,
     pub blocked_cells: BoardCells,
-    pub hand_candidates: HandCandidates,
+    pub hand_blue: Hand,
+    pub hand_red: Hand,
 }
 
 impl Command for Setup {
@@ -38,8 +39,13 @@ impl Command for Setup {
             })?;
 
             o.list(|o| {
-                o.atom("hand-candidates")?;
-                write_hand_candidates(o, &self.hand_candidates)
+                o.atom("hand-blue")?;
+                write_hand(o, &self.hand_blue)
+            })?;
+
+            o.list(|o| {
+                o.atom("hand-red")?;
+                write_hand(o, &self.hand_red)
             })?;
 
             Ok(())
@@ -71,26 +77,6 @@ impl Command for PushRngNumbers {
             }
 
             Ok(())
-        })?;
-
-        out.push('\n');
-
-        Ok(())
-    }
-}
-
-#[derive(Debug)]
-pub struct PickHand {
-    pub hand: u8,
-}
-
-impl Command for PickHand {
-    fn serialize(self, out: &mut String) -> Result<(), Error> {
-        let mut o = Sexpr::new(out);
-
-        o.list(|o| {
-            o.atom("pick-hand")?;
-            o.list(|o| o.atoms(("hand", self.hand)))
         })?;
 
         out.push('\n');
@@ -159,10 +145,8 @@ fn write_blocked_cells(o: &mut Sexpr, blocked_cells: BoardCells) -> FResult {
     o.array(blocked_cells, |o, cell| o.atom(DisplayHex(cell)))
 }
 
-fn write_hand_candidates(o: &mut Sexpr, hand_candidates: &HandCandidates) -> FResult {
-    o.array(hand_candidates, |o, hand| {
-        o.array(hand, |o, card| write_card(o, *card))
-    })
+fn write_hand(o: &mut Sexpr, hand: &Hand) -> FResult {
+    o.array(hand, |o, card| write_card(o, *card))
 }
 
 use sexpr::Sexpr;
@@ -254,7 +238,7 @@ mod tests {
     use test_case::test_case;
 
     use super::*;
-    use crate::{Arrows, BattleSystem, Card, HandCandidates};
+    use crate::{Arrows, BattleSystem, Card, Hand};
 
     fn assert_eq<T, U>(expected: T) -> impl Fn(U)
     where
@@ -295,33 +279,27 @@ mod tests {
         o
     }
 
-    #[test_case([
-        [C1P23_4, C5M67_8, C9XAB_C, CDAEF_0, C5M67_8],
-        [C5M67_8, C1P23_4, CDAEF_0, C5M67_8, C9XAB_C],
-        [CDAEF_0, C5M67_8, C9XAB_C, C5M67_8, C1P23_4],
-    ] => using assert_eq(concat!("((1P23_4 5M67_8 9XAB_C DAEF_0 5M67_8)",
-                                 " (5M67_8 1P23_4 DAEF_0 5M67_8 9XAB_C)",
-                                 " (DAEF_0 5M67_8 9XAB_C 5M67_8 1P23_4))")))]
-    fn write_hand_candidates(input: HandCandidates) -> String {
+    #[test_case([C1P23_4, C5M67_8, C9XAB_C, CDAEF_0, C5M67_8]
+        => using assert_eq("(1P23_4 5M67_8 9XAB_C DAEF_0 5M67_8)"))]
+    #[test_case([C5M67_8, C1P23_4, CDAEF_0, C5M67_8, C9XAB_C]
+        => using assert_eq("(5M67_8 1P23_4 DAEF_0 5M67_8 9XAB_C)"))]
+    #[test_case([CDAEF_0, C5M67_8, C9XAB_C, C5M67_8, C1P23_4]
+        => using assert_eq("(DAEF_0 5M67_8 9XAB_C 5M67_8 1P23_4)"))]
+    fn write_hand(input: Hand) -> String {
         let mut o = String::new();
-        super::write_hand_candidates(&mut Sexpr::new(&mut o), &input).unwrap();
+        super::write_hand(&mut Sexpr::new(&mut o), &input).unwrap();
         o
     }
 
     #[test_case(Setup {
         battle_system: BattleSystem::Dice { sides: 8 },
         blocked_cells: [2, 8, 0xA].into(),
-        hand_candidates: [
-            [C1P23_4, C5M67_8, C9XAB_C, CDAEF_0, C5M67_8],
-            [C5M67_8, C1P23_4, CDAEF_0, C5M67_8, C9XAB_C],
-            [CDAEF_0, C5M67_8, C9XAB_C, C5M67_8, C1P23_4],
-        ],
+        hand_blue: [C1P23_4, C5M67_8, C9XAB_C, CDAEF_0, C5M67_8],
+        hand_red: [C5M67_8, C1P23_4, CDAEF_0, C5M67_8, C9XAB_C],
     } => using assert_eq(concat!("(setup (battle-system dice 8)",
                                        " (blocked-cells (2 8 A))",
-                                       " (hand-candidates ",
-                                          "((1P23_4 5M67_8 9XAB_C DAEF_0 5M67_8)",
-                                          " (5M67_8 1P23_4 DAEF_0 5M67_8 9XAB_C)",
-                                          " (DAEF_0 5M67_8 9XAB_C 5M67_8 1P23_4))))\n")))]
+                                       " (hand-blue (1P23_4 5M67_8 9XAB_C DAEF_0 5M67_8))",
+                                       " (hand-red (5M67_8 1P23_4 DAEF_0 5M67_8 9XAB_C)))\n")))]
     fn setup(input: Setup) -> String {
         let mut o = String::new();
         input.serialize(&mut o).unwrap();
@@ -335,15 +313,6 @@ mod tests {
         numbers: vec![],
     } => using assert_eq("(push-rng-numbers)\n"))]
     fn push_rng_numbers(input: PushRngNumbers) -> String {
-        let mut o = String::new();
-        input.serialize(&mut o).unwrap();
-        o
-    }
-
-    #[test_case(PickHand { hand: 0 } => using assert_eq("(pick-hand (hand 0))\n"))]
-    #[test_case(PickHand { hand: 1 } => using assert_eq("(pick-hand (hand 1))\n"))]
-    #[test_case(PickHand { hand: 2 } => using assert_eq("(pick-hand (hand 2))\n"))]
-    fn pick_hand(input: PickHand) -> String {
         let mut o = String::new();
         input.serialize(&mut o).unwrap();
         o

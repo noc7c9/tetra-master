@@ -2,14 +2,12 @@ use crate::{
     self as core, command,
     response::{self, ErrorResponse},
     BattleSystem, BattleWinner, BoardCells, Card, CommandResponse, Error, Player, BOARD_SIZE,
-    HAND_CANDIDATES, HAND_SIZE,
+    HAND_SIZE,
 };
 
 mod logic;
 
 type Hand = [Option<Card>; HAND_SIZE];
-type HandCandidate = [Card; HAND_SIZE];
-type HandCandidates = [HandCandidate; HAND_CANDIDATES];
 type Board = [Cell; BOARD_SIZE];
 
 #[derive(Debug, Clone, Copy)]
@@ -93,33 +91,6 @@ pub struct PreSetupState {
 }
 
 /*****************************************************************************************
- * PickingHands Types
- */
-
-#[derive(Debug, Clone, PartialEq)]
-enum PickingHandsStatus {
-    P1Picking,
-    P2Picking { p1_pick: u8 },
-    Complete { p1_pick: u8, p2_pick: u8 },
-}
-
-#[derive(Debug, Clone)]
-pub struct PickingHandsState {
-    status: PickingHandsStatus,
-    // pub(crate) for testing
-    pub(crate) rng: Rng,
-    board: Board,
-    hand_candidates: HandCandidates,
-    battle_system: BattleSystem,
-}
-
-impl PickingHandsState {
-    fn is_complete(&self) -> bool {
-        matches!(self.status, PickingHandsStatus::Complete { .. })
-    }
-}
-
-/*****************************************************************************************
  * InGame Types
  */
 
@@ -148,37 +119,6 @@ pub struct InGameState {
 }
 
 impl InGameState {
-    fn from_pre_game_state(pre_game_state: &mut PickingHandsState) -> Self {
-        fn convert_hand([a, b, c, d, e]: HandCandidate) -> Hand {
-            [Some(a), Some(b), Some(c), Some(d), Some(e)]
-        }
-
-        let status = InGameStatus::WaitingPlace;
-        let turn = Player::P1;
-
-        let rng = pre_game_state.rng.clone();
-        let board = pre_game_state.board;
-
-        let (p1_pick, p2_pick) = match pre_game_state.status {
-            PickingHandsStatus::Complete { p1_pick, p2_pick } => (p1_pick, p2_pick),
-            _ => panic!("Cannot get picks from an incomplete PickingHandsState"),
-        };
-        let p1_hand = convert_hand(pre_game_state.hand_candidates[p1_pick as usize]);
-        let p2_hand = convert_hand(pre_game_state.hand_candidates[p2_pick as usize]);
-
-        let battle_system = pre_game_state.battle_system;
-
-        Self {
-            status,
-            rng,
-            turn,
-            board,
-            p1_hand,
-            p2_hand,
-            battle_system,
-        }
-    }
-
     // take out card from the given cell
     // panics if there is no card in the given cell
     fn take_card(&mut self, cell: u8) -> OwnedCard {
@@ -204,7 +144,6 @@ pub type ReferenceImplementation = GlobalState;
 #[derive(Debug)]
 pub enum GlobalState {
     PreSetup(PreSetupState),
-    PickingHands(PickingHandsState),
     InGame(InGameState),
 }
 
@@ -236,6 +175,10 @@ pub trait Step: CommandResponse {
 impl Step for command::Setup {
     fn step(self, global: &mut GlobalState) -> Result<Self::Response, ErrorResponse> {
         if let GlobalState::PreSetup(ref mut state) = global {
+            fn convert_hand([a, b, c, d, e]: core::Hand) -> Hand {
+                [Some(a), Some(b), Some(c), Some(d), Some(e)]
+            }
+
             let board = {
                 let mut board: Board = Default::default();
                 for cell in self.blocked_cells {
@@ -244,24 +187,28 @@ impl Step for command::Setup {
                 board
             };
 
-            let state = PickingHandsState {
-                status: PickingHandsStatus::P1Picking,
+            let state = InGameState {
+                status: InGameStatus::WaitingPlace,
                 rng: state.rng.take().unwrap(),
+                turn: Player::P1,
                 board,
-                hand_candidates: self.hand_candidates,
+                p1_hand: convert_hand(self.hand_blue),
+                p2_hand: convert_hand(self.hand_red),
                 battle_system: self.battle_system,
             };
 
             let blocked_cells = self.blocked_cells;
             let battle_system = state.battle_system;
-            let hand_candidates = state.hand_candidates;
+            let hand_blue = self.hand_blue;
+            let hand_red = self.hand_red;
 
-            *global = GlobalState::PickingHands(state);
+            *global = GlobalState::InGame(state);
 
             Ok(response::SetupOk {
                 blocked_cells,
                 battle_system,
-                hand_candidates,
+                hand_blue,
+                hand_red,
             })
         } else {
             panic!("Unexpected command {self:?}")
@@ -273,33 +220,12 @@ impl Step for command::PushRngNumbers {
     fn step(self, global: &mut GlobalState) -> Result<Self::Response, ErrorResponse> {
         let rng = match global {
             GlobalState::PreSetup(PreSetupState { rng }) => rng.as_mut().unwrap(),
-            GlobalState::PickingHands(PickingHandsState { rng, .. }) => rng,
             GlobalState::InGame(InGameState { rng, .. }) => rng,
         };
 
         rng.push_numbers(&self.numbers);
         let numbers_left = rng.numbers.len();
         Ok(response::PushRngNumbersOk { numbers_left })
-    }
-}
-
-impl Step for command::PickHand {
-    fn step(self, global: &mut GlobalState) -> Result<Self::Response, ErrorResponse> {
-        if let GlobalState::PickingHands(ref mut state) = global {
-            let res = match logic::pre_game_next(state, self) {
-                Err(err) => Err(err),
-                _ => Ok(response::PickHandOk),
-            };
-
-            if state.is_complete() {
-                let state = InGameState::from_pre_game_state(state);
-                *global = GlobalState::InGame(state);
-            }
-
-            res
-        } else {
-            panic!("Unexpected command {self:?}")
-        }
     }
 }
 

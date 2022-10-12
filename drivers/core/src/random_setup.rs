@@ -1,7 +1,4 @@
-use super::{
-    driver, Arrows, BoardCells, Card, CardType, Hand, HandCandidates, BOARD_SIZE, HAND_CANDIDATES,
-    MAX_NUMBER_OF_BLOCKS,
-};
+use super::{driver, Arrows, BoardCells, Card, CardType, Hand, BOARD_SIZE, MAX_NUMBER_OF_BLOCKS};
 use rand::Rng as _;
 
 pub(super) fn random_blocked_cells(rng: &mut driver::Rng) -> BoardCells {
@@ -18,7 +15,7 @@ pub(super) fn random_blocked_cells(rng: &mut driver::Rng) -> BoardCells {
     blocked_cells
 }
 
-pub(super) fn random_hand_candidates(rng: &mut driver::Rng) -> HandCandidates {
+pub(super) fn random_hands(rng: &mut driver::Rng) -> [Hand; 2] {
     fn estimate_card_value(card: &Card) -> f64 {
         // very simple, we *don't* want this to be super accurate to allow the player to
         // strategize
@@ -75,7 +72,7 @@ pub(super) fn random_hand_candidates(rng: &mut driver::Rng) -> HandCandidates {
     // find the hands with the most similar values
     hands.sort_unstable_by(|(a, _), (b, _)| a.total_cmp(b));
     let pick = hands
-        .windows(HAND_CANDIDATES)
+        .windows(2)
         .min_by(|a, b| {
             fn get_value_difference(hands: &[(f64, Hand)]) -> f64 {
                 let (first, _) = hands.first().expect("window should not be empty");

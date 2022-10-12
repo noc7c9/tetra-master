@@ -39,11 +39,12 @@ impl Driver {
 
     pub fn random_setup(&mut self, battle_system: BattleSystem) -> command::Setup {
         let blocked_cells = random_setup::random_blocked_cells(&mut self.rng);
-        let hand_candidates = random_setup::random_hand_candidates(&mut self.rng);
+        let [hand_blue, hand_red] = random_setup::random_hands(&mut self.rng);
         command::Setup {
             battle_system,
             blocked_cells,
-            hand_candidates,
+            hand_blue,
+            hand_red,
         }
     }
 
@@ -329,7 +330,6 @@ mod tests {
                 ReferenceImplementation::PreSetup(inner) => {
                     inner.rng.as_ref().unwrap().numbers.len()
                 }
-                ReferenceImplementation::PickingHands(inner) => inner.rng.numbers.len(),
                 ReferenceImplementation::InGame(inner) => inner.rng.numbers.len(),
             };
         }
@@ -349,8 +349,6 @@ mod tests {
         assert_eq!(get_rng_numbers_len(&driver), MIN_RNG_NUMBERS);
 
         // doesn't use any numbers
-        driver.send(command::PickHand { hand: 0 })?;
-        driver.send(command::PickHand { hand: 1 })?;
         driver.send(command::PlaceCard { card: 0, cell: 10 })?;
 
         assert_eq!(get_rng_numbers_len(&driver), MIN_RNG_NUMBERS);

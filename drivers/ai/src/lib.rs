@@ -43,7 +43,8 @@ mod tests {
             DEFAULT_DEPTH,
             &core::command::Setup {
                 blocked_cells: core::BoardCells::NONE,
-                hand_candidates: [hand_blue, hand_red, hand_red],
+                hand_blue,
+                hand_red,
                 battle_system: core::BattleSystem::Deterministic,
             },
         );
@@ -95,7 +96,8 @@ mod tests {
             DEFAULT_DEPTH,
             &core::command::Setup {
                 blocked_cells: core::BoardCells::NONE,
-                hand_candidates: [hand_blue, hand_red, hand_red],
+                hand_blue,
+                hand_red,
                 battle_system: core::BattleSystem::Deterministic,
             },
         );
@@ -162,7 +164,8 @@ mod tests {
             DEFAULT_DEPTH,
             &core::command::Setup {
                 blocked_cells: core::BoardCells::NONE,
-                hand_candidates: [hand_blue, hand_red, hand_red],
+                hand_blue,
+                hand_red,
                 battle_system: core::BattleSystem::Deterministic,
             },
         );
@@ -234,7 +237,8 @@ mod tests {
             DEFAULT_DEPTH,
             &core::command::Setup {
                 blocked_cells: [1, 10, 11].into(),
-                hand_candidates: [hand_blue, hand_red, hand_red],
+                hand_blue,
+                hand_red,
                 battle_system: core::BattleSystem::Deterministic,
             },
         );

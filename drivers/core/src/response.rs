@@ -1,6 +1,6 @@
 use crate::{
     Arrows, BattleSystem, BattleWinner, Battler, BoardCells, Card, CardType, Digit, Event, Hand,
-    HandCandidates, Player,
+    Player,
 };
 use nom::{
     branch::alt,
@@ -22,8 +22,6 @@ pub trait Response: Sized {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ErrorResponse {
-    InvalidHandPick { hand: u8 },
-    HandAlreadyPicked { hand: u8 },
     CellIsNotEmpty { cell: u8 },
     CardAlreadyPlayed { card: u8 },
     InvalidBattlePick { cell: u8 },
@@ -40,7 +38,8 @@ impl Response for ErrorResponse {
 pub struct SetupOk {
     pub battle_system: BattleSystem,
     pub blocked_cells: BoardCells,
-    pub hand_candidates: HandCandidates,
+    pub hand_red: Hand,
+    pub hand_blue: Hand,
 }
 
 impl Response for SetupOk {
@@ -58,16 +57,6 @@ pub struct PushRngNumbersOk {
 impl Response for PushRngNumbersOk {
     fn deserialize(i: &str) -> Result<Self, Error> {
         let (_, res) = push_rng_numbers_ok(i).map_err(|e| e.to_owned())?;
-        Ok(res)
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct PickHandOk;
-
-impl Response for PickHandOk {
-    fn deserialize(i: &str) -> Result<Self, Error> {
-        let (_, res) = pick_hand_ok(i).map_err(|e| e.to_owned())?;
         Ok(res)
     }
 }
@@ -194,11 +183,6 @@ fn hand(i: &str) -> IResult<&str, Hand> {
     Ok((i, [cards[0], cards[1], cards[2], cards[3], cards[4]]))
 }
 
-fn hand_candidates(i: &str) -> IResult<&str, HandCandidates> {
-    let (i, hands) = array_verify(hand, |v| v.len() == crate::HAND_CANDIDATES)(i)?;
-    Ok((i, [hands[0], hands[1], hands[2]]))
-}
-
 fn response<'a, T>(
     name: &'static str,
     inner: impl Parser<&'a str, T, NomError<&'a str>>,
@@ -215,18 +199,6 @@ fn prop<'a, T>(
 
 fn error(i: &str) -> IResult<&str, ErrorResponse> {
     use ErrorResponse::*;
-
-    fn invalid_hand_pick(i: &str) -> IResult<&str, ErrorResponse> {
-        let (i, _) = ident("InvalidHandPick")(i)?;
-        let (i, hand) = prop("hand", hex_digit_1_n(1))(i)?;
-        Ok((i, InvalidHandPick { hand }))
-    }
-
-    fn already_picked_hand(i: &str) -> IResult<&str, ErrorResponse> {
-        let (i, _) = ident("HandAlreadyPicked")(i)?;
-        let (i, hand) = prop("hand", hex_digit_1_n(1))(i)?;
-        Ok((i, HandAlreadyPicked { hand }))
-    }
 
     fn cell_is_not_empty(i: &str) -> IResult<&str, ErrorResponse> {
         let (i, _) = ident("CellIsNotEmpty")(i)?;
@@ -247,13 +219,7 @@ fn error(i: &str) -> IResult<&str, ErrorResponse> {
     }
 
     response("error", |i| {
-        alt((
-            invalid_hand_pick,
-            already_picked_hand,
-            cell_is_not_empty,
-            card_already_played,
-            invalid_battle_pick,
-        ))(i)
+        alt((cell_is_not_empty, card_already_played, invalid_battle_pick))(i)
     })(i)
 }
 
@@ -261,11 +227,13 @@ fn setup_ok(i: &str) -> IResult<&str, SetupOk> {
     response("setup-ok", |i| {
         let (i, battle_system) = prop("battle-system", battle_system)(i)?;
         let (i, blocked_cells) = prop("blocked-cells", blocked_cells)(i)?;
-        let (i, hand_candidates) = prop("hand-candidates", hand_candidates)(i)?;
+        let (i, hand_blue) = prop("hand-blue", hand)(i)?;
+        let (i, hand_red) = prop("hand-red", hand)(i)?;
         let setup_ok = SetupOk {
             battle_system,
             blocked_cells,
-            hand_candidates,
+            hand_blue,
+            hand_red,
         };
         Ok((i, setup_ok))
     })(i)
@@ -277,10 +245,6 @@ fn push_rng_numbers_ok(i: &str) -> IResult<&str, PushRngNumbersOk> {
         let push_rng_numbers_ok = PushRngNumbersOk { numbers_left };
         Ok((i, push_rng_numbers_ok))
     })(i)
-}
-
-fn pick_hand_ok(i: &str) -> IResult<&str, PickHandOk> {
-    response("pick-hand-ok", |i| Ok((i, PickHandOk)))(i)
 }
 
 fn play_ok(i: &str) -> IResult<&str, PlayOk> {
@@ -376,9 +340,7 @@ mod tests {
     use test_case::test_case;
 
     use super::*;
-    use crate::{
-        Arrows, BattleSystem, BattleWinner, Battler, Card, Digit, Hand, HandCandidates, Player,
-    };
+    use crate::{Arrows, BattleSystem, BattleWinner, Battler, Card, Digit, Hand, Player};
 
     fn assert_eq<T: PartialEq + std::fmt::Debug>(expected: T) -> impl Fn(T) {
         move |actual| pretty_assertions::assert_eq!(actual, expected)
@@ -416,6 +378,8 @@ mod tests {
 
     const C0P00: Card = Card::physical(0, 0, 0, Arrows(0));
     const C1X23: Card = Card::exploit(1, 2, 3, Arrows(0x45));
+    const C1P00: Card = Card::physical(1, 0, 0, Arrows(0));
+    const C2P00: Card = Card::physical(2, 0, 0, Arrows(0));
 
     #[test_case("(0P00_0 0P00_0 0P00_0 0P00_0 1X23_45)"
         => using assert_eq([C0P00,C0P00,C0P00,C0P00,C1X23]))]
@@ -432,17 +396,6 @@ mod tests {
     #[test_case(" " => panics; "empty string")]
     fn hand(i: &str) -> Hand {
         super::hand(i).unwrap().1
-    }
-
-    #[test_case(concat!("((0P00_0 0P00_0 0P00_0 0P00_0 1X23_45)",
-                        " (0P00_0 0P00_0 1X23_45 0P00_0 0P00_0)",
-                        " (1X23_45 0P00_0 0P00_0 0P00_0 0P00_0))")
-        => using assert_eq([[C0P00,C0P00,C0P00,C0P00,C1X23], [C0P00,C0P00,C1X23,C0P00,C0P00],
-                            [C1X23,C0P00,C0P00,C0P00,C0P00]]))]
-    #[test_case("()" => panics)]
-    #[test_case(" " => panics; "empty string")]
-    fn hand_candidates(i: &str) -> HandCandidates {
-        super::hand_candidates(i).unwrap().1
     }
 
     #[test_case("()" => BoardCells::NONE)]
@@ -466,8 +419,6 @@ mod tests {
         super::battle_system(i).unwrap().1
     }
 
-    #[test_case("(error InvalidHandPick (hand 1))\n" => ErrorResponse::InvalidHandPick { hand: 1 })]
-    #[test_case("(error HandAlreadyPicked (hand 2))\n" => ErrorResponse::HandAlreadyPicked { hand: 2 })]
     #[test_case("(error CellIsNotEmpty (cell 2))\n" => ErrorResponse::CellIsNotEmpty { cell: 2 })]
     #[test_case("(error CardAlreadyPlayed (card 2))\n" => ErrorResponse::CardAlreadyPlayed { card: 2 })]
     #[test_case("(error InvalidBattlePick (cell 2))\n" => ErrorResponse::InvalidBattlePick { cell: 2 })]
@@ -476,35 +427,16 @@ mod tests {
     }
 
     const BLOCKED_CELLS: &str = "(2 3 F)";
-    const HAND_CANDIDATES: &str = concat!(
-        "((0P00_0 0P00_0 0P00_0 0P00_0 0P00_0)",
-        " (0P00_0 0P00_0 0P00_0 0P00_0 0P00_0)",
-        " (0P00_0 0P00_0 0P00_0 0P00_0 0P00_0))"
-    );
+    const HAND_BLUE: &str = "(1P00_0 0P00_0 0P00_0 0P00_0 0P00_0)";
+    const HAND_RED: &str = "(2P00_0 0P00_0 0P00_0 0P00_0 0P00_0)";
     #[test_case(
-        format!(concat!("(setup-ok (battle-system dice 9) (blocked-cells {})",
-                                 " (hand-candidates {}))\n"), BLOCKED_CELLS, HAND_CANDIDATES)
+        format!("(setup-ok (battle-system dice 9) (blocked-cells {}) (hand-blue {}) (hand-red {}))\n",
+            BLOCKED_CELLS, HAND_BLUE, HAND_RED)
         => SetupOk {
             battle_system: BattleSystem::Dice { sides: 9 },
             blocked_cells: [2, 3, 0xf].into(),
-            hand_candidates: [
-                [C0P00, C0P00, C0P00, C0P00, C0P00],
-                [C0P00, C0P00, C0P00, C0P00, C0P00],
-                [C0P00, C0P00, C0P00, C0P00, C0P00],
-            ],
-        }
-    )]
-    #[test_case(
-        format!("(setup-ok (battle-system dice 9) (blocked-cells {}) (hand-candidates {}))\n",
-                BLOCKED_CELLS, HAND_CANDIDATES)
-        => SetupOk {
-            battle_system: BattleSystem::Dice { sides: 9 },
-            blocked_cells: [2, 3, 0xf].into(),
-            hand_candidates: [
-                [C0P00, C0P00, C0P00, C0P00, C0P00],
-                [C0P00, C0P00, C0P00, C0P00, C0P00],
-                [C0P00, C0P00, C0P00, C0P00, C0P00],
-            ],
+            hand_blue: [C1P00, C0P00, C0P00, C0P00, C0P00],
+            hand_red: [C2P00, C0P00, C0P00, C0P00, C0P00],
         }
     )]
     fn setup_ok(i: String) -> SetupOk {
@@ -515,11 +447,6 @@ mod tests {
     #[test_case("(push-rng-numbers-ok (numbers-left aBc123))\n"
         => PushRngNumbersOk { numbers_left: 0xABC123 })]
     fn push_rng_numbers_ok(i: &str) -> PushRngNumbersOk {
-        Response::deserialize(i).unwrap()
-    }
-
-    #[test_case("(pick-hand-ok)\n" => PickHandOk)]
-    fn pick_hand_ok(i: &str) -> PickHandOk {
         Response::deserialize(i).unwrap()
     }
 

@@ -8,8 +8,8 @@ pub fn init(setup: &core::command::Setup) -> Ai {
     Ai(State::new(
         core::Player::P1,
         setup.blocked_cells,
-        setup.hand_candidates[0],
-        setup.hand_candidates[1],
+        setup.hand_blue,
+        setup.hand_red,
         setup.battle_system,
     ))
 }

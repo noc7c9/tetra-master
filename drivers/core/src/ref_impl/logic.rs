@@ -1,37 +1,8 @@
 use super::{
     BattleWinner, BoardCells, Card, Cell, InGameInput, InGameState, InGameStatus, OwnedCard,
-    PickingHandsState, PickingHandsStatus, Player, Rng,
+    Player, Rng,
 };
 use crate::{command, Arrows, BattleSystem, Battler, CardType, Digit, ErrorResponse, Event};
-
-pub(super) fn pre_game_next(
-    state: &mut PickingHandsState,
-    input: command::PickHand,
-) -> Result<(), ErrorResponse> {
-    match state.status {
-        PickingHandsStatus::P1Picking => {
-            if input.hand > 2 {
-                return Err(ErrorResponse::InvalidHandPick { hand: input.hand });
-            }
-            state.status = PickingHandsStatus::P2Picking {
-                p1_pick: input.hand,
-            };
-        }
-        PickingHandsStatus::P2Picking { p1_pick } => {
-            if input.hand > 2 {
-                return Err(ErrorResponse::InvalidHandPick { hand: input.hand });
-            }
-            if input.hand == p1_pick {
-                return Err(ErrorResponse::HandAlreadyPicked { hand: input.hand });
-            }
-            let p2_pick = input.hand;
-            state.status = PickingHandsStatus::Complete { p1_pick, p2_pick };
-        }
-        _ => unreachable!("next called after picking-hands phase is complete"),
-    }
-
-    Ok(())
-}
 
 pub(super) fn game_next(
     state: &mut InGameState,
