@@ -7,6 +7,7 @@ anyhow = "1.0.61"
 bevy = "0.8.1"
 bevy_prototype_lyon = "0.6.0"
 clap = { version = "4.0.11", features = ["derive"] }
+crossterm = "0.25.0"
 nom = "7.1.1"
 owo-colors = "3.4.0"
 pretty_assertions = "1.2.1"

@@ -8,7 +8,7 @@ use crate::{
 };
 use bevy::{prelude::*, sprite::Anchor};
 use rand::prelude::*;
-use tetra_master_ai as ai;
+use tetra_master_ai::{self as ai, Ai};
 use tetra_master_core as core;
 
 const CARD_COUNTER_PADDING: Vec2 = Vec2::new(10., 5.);
@@ -86,8 +86,7 @@ struct ActiveCard(Option<Entity>);
 #[derive(Debug)]
 struct HoveredCell(Option<usize>);
 
-#[derive(Debug)]
-struct AI(ai::naive_minimax::State);
+struct AI(ai::naive_minimax::Ai);
 
 #[derive(Component)]
 struct Cleanup;
@@ -255,12 +254,13 @@ fn on_enter(
         .insert(Cleanup);
 
     // Setup the AI
-    let ai = ai::naive_minimax::State::new(
-        core::Player::P1,
-        blocked_cells.0,
-        hand_blue.0,
-        hand_red.0,
-        core::BattleSystem::Deterministic,
+    let ai = ai::naive_minimax::init(
+        3,
+        &core::command::Setup {
+            blocked_cells: blocked_cells.0,
+            hand_candidates: [hand_blue.0, hand_red.0, hand_red.0],
+            battle_system: core::BattleSystem::Deterministic,
+        },
     );
     commands.insert_resource(AI(ai));
 }
@@ -334,7 +334,7 @@ fn pick_battle(
             let cmd = core::command::PickBattle { cell: cell as u8 };
             let response = driver.0.send(cmd).expect("PickBattle command should work");
 
-            ai.0.apply_in_place(ai::naive_minimax::Action::PickBattle(cmd));
+            ai.0.update(ai::Action::PickBattle(cmd));
 
             *status = handle_play_ok(response, &mut commands, &mut event, &app_assets);
         }
@@ -377,7 +377,7 @@ fn place_card(
             };
             let response = driver.0.send(cmd).expect("PlaceCard command should work");
 
-            ai.0.apply_in_place(ai::naive_minimax::Action::PlaceCard(cmd));
+            ai.0.update(ai::Action::PlaceCard(cmd));
 
             place_card_common(
                 &mut commands,
@@ -814,7 +814,7 @@ fn ai_turn(
 
     println!("Calculating AI Move");
     let now = std::time::Instant::now();
-    let ai_cmd = ai::naive_minimax::minimax_search(ai.0.clone());
+    let ai_cmd = ai.0.get_action();
     println!(
         "Time Taken: {} seconds",
         now.elapsed().as_millis() as f64 / 1000.
@@ -822,7 +822,7 @@ fn ai_turn(
     println!("AI Move = {ai_cmd:?}");
 
     let response = match ai_cmd {
-        ai::naive_minimax::Action::PlaceCard(ai_cmd) => {
+        ai::Action::PlaceCard(ai_cmd) => {
             let mut card_entity = None;
             for (entity, hand_idx, owner) in &hand_idx {
                 if hand_idx.0 as u8 == ai_cmd.card && owner.0 == core::Player::P2 {
@@ -845,13 +845,13 @@ fn ai_turn(
                 .send(ai_cmd)
                 .expect("AI PlaceCard command should work")
         }
-        ai::naive_minimax::Action::PickBattle(ai_cmd) => driver
+        ai::Action::PickBattle(ai_cmd) => driver
             .0
             .send(ai_cmd)
             .expect("AI PickBattle command should work"),
     };
 
-    ai.0.apply_in_place(ai_cmd);
+    ai.0.update(ai_cmd);
 
     *status = handle_play_ok(response, &mut commands, &mut event, &app_assets);
 }

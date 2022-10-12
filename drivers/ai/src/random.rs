@@ -4,9 +4,8 @@ use super::Action;
 
 pub struct Ai(State);
 
-pub fn init(max_depth: usize, setup: &core::command::Setup) -> Ai {
+pub fn init(setup: &core::command::Setup) -> Ai {
     Ai(State::new(
-        max_depth,
         core::Player::P1,
         setup.blocked_cells,
         setup.hand_candidates[0],
@@ -17,7 +16,10 @@ pub fn init(max_depth: usize, setup: &core::command::Setup) -> Ai {
 
 impl super::Ai for Ai {
     fn get_action(&mut self) -> Action {
-        minimax_search(self.0.clone())
+        use rand::Rng;
+        let actions = self.0.actions();
+        let idx = rand::thread_rng().gen_range(0..actions.len());
+        actions[idx]
     }
 
     fn update(&mut self, action: Action) {
@@ -25,8 +27,7 @@ impl super::Ai for Ai {
     }
 }
 
-//**************************************************************************************************
-// game logic
+const MAX_DEPTH: usize = 3;
 
 type Board = [Cell; core::BOARD_SIZE];
 type Hand = [Option<core::Card>; core::HAND_SIZE];
@@ -51,22 +52,21 @@ impl Default for Cell {
 }
 
 #[derive(Debug, Clone)]
-enum Status {
+pub enum Status {
     WaitingPlace,
     WaitingBattle {
         attacker_cell: u8,
         choices: core::BoardCells,
     },
     GameOver {
-        // winner: Option<core::Player>,
+        winner: Option<core::Player>,
     },
 }
 
 #[derive(Debug, Clone)]
-struct State {
+pub struct State {
     logging_enabled: bool,
     indent: Indent,
-    max_depth: usize,
     depth: usize,
     status: Status,
     turn: core::Player,
@@ -77,8 +77,7 @@ struct State {
 }
 
 impl State {
-    fn new(
-        max_depth: usize,
+    pub fn new(
         turn: core::Player,
         blocked_cells: core::BoardCells,
         hand_blue: core::Hand,
@@ -100,7 +99,6 @@ impl State {
         Self {
             logging_enabled: false,
             indent: Indent::new(),
-            max_depth,
             depth: 0,
             status: Status::WaitingPlace,
             turn,
@@ -154,7 +152,7 @@ impl State {
         actions
     }
 
-    fn apply_in_place(&mut self, action: Action) {
+    pub fn apply_in_place(&mut self, action: Action) {
         match (&self.status, action) {
             (Status::WaitingPlace, Action::PlaceCard(action)) => {
                 apply_place_card_action(self, action)
@@ -175,7 +173,7 @@ impl State {
     }
 
     fn is_terminal(&self) -> bool {
-        self.depth >= self.max_depth || matches!(self.status, Status::GameOver { .. })
+        self.depth >= MAX_DEPTH || matches!(self.status, Status::GameOver { .. })
     }
 
     fn utility(&self, player: core::Player) -> isize {
@@ -193,7 +191,12 @@ impl State {
     }
 }
 
-fn minimax_search(state: State) -> Action {
+pub fn minimax_search_with_logging(mut state: State) -> Action {
+    state.logging_enabled = true;
+    minimax_search(state)
+}
+
+pub fn minimax_search(state: State) -> Action {
     let player = state.to_move();
     let (_value, action) = max_value(player, state, None);
     action.unwrap()
@@ -434,27 +437,26 @@ fn resolve_interactions(state: &mut State, attacker_cell: u8) {
 
 fn check_for_game_over(state: &mut State) -> bool {
     if state.hand_blue.iter().all(Option::is_none) && state.hand_red.iter().all(Option::is_none) {
-        // let mut p1_cards = 0;
-        // let mut p2_cards = 0;
+        let mut p1_cards = 0;
+        let mut p2_cards = 0;
 
-        // for cell in &state.board {
-        //     if let Cell::Card(OwnedCard { owner, .. }) = cell {
-        //         match owner {
-        //             core::Player::P1 => p1_cards += 1,
-        //             core::Player::P2 => p2_cards += 1,
-        //         }
-        //     }
-        // }
+        for cell in &state.board {
+            if let Cell::Card(OwnedCard { owner, .. }) = cell {
+                match owner {
+                    core::Player::P1 => p1_cards += 1,
+                    core::Player::P2 => p2_cards += 1,
+                }
+            }
+        }
 
-        // use std::cmp::Ordering;
-        // let winner = match p1_cards.cmp(&p2_cards) {
-        //     Ordering::Greater => Some(core::Player::P1),
-        //     Ordering::Less => Some(core::Player::P2),
-        //     Ordering::Equal => None,
-        // };
+        use std::cmp::Ordering;
+        let winner = match p1_cards.cmp(&p2_cards) {
+            Ordering::Greater => Some(core::Player::P1),
+            Ordering::Less => Some(core::Player::P2),
+            Ordering::Equal => None,
+        };
 
-        // state.status = Status::GameOver { winner };
-        state.status = Status::GameOver {};
+        state.status = Status::GameOver { winner };
 
         true
     } else {

@@ -5,3 +5,9 @@ edition = "2021"
 
 [dependencies]
 tetra-master-core = { path = "../core" }
+
+anyhow = { workspace = true }
+clap = { workspace = true }
+crossterm = { workspace = true }
+rand = { workspace = true }
+rand_pcg = { workspace = true }

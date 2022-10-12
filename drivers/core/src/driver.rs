@@ -37,14 +37,19 @@ impl Driver {
         DriverBuilder::new(inner)
     }
 
-    pub fn send_random_setup(&mut self, battle_system: BattleSystem) -> Result<response::SetupOk> {
+    pub fn random_setup(&mut self, battle_system: BattleSystem) -> command::Setup {
         let blocked_cells = random_setup::random_blocked_cells(&mut self.rng);
         let hand_candidates = random_setup::random_hand_candidates(&mut self.rng);
-        self.send(command::Setup {
+        command::Setup {
             battle_system,
             blocked_cells,
             hand_candidates,
-        })
+        }
+    }
+
+    pub fn send_random_setup(&mut self, battle_system: BattleSystem) -> Result<response::SetupOk> {
+        let cmd = self.random_setup(battle_system);
+        self.send(cmd)
     }
 
     pub fn send<C>(&mut self, cmd: C) -> Result<C::Response>

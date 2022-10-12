@@ -1,4 +1,18 @@
+use tetra_master_core as core;
+
 pub mod naive_minimax;
+pub mod random;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Action {
+    PlaceCard(core::command::PlaceCard),
+    PickBattle(core::command::PickBattle),
+}
+
+pub trait Ai {
+    fn get_action(&mut self) -> Action;
+    fn update(&mut self, action: Action);
+}
 
 #[cfg(test)]
 mod tests {
@@ -10,10 +24,14 @@ mod tests {
     // ---+---+---+---
     //  C | D | E | F
 
-    use super::naive_minimax::{minimax_search, minimax_search_with_logging, Action, State};
+    use super::naive_minimax;
+    use super::{Action, Ai};
     use tetra_master_core::{self as core, Arrows, Card};
 
+    const DEFAULT_DEPTH: usize = 3;
     const CARD: Card = Card::physical(0, 0, 0, Arrows(0));
+
+    // TODO: change these to test-cases over each of the AIs
 
     #[test]
     fn sanity_check_1_move_left_need_flip_to_win() {
@@ -21,17 +39,18 @@ mod tests {
 
         let hand_blue = [CARD, CARD, CARD, CARD, CARD];
         let hand_red = [CARD, CARD, CARD, CARD, left];
-        let mut state = State::new(
-            core::Player::P1,
-            core::BoardCells::NONE,
-            hand_blue,
-            hand_red,
-            core::BattleSystem::Deterministic,
+        let mut state = naive_minimax::init(
+            DEFAULT_DEPTH,
+            &core::command::Setup {
+                blocked_cells: core::BoardCells::NONE,
+                hand_candidates: [hand_blue, hand_red, hand_red],
+                battle_system: core::BattleSystem::Deterministic,
+            },
         );
 
         let mut apply_place_card = |card, cell| {
             let cmd = core::command::PlaceCard { card, cell };
-            state.apply_in_place(Action::PlaceCard(cmd));
+            state.update(Action::PlaceCard(cmd));
         };
 
         apply_place_card(0, 0);
@@ -60,7 +79,7 @@ mod tests {
         //  which will flip the blue card on 9
         //  resulting in a score of 4 v 6
 
-        let actual = minimax_search(state);
+        let actual = state.get_action();
         let expected = Action::PlaceCard(core::command::PlaceCard { card: 4, cell: 0xA });
         assert_eq!(actual, expected);
     }
@@ -72,17 +91,18 @@ mod tests {
 
         let hand_blue = [CARD, CARD, CARD, CARD, def];
         let hand_red = [CARD, CARD, CARD, CARD, att];
-        let mut state = State::new(
-            core::Player::P1,
-            core::BoardCells::NONE,
-            hand_blue,
-            hand_red,
-            core::BattleSystem::Deterministic,
+        let mut state = naive_minimax::init(
+            DEFAULT_DEPTH,
+            &core::command::Setup {
+                blocked_cells: core::BoardCells::NONE,
+                hand_candidates: [hand_blue, hand_red, hand_red],
+                battle_system: core::BattleSystem::Deterministic,
+            },
         );
 
         let mut apply_place_card = |card, cell| {
             let cmd = core::command::PlaceCard { card, cell };
-            state.apply_in_place(Action::PlaceCard(cmd));
+            state.update(Action::PlaceCard(cmd));
         };
 
         apply_place_card(0, 3);
@@ -112,7 +132,7 @@ mod tests {
         //  which in turn combo flips the blue card on 4
         //  resulting in a score of 4 v 6
 
-        let actual = minimax_search(state);
+        let actual = state.get_action();
         let expected = Action::PlaceCard(core::command::PlaceCard { card: 4, cell: 6 });
         assert_eq!(actual, expected);
     }
@@ -138,17 +158,18 @@ mod tests {
             CARD,
             Card::physical(1, 0, 0, Arrows::UP | Arrows::UP_RIGHT | Arrows::RIGHT),
         ];
-        let mut state = State::new(
-            core::Player::P1,
-            core::BoardCells::NONE,
-            hand_blue,
-            hand_red,
-            core::BattleSystem::Deterministic,
+        let mut state = naive_minimax::init(
+            DEFAULT_DEPTH,
+            &core::command::Setup {
+                blocked_cells: core::BoardCells::NONE,
+                hand_candidates: [hand_blue, hand_red, hand_red],
+                battle_system: core::BattleSystem::Deterministic,
+            },
         );
 
         let mut apply_place_card = |card, cell| {
             let cmd = core::command::PlaceCard { card, cell };
-            state.apply_in_place(Action::PlaceCard(cmd));
+            state.update(Action::PlaceCard(cmd));
         };
 
         apply_place_card(0, 0);
@@ -177,13 +198,13 @@ mod tests {
         //  which will flip the attacked card and combo flip the 4 cards around
         //  resulting in a score of 3 v 7
 
-        let actual = minimax_search_with_logging(state.clone());
+        let actual = state.get_action();
         let expected = Action::PlaceCard(core::command::PlaceCard { card: 4, cell: 9 });
         assert_eq!(actual, expected);
 
-        state.apply_in_place(expected);
+        state.update(expected);
 
-        let actual = minimax_search(state);
+        let actual = state.get_action();
         let expected = Action::PickBattle(core::command::PickBattle { cell: 10 });
         assert_eq!(actual, expected);
     }
@@ -209,17 +230,18 @@ mod tests {
             Card::physical(0xF, 0, 0, Arrows::RIGHT),
             Card::magical(0xF, 0, 0, Arrows::RIGHT),
         ];
-        let mut state = State::new(
-            core::Player::P1,
-            [1, 10, 11].into(),
-            hand_blue,
-            hand_red,
-            core::BattleSystem::Deterministic,
+        let mut state = naive_minimax::init(
+            DEFAULT_DEPTH,
+            &core::command::Setup {
+                blocked_cells: [1, 10, 11].into(),
+                hand_candidates: [hand_blue, hand_red, hand_red],
+                battle_system: core::BattleSystem::Deterministic,
+            },
         );
 
-        let apply_place_card = |state: &mut State, card, cell| {
+        let apply_place_card = |state: &mut naive_minimax::Ai, card, cell| {
             let cmd = core::command::PlaceCard { card, cell };
-            state.apply_in_place(Action::PlaceCard(cmd));
+            state.update(Action::PlaceCard(cmd));
         };
 
         apply_place_card(&mut state, 0, 0);
@@ -246,7 +268,7 @@ mod tests {
         //  which in turn combo flips the cards on 3, 4 and 7
         //  resulting in a score of 3 v 5
 
-        let actual = minimax_search(state.clone());
+        let actual = state.get_action();
         let expected = Action::PlaceCard(core::command::PlaceCard { card: 4, cell: 5 });
         assert_eq!(actual, expected);
 
@@ -265,7 +287,7 @@ mod tests {
         //  which will attack (and flip) the blue card on F
         //  resulting in a score of 4 v 6
 
-        let actual = minimax_search(state);
+        let actual = state.get_action();
         let expected = Action::PlaceCard(core::command::PlaceCard { card: 3, cell: 0xE });
         assert_eq!(actual, expected);
     }
