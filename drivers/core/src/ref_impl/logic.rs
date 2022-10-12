@@ -29,8 +29,8 @@ fn handle_waiting_place(
     let attacker_cell = input.cell;
 
     let hand = match state.turn {
-        Player::P1 => &mut state.p1_hand,
-        Player::P2 => &mut state.p2_hand,
+        Player::Blue => &mut state.hand_blue,
+        Player::Red => &mut state.hand_red,
     };
 
     // ensure cell being placed is empty
@@ -162,23 +162,23 @@ fn resolve_interactions(state: &mut InGameState, events: &mut Vec<Event>, attack
 }
 
 fn check_for_game_over(state: &mut InGameState, events: &mut Vec<Event>) -> bool {
-    if state.p1_hand.iter().all(Option::is_none) && state.p2_hand.iter().all(Option::is_none) {
-        let mut p1_cards = 0;
-        let mut p2_cards = 0;
+    if state.hand_blue.iter().all(Option::is_none) && state.hand_red.iter().all(Option::is_none) {
+        let mut blue_cards = 0;
+        let mut red_cards = 0;
 
         for cell in &state.board {
             if let Cell::Card(OwnedCard { owner, .. }) = cell {
                 match owner {
-                    Player::P1 => p1_cards += 1,
-                    Player::P2 => p2_cards += 1,
+                    Player::Blue => blue_cards += 1,
+                    Player::Red => red_cards += 1,
                 }
             }
         }
 
         use std::cmp::Ordering;
-        let winner = match p1_cards.cmp(&p2_cards) {
-            Ordering::Greater => Some(Player::P1),
-            Ordering::Less => Some(Player::P2),
+        let winner = match blue_cards.cmp(&red_cards) {
+            Ordering::Greater => Some(Player::Blue),
+            Ordering::Less => Some(Player::Red),
             Ordering::Equal => None,
         };
 

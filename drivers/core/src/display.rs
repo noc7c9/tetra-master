@@ -68,8 +68,8 @@ impl Display for Card {
 impl Display for Player {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Player::P1 => write!(f, "P1"),
-            Player::P2 => write!(f, "P2"),
+            Player::Blue => write!(f, "Blue"),
+            Player::Red => write!(f, "Red"),
         }
     }
 }

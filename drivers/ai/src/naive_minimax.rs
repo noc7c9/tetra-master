@@ -7,7 +7,7 @@ pub struct Ai(State);
 pub fn init(max_depth: usize, setup: &core::command::Setup) -> Ai {
     Ai(State::new(
         max_depth,
-        core::Player::P1,
+        core::Player::Blue,
         setup.blocked_cells,
         setup.hand_blue,
         setup.hand_red,
@@ -121,8 +121,8 @@ impl State {
             Status::GameOver { .. } => unreachable!(),
             Status::WaitingPlace => {
                 let hand = match self.turn {
-                    core::Player::P1 => &self.hand_blue,
-                    core::Player::P2 => &self.hand_red,
+                    core::Player::Blue => &self.hand_blue,
+                    core::Player::Red => &self.hand_red,
                 }
                 .iter()
                 .enumerate()
@@ -315,8 +315,8 @@ fn apply_place_card_action(state: &mut State, cmd: core::command::PlaceCard) {
     let attacker_cell = cmd.cell;
 
     let hand = match state.turn {
-        core::Player::P1 => &mut state.hand_blue,
-        core::Player::P2 => &mut state.hand_red,
+        core::Player::Blue => &mut state.hand_blue,
+        core::Player::Red => &mut state.hand_red,
     };
 
     // ensure cell being placed is empty
@@ -434,22 +434,22 @@ fn resolve_interactions(state: &mut State, attacker_cell: u8) {
 
 fn check_for_game_over(state: &mut State) -> bool {
     if state.hand_blue.iter().all(Option::is_none) && state.hand_red.iter().all(Option::is_none) {
-        // let mut p1_cards = 0;
-        // let mut p2_cards = 0;
+        // let mut blue_cards = 0;
+        // let mut red_cards = 0;
 
         // for cell in &state.board {
         //     if let Cell::Card(OwnedCard { owner, .. }) = cell {
         //         match owner {
-        //             core::Player::P1 => p1_cards += 1,
-        //             core::Player::P2 => p2_cards += 1,
+        //             core::Player::Blue => blue_cards += 1,
+        //             core::Player::Red => red_cards += 1,
         //         }
         //     }
         // }
 
         // use std::cmp::Ordering;
-        // let winner = match p1_cards.cmp(&p2_cards) {
-        //     Ordering::Greater => Some(core::Player::P1),
-        //     Ordering::Less => Some(core::Player::P2),
+        // let winner = match blue_cards.cmp(&red_cards) {
+        //     Ordering::Greater => Some(core::Player::Blue),
+        //     Ordering::Less => Some(core::Player::Red),
         //     Ordering::Equal => None,
         // };
 

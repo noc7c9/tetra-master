@@ -103,7 +103,7 @@ pub(crate) fn start_new_game(
     commands.insert_resource(HandBlue(response.hand_blue));
     commands.insert_resource(HandRed(response.hand_red));
     commands.insert_resource(BlockedCells(response.blocked_cells));
-    commands.insert_resource(Turn(core::Player::P1));
+    commands.insert_resource(Turn(core::Player::Blue));
 
     commands.insert_resource(Driver(driver));
 
@@ -126,8 +126,8 @@ pub(crate) fn spawn_card<'w, 's, 'a>(
         },
         texture: match owner {
             None => app_assets.card_bg_gray.clone(),
-            Some(core::Player::P1) => app_assets.card_bg_blue.clone(),
-            Some(core::Player::P2) => app_assets.card_bg_red.clone(),
+            Some(core::Player::Blue) => app_assets.card_bg_blue.clone(),
+            Some(core::Player::Red) => app_assets.card_bg_red.clone(),
         },
         transform: Transform::from_translation(translation),
         ..default()
@@ -254,8 +254,8 @@ pub fn calc_hand_card_screen_pos(owner: core::Player, hand_idx: usize) -> Vec3 {
     let hand_idx = hand_idx as f32;
     Vec3::new(
         match owner {
-            core::Player::P1 => RENDER_HSIZE.x - CARD_SIZE.x - PLAYER_HAND_PADDING,
-            core::Player::P2 => -RENDER_HSIZE.x + PLAYER_HAND_PADDING,
+            core::Player::Blue => RENDER_HSIZE.x - CARD_SIZE.x - PLAYER_HAND_PADDING,
+            core::Player::Red => -RENDER_HSIZE.x + PLAYER_HAND_PADDING,
         },
         RENDER_HSIZE.y - CARD_SIZE.y - PLAYER_HAND_PADDING - PLAYER_HAND_VOFFSET * hand_idx,
         z_index::HAND_CARD + hand_idx,
@@ -265,8 +265,8 @@ pub fn calc_hand_card_screen_pos(owner: core::Player, hand_idx: usize) -> Vec3 {
 pub fn calc_hand_card_active_screen_pos(owner: core::Player, hand_idx: usize) -> Vec3 {
     let mut pos = calc_hand_card_screen_pos(owner, hand_idx);
     pos.x += match owner {
-        core::Player::P1 => -PLAYER_HAND_ACTIVE_HOFFSET,
-        core::Player::P2 => PLAYER_HAND_ACTIVE_HOFFSET,
+        core::Player::Blue => -PLAYER_HAND_ACTIVE_HOFFSET,
+        core::Player::Red => PLAYER_HAND_ACTIVE_HOFFSET,
     };
     pos.z += z_index::HAND_CARD_ACTIVE;
     pos
@@ -275,8 +275,8 @@ pub fn calc_hand_card_active_screen_pos(owner: core::Player, hand_idx: usize) ->
 pub fn calc_hand_card_hovered_screen_pos(owner: core::Player, hand_idx: usize) -> Vec3 {
     let mut pos = calc_hand_card_screen_pos(owner, hand_idx);
     pos.x += match owner {
-        core::Player::P1 => -PLAYER_HAND_HOVERED_HOFFSET,
-        core::Player::P2 => PLAYER_HAND_HOVERED_HOFFSET,
+        core::Player::Blue => -PLAYER_HAND_HOVERED_HOFFSET,
+        core::Player::Red => PLAYER_HAND_HOVERED_HOFFSET,
     };
     pos.z += z_index::HAND_CARD_HOVERED;
     pos

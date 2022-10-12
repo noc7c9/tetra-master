@@ -209,8 +209,8 @@ impl Results {
 
     fn record(&mut self, blue_ai: AiName, red_ai: AiName, result: BattleResult) {
         match result.winner {
-            Some(core::Player::P1) => self.record_win(blue_ai, red_ai),
-            Some(core::Player::P2) => self.record_loss(blue_ai, red_ai),
+            Some(core::Player::Blue) => self.record_win(blue_ai, red_ai),
+            Some(core::Player::Red) => self.record_loss(blue_ai, red_ai),
             None => self.record_draw(blue_ai, red_ai),
         }
 

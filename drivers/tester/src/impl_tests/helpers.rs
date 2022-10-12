@@ -88,8 +88,8 @@ impl<T: std::fmt::Debug> ResponseResultExt for Result<T, Error> {
 }
 
 pub(super) trait EventExt {
-    fn turn_p1() -> Self;
-    fn turn_p2() -> Self;
+    fn turn_blue() -> Self;
+    fn turn_red() -> Self;
     fn flip(cell: u8) -> Self;
     fn combo_flip(cell: u8) -> Self;
     fn battle(attacker: Battler, defender: Battler, winner: BattleWinner) -> Self;
@@ -98,12 +98,12 @@ pub(super) trait EventExt {
 }
 
 impl EventExt for Event {
-    fn turn_p1() -> Self {
-        Event::NextTurn { to: Player::P1 }
+    fn turn_blue() -> Self {
+        Event::NextTurn { to: Player::Blue }
     }
 
-    fn turn_p2() -> Self {
-        Event::NextTurn { to: Player::P2 }
+    fn turn_red() -> Self {
+        Event::NextTurn { to: Player::Red }
     }
 
     fn flip(cell: u8) -> Self {

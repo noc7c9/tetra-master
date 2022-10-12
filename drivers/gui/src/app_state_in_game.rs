@@ -572,8 +572,8 @@ fn handle_next_turn_event(
         if let core::Event::NextTurn { to } = event {
             turn.0 = *to;
             sprite.single_mut().index = match to {
-                core::Player::P1 => 0,
-                core::Player::P2 => 4,
+                core::Player::Blue => 0,
+                core::Player::Red => 4,
             };
         }
     }
@@ -590,10 +590,10 @@ fn handle_flip_event(
             for (&PlacedCard(placed_cell), mut image, mut owner) in &mut query {
                 if placed_cell == *cell as usize {
                     *image = if *image == app_assets.card_bg_red {
-                        owner.0 = core::Player::P1;
+                        owner.0 = core::Player::Blue;
                         app_assets.card_bg_blue.clone()
                     } else {
-                        owner.0 = core::Player::P2;
+                        owner.0 = core::Player::Red;
                         app_assets.card_bg_red.clone()
                     };
                     debug_found_card_in_evt = true;
@@ -634,8 +634,8 @@ fn handle_game_over_event(
         if let core::Event::GameOver { winner } = event {
             let text = match winner {
                 None => "It was draw! Left Click to Start a New Game!",
-                Some(core::Player::P1) => "Blue won! Left Click to Start a New Game!",
-                Some(core::Player::P2) => "Red won! Left Click to Start a New Game!",
+                Some(core::Player::Blue) => "Blue won! Left Click to Start a New Game!",
+                Some(core::Player::Red) => "Red won! Left Click to Start a New Game!",
             };
             commands
                 .spawn_bundle(NodeBundle {
@@ -689,10 +689,10 @@ fn update_card_counter(
     let mut blue = 0;
     for &Owner(owner) in &placed_cards {
         match owner {
-            core::Player::P1 => {
+            core::Player::Blue => {
                 blue += 1;
             }
-            core::Player::P2 => {
+            core::Player::Red => {
                 red += 1;
             }
         }
@@ -807,7 +807,7 @@ fn ai_turn(
 ) {
     // FIXME: this won't work if the AI makes a move that requires picking battles since the turn
     // won't change in that case
-    if !turn.is_changed() || turn.0 == core::Player::P1 {
+    if !turn.is_changed() || turn.0 == core::Player::Blue {
         return;
     }
 
@@ -826,7 +826,7 @@ fn ai_turn(
         ai::Action::PlaceCard(ai_cmd) => {
             let mut card_entity = None;
             for (entity, hand_idx, owner) in &hand_idx {
-                if hand_idx.0 as u8 == ai_cmd.card && owner.0 == core::Player::P2 {
+                if hand_idx.0 as u8 == ai_cmd.card && owner.0 == core::Player::Red {
                     card_entity = Some(entity);
                     break;
                 }

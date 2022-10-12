@@ -109,15 +109,15 @@ pub enum BattleSystem {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Player {
-    P1,
-    P2,
+    Blue,
+    Red,
 }
 
 impl Player {
     pub fn opposite(self) -> Self {
         match self {
-            Player::P1 => Player::P2,
-            Player::P2 => Player::P1,
+            Player::Blue => Player::Red,
+            Player::Red => Player::Blue,
         }
     }
 }

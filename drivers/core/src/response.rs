@@ -133,8 +133,8 @@ impl FromStrHex for usize {
 
 fn player(i: &str) -> IResult<&str, Player> {
     alt((
-        map(ident("player1"), |_| Player::P1),
-        map(ident("player2"), |_| Player::P2),
+        map(ident("blue"), |_| Player::Blue),
+        map(ident("red"), |_| Player::Red),
     ))(i)
 }
 
@@ -453,10 +453,10 @@ mod tests {
     use Event::*;
     #[test_case("(play-ok (events))\n"
         => PlayOk { pick_battle: BoardCells::NONE, events: vec![] })]
-    #[test_case("(play-ok (events (next-turn player1)))\n"
-        => PlayOk { pick_battle: BoardCells::NONE, events: vec![NextTurn { to: Player::P1 }] })]
-    #[test_case("(play-ok (events (next-turn player2)))\n"
-        => PlayOk { pick_battle: BoardCells::NONE, events: vec![NextTurn { to: Player::P2 }] })]
+    #[test_case("(play-ok (events (next-turn blue)))\n"
+        => PlayOk { pick_battle: BoardCells::NONE, events: vec![NextTurn { to: Player::Blue }] })]
+    #[test_case("(play-ok (events (next-turn red)))\n"
+        => PlayOk { pick_battle: BoardCells::NONE, events: vec![NextTurn { to: Player::Red }] })]
     #[test_case("(play-ok (events (flip 4)))\n"
         => PlayOk { pick_battle: BoardCells::NONE, events: vec![Flip { cell: 4 }] })]
     #[test_case("(play-ok (events (flip 2) (flip A) (flip 7)))\n"
@@ -479,10 +479,10 @@ mod tests {
                 defender: Battler { cell: 8, digit: Digit::MagicalDefense, value: 3, roll: 0xCD },
                 winner: BattleWinner::Attacker,
             }] })]
-    #[test_case("(play-ok (events (game-over player1)))\n"
-        => PlayOk { pick_battle: BoardCells::NONE, events: vec![GameOver { winner: Some(Player::P1) }] })]
-    #[test_case("(play-ok (events (game-over player2)))\n"
-        => PlayOk { pick_battle: BoardCells::NONE, events: vec![GameOver { winner: Some(Player::P2) }] })]
+    #[test_case("(play-ok (events (game-over blue)))\n"
+        => PlayOk { pick_battle: BoardCells::NONE, events: vec![GameOver { winner: Some(Player::Blue) }] })]
+    #[test_case("(play-ok (events (game-over red)))\n"
+        => PlayOk { pick_battle: BoardCells::NONE, events: vec![GameOver { winner: Some(Player::Red) }] })]
     #[test_case("(play-ok (events (game-over draw)))\n"
         => PlayOk { pick_battle: BoardCells::NONE, events: vec![GameOver { winner: None }] })]
     #[test_case("(play-ok (events) (pick-battle (2 3 4)))\n"

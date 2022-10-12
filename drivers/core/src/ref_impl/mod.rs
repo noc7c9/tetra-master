@@ -113,8 +113,8 @@ pub struct InGameState {
     pub(crate) rng: Rng,
     turn: Player,
     board: Board,
-    p1_hand: Hand,
-    p2_hand: Hand,
+    hand_blue: Hand,
+    hand_red: Hand,
     battle_system: BattleSystem,
 }
 
@@ -190,10 +190,10 @@ impl Step for command::Setup {
             let state = InGameState {
                 status: InGameStatus::WaitingPlace,
                 rng: state.rng.take().unwrap(),
-                turn: Player::P1,
+                turn: Player::Blue,
                 board,
-                p1_hand: convert_hand(self.hand_blue),
-                p2_hand: convert_hand(self.hand_red),
+                hand_blue: convert_hand(self.hand_blue),
+                hand_red: convert_hand(self.hand_red),
                 battle_system: self.battle_system,
             };
 

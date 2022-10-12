@@ -88,7 +88,7 @@ fn in_game_tests(s: &mut Suite<Ctx>) {
 
         let events = driver.send(Command::place_card(1, 5))?.events;
 
-        assert_eq!(events, vec![Event::turn_p2()]);
+        assert_eq!(events, vec![Event::turn_red()]);
     });
     test!(s "error if the card has already been played"; |ctx| {
         let mut driver = ctx.new_driver().build();
@@ -130,12 +130,12 @@ fn in_game_tests(s: &mut Suite<Ctx>) {
         driver.send(Command::setup().hand_blue(&hands[0]).hand_red(&hands[1]))?;
 
         driver.send(Command::place_card(0, 0))?; // should flip
-        driver.send(Command::place_card(0, 5))?; // shouldn't flip, belongs to p2
+        driver.send(Command::place_card(0, 5))?; // shouldn't flip, belongs to red
         driver.send(Command::place_card(1, 8))?; // shouldn't flip, not pointed to
 
         let events = driver.send(Command::place_card(1, 4))?.events;
 
-        assert_eq!(events, vec![Event::flip(0), Event::turn_p1()]);
+        assert_eq!(events, vec![Event::flip(0), Event::turn_blue()]);
     });
     test!(ss "place card that flips multiple other cards"; |ctx| {
         let mut driver = ctx.new_driver().build();
@@ -163,7 +163,7 @@ fn in_game_tests(s: &mut Suite<Ctx>) {
                 Event::flip(1),
                 Event::flip(4),
                 Event::flip(6),
-                Event::turn_p1(),
+                Event::turn_blue(),
             ]
         );
     });
@@ -189,7 +189,7 @@ fn in_game_tests(s: &mut Suite<Ctx>) {
         driver.send(Command::place_card(3, 0x5))?;
         driver.send(Command::place_card(4, 0x4))?; // flip card on 5
 
-        // all cards on board now belong to P1
+        // all cards on board now belong to blue
 
         // flip 8 surrounding cards
         let  events = driver.send(Command::place_card(4, 6))?.events;
@@ -205,7 +205,7 @@ fn in_game_tests(s: &mut Suite<Ctx>) {
                 Event::flip(0x9),
                 Event::flip(0xA),
                 Event::flip(0xB),
-                Event::game_over(Some(Player::P2)),
+                Event::game_over(Some(Player::Red)),
             ]
         );
     });
@@ -234,7 +234,7 @@ fn in_game_tests(s: &mut Suite<Ctx>) {
                     BattleWinner::Attacker,
                 ),
                 Event::flip(0),
-                Event::turn_p1(),
+                Event::turn_blue(),
             ]
         );
     });
@@ -261,7 +261,7 @@ fn in_game_tests(s: &mut Suite<Ctx>) {
                     BattleWinner::Defender,
                 ),
                 Event::flip(1),
-                Event::turn_p1(),
+                Event::turn_blue(),
             ]
         );
     });
@@ -288,7 +288,7 @@ fn in_game_tests(s: &mut Suite<Ctx>) {
                     BattleWinner::None,
                 ),
                 Event::flip(1),
-                Event::turn_p1(),
+                Event::turn_blue(),
             ]
         );
     });
@@ -331,7 +331,7 @@ fn in_game_tests(s: &mut Suite<Ctx>) {
                 Event::flip(5),
                 Event::flip(8),
                 Event::flip(9),
-                Event::game_over(Some(Player::P2)),
+                Event::game_over(Some(Player::Red)),
             ]
         );
     });
@@ -370,7 +370,7 @@ fn in_game_tests(s: &mut Suite<Ctx>) {
                     BattleWinner::Defender,
                 ),
                 Event::flip(4),
-                Event::game_over(Some(Player::P1)),
+                Event::game_over(Some(Player::Blue)),
             ]
         );
     });
@@ -402,7 +402,7 @@ fn in_game_tests(s: &mut Suite<Ctx>) {
                 ),
                 Event::flip(5),
                 Event::combo_flip(0),
-                Event::turn_p1(),
+                Event::turn_blue(),
             ]
         );
     });
@@ -439,7 +439,7 @@ fn in_game_tests(s: &mut Suite<Ctx>) {
             Event::combo_flip(1),
             Event::combo_flip(4),
             Event::combo_flip(6),
-            Event::turn_p1(),
+            Event::turn_blue(),
         ]);
     });
     test!(ss "combo flip cards that are pointed to by the attacker if they lose"; |ctx| {
@@ -475,7 +475,7 @@ fn in_game_tests(s: &mut Suite<Ctx>) {
             Event::combo_flip(1),
             Event::combo_flip(4),
             Event::combo_flip(6),
-            Event::turn_p1(),
+            Event::turn_blue(),
         ]);
     });
     test!(ss "don't flip back undefended cards if they are flipped due to combos"; |ctx| {
@@ -501,7 +501,7 @@ fn in_game_tests(s: &mut Suite<Ctx>) {
             ),
             Event::flip(0),
             Event::combo_flip(4),
-            Event::turn_p2(),
+            Event::turn_red(),
         ]);
     });
 
@@ -543,7 +543,7 @@ fn in_game_tests(s: &mut Suite<Ctx>) {
                 ),
                 Event::flip(4),
                 Event::combo_flip(8),
-                Event::turn_p1(),
+                Event::turn_blue(),
             ]
         );
     });
@@ -629,7 +629,7 @@ fn in_game_tests(s: &mut Suite<Ctx>) {
                 BattleWinner::Attacker,
             ),
             Event::flip(9),
-            Event::turn_p1(),
+            Event::turn_blue(),
         ]);
     });
     test!(ss "don't continue offering choices if attacker loses"; |ctx| {
@@ -666,7 +666,7 @@ fn in_game_tests(s: &mut Suite<Ctx>) {
                 BattleWinner::Defender,
             ),
             Event::flip(4),
-            Event::turn_p1(),
+            Event::turn_blue(),
         ]);
     });
     test!(ss "handle game over when attacker loses battle after a choice"; |ctx| {
@@ -704,7 +704,7 @@ fn in_game_tests(s: &mut Suite<Ctx>) {
                 BattleWinner::Defender,
             ),
             Event::flip(4),
-            Event::game_over(Some(Player::P1)),
+            Event::game_over(Some(Player::Blue)),
         ]);
     });
 
@@ -729,7 +729,7 @@ fn in_game_tests(s: &mut Suite<Ctx>) {
         let events = driver.send(Command::place_card(4, 9))?.events;
 
         assert_eq!(events, vec![
-            Event::game_over(Some(Player::P1)),
+            Event::game_over(Some(Player::Blue)),
         ]);
     });
     test!(ss "game should be over once all cards have been played, player 2 wins"; |ctx| {
@@ -752,7 +752,7 @@ fn in_game_tests(s: &mut Suite<Ctx>) {
         let events = driver.send(Command::place_card(4, 9))?.events;
 
         assert_eq!(events, vec![
-            Event::game_over(Some(Player::P2)),
+            Event::game_over(Some(Player::Red)),
         ]);
     });
     test!(ss "game should be over once all cards have been played, it's a draw"; |ctx| {

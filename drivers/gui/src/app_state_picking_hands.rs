@@ -52,8 +52,8 @@ fn on_enter(
     // commands.insert_resource(HoveredCandidate(None));
 
     for (candidate_idx, (candidate, owner)) in [
-        (hand_blue.0, core::Player::P1),
-        (hand_red.0, core::Player::P2),
+        (hand_blue.0, core::Player::Blue),
+        (hand_red.0, core::Player::Red),
     ]
     .into_iter()
     .enumerate()
@@ -129,13 +129,13 @@ fn next(
 //                         if candidate_idx.0 == picked_candidate {
 //                             // move it to the blue side
 //                             transform.translation =
-//                                 calc_hand_card_screen_pos(core::Player::P1, hand_idx.0);
+//                                 calc_hand_card_screen_pos(core::Player::Blue, hand_idx.0);
 
 //                             commands
 //                                 .entity(entity)
 //                                 // replace OptionalOwner with Owner
 //                                 .remove::<OptionalOwner>()
-//                                 .insert(Owner(core::Player::P1))
+//                                 .insert(Owner(core::Player::Blue))
 //                                 // remove the hand candidate marker and the clean up marker
 //                                 .remove::<CandidateIdx>()
 //                                 .remove::<Cleanup>();
@@ -169,13 +169,13 @@ fn next(
 //                         if candidate_idx.0 == picked_candidate {
 //                             // move it to the red side
 //                             transform.translation =
-//                                 calc_hand_card_screen_pos(core::Player::P2, hand_idx.0);
+//                                 calc_hand_card_screen_pos(core::Player::Red, hand_idx.0);
 
 //                             commands
 //                                 .entity(entity)
 //                                 // replace OptionalOwner with Owner
 //                                 .remove::<OptionalOwner>()
-//                                 .insert(Owner(core::Player::P2))
+//                                 .insert(Owner(core::Player::Red))
 //                                 // remove the hand candidate marker and the clean up marker
 //                                 .remove::<CandidateIdx>()
 //                                 .remove::<Cleanup>();
@@ -234,8 +234,8 @@ fn next(
 //         // might be missing if this triggers during clean up
 //         if let Ok(candidate_idx) = candidates.get(evt.entity) {
 //             let highlight = match *status {
-//                 Status::BluePicking => core::Player::P1,
-//                 Status::RedPicking => core::Player::P2,
+//                 Status::BluePicking => core::Player::Blue,
+//                 Status::RedPicking => core::Player::Red,
 //             };
 //             set_highlight(candidate_idx.0, Some(highlight));
 
@@ -251,8 +251,8 @@ fn next(
 //     for (mut texture, owner) in &mut query {
 //         *texture = match owner.0 {
 //             None => app_assets.card_bg_gray.clone(),
-//             Some(core::Player::P1) => app_assets.card_bg_blue.clone(),
-//             Some(core::Player::P2) => app_assets.card_bg_red.clone(),
+//             Some(core::Player::Blue) => app_assets.card_bg_blue.clone(),
+//             Some(core::Player::Red) => app_assets.card_bg_red.clone(),
 //         };
 //     }
 // }
