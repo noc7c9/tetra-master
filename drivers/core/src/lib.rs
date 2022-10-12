@@ -208,6 +208,23 @@ impl Card {
         }
     }
 
+    // intended only for testing so fn panics instead of returning an error
+    pub fn parse(s: &str) -> Self {
+        Card::new(
+            u8::from_str_radix(&s[0..1], 16).unwrap(),
+            match &s[1..2] {
+                "P" => CardType::Physical,
+                "M" => CardType::Magical,
+                "X" => CardType::Exploit,
+                "A" => CardType::Assault,
+                _ => unreachable!(),
+            },
+            u8::from_str_radix(&s[2..3], 16).unwrap(),
+            u8::from_str_radix(&s[3..4], 16).unwrap(),
+            Arrows(u8::from_str_radix(&s[5..], 16).unwrap()),
+        )
+    }
+
     pub const fn physical(att: u8, phy: u8, mag: u8, arrows: Arrows) -> Self {
         Self::new(att, CardType::Physical, phy, mag, arrows)
     }
