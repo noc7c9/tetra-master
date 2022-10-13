@@ -1,5 +1,15 @@
-use super::{driver, Arrows, BoardCells, Card, CardType, Hand, BOARD_SIZE, MAX_NUMBER_OF_BLOCKS};
+use super::{
+    driver, Arrows, BoardCells, Card, CardType, Hand, Player, BOARD_SIZE, MAX_NUMBER_OF_BLOCKS,
+};
 use rand::Rng as _;
+
+pub(super) fn random_starting_player(rng: &mut driver::Rng) -> Player {
+    if rng.gen() {
+        Player::Blue
+    } else {
+        Player::Red
+    }
+}
 
 pub(super) fn random_blocked_cells(rng: &mut driver::Rng) -> BoardCells {
     let mut blocked_cells = BoardCells::NONE;

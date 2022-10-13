@@ -113,11 +113,12 @@ impl Display for command::Setup {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
-            "Setup battle-system:{:?} blocked-cells:{} hand-blue:{} hand-red:{}",
+            "Setup battle-system:{:?} blocked-cells:{} hand-blue:{} hand-red:{} starting-player:{}",
             self.battle_system,
             DisplayList::new(self.blocked_cells.into_iter().map(DisplayHex)),
             DisplayHand(&self.hand_blue),
             DisplayHand(&self.hand_red),
+            &self.starting_player,
         )
     }
 }

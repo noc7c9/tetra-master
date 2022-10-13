@@ -40,6 +40,7 @@ pub struct SetupOk {
     pub blocked_cells: BoardCells,
     pub hand_red: Hand,
     pub hand_blue: Hand,
+    pub starting_player: Player,
 }
 
 impl Response for SetupOk {
@@ -229,11 +230,13 @@ fn setup_ok(i: &str) -> IResult<&str, SetupOk> {
         let (i, blocked_cells) = prop("blocked-cells", blocked_cells)(i)?;
         let (i, hand_blue) = prop("hand-blue", hand)(i)?;
         let (i, hand_red) = prop("hand-red", hand)(i)?;
+        let (i, starting_player) = prop("starting-player", player)(i)?;
         let setup_ok = SetupOk {
             battle_system,
             blocked_cells,
             hand_blue,
             hand_red,
+            starting_player,
         };
         Ok((i, setup_ok))
     })(i)
@@ -398,6 +401,13 @@ mod tests {
         super::hand(i).unwrap().1
     }
 
+    #[test_case("blue" => using assert_eq(Player::Blue))]
+    #[test_case("red" => using assert_eq(Player::Red))]
+    #[test_case(" " => panics; "empty string")]
+    fn player(i: &str) -> Player {
+        super::player(i).unwrap().1
+    }
+
     #[test_case("()" => BoardCells::NONE)]
     #[test_case("(1)" => BoardCells::from([1]))]
     #[test_case("(2 a B F)" => BoardCells::from([2,0xa,0xb,0xf]))]
@@ -430,13 +440,14 @@ mod tests {
     const HAND_BLUE: &str = "(1P00_0 0P00_0 0P00_0 0P00_0 0P00_0)";
     const HAND_RED: &str = "(2P00_0 0P00_0 0P00_0 0P00_0 0P00_0)";
     #[test_case(
-        format!("(setup-ok (battle-system dice 9) (blocked-cells {}) (hand-blue {}) (hand-red {}))\n",
+        format!("(setup-ok (battle-system dice 9) (blocked-cells {}) (hand-blue {}) (hand-red {}) (starting-player red))\n",
             BLOCKED_CELLS, HAND_BLUE, HAND_RED)
         => SetupOk {
             battle_system: BattleSystem::Dice { sides: 9 },
             blocked_cells: [2, 3, 0xf].into(),
             hand_blue: [C1P00, C0P00, C0P00, C0P00, C0P00],
             hand_red: [C2P00, C0P00, C0P00, C0P00, C0P00],
+            starting_player: Player::Red,
         }
     )]
     fn setup_ok(i: String) -> SetupOk {

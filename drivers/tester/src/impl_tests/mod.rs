@@ -53,16 +53,12 @@ fn game_setup_tests(s: &mut Suite<Ctx>) {
 
     test!(s "Setup with set blocked_cells"; |ctx| {
         let res = ctx.new_driver().build().send(Command::setup().blocked_cells(&[6u8, 3, 0xC]))?;
-        let blocked_cells = res.blocked_cells;
-
-        assert_eq!(blocked_cells, [3, 6, 0xC].into());
+        assert_eq!(res.blocked_cells, [3, 6, 0xC].into());
     });
 
     test!(s "Setup with set blocked_cells to nothing"; |ctx| {
         let res = ctx.new_driver().build().send(Command::setup().blocked_cells(&[]))?;
-        let blocked_cells = res.blocked_cells;
-
-        assert_eq!(blocked_cells, [].into());
+        assert_eq!(res.blocked_cells, [].into());
     });
 
     test!(s "Setup with set hands"; |ctx| {
@@ -78,6 +74,14 @@ fn game_setup_tests(s: &mut Suite<Ctx>) {
         let actual = [res.hand_blue, res.hand_red];
 
         assert_eq!(actual, expected);
+    });
+
+    test!(s "Setup with a set starting player"; |ctx| {
+        let res = ctx.new_driver().build().send(Command::setup().starting_player(Player::Red))?;
+        assert_eq!(res.starting_player, Player::Red);
+
+        let res = ctx.new_driver().build().send(Command::setup().starting_player(Player::Blue))?;
+        assert_eq!(res.starting_player, Player::Blue);
     });
 }
 

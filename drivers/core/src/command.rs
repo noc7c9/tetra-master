@@ -1,4 +1,4 @@
-use crate::{display::DisplayHex, BattleSystem, BoardCells, Card, CardType, Hand};
+use crate::{display::DisplayHex, BattleSystem, BoardCells, Card, CardType, Hand, Player};
 use std::fmt::Result as FResult;
 
 // TODO: replace this with a bespoke Error enum
@@ -14,6 +14,7 @@ pub struct Setup {
     pub blocked_cells: BoardCells,
     pub hand_blue: Hand,
     pub hand_red: Hand,
+    pub starting_player: Player,
 }
 
 impl Command for Setup {
@@ -46,6 +47,11 @@ impl Command for Setup {
             o.list(|o| {
                 o.atom("hand-red")?;
                 write_hand(o, &self.hand_red)
+            })?;
+
+            o.list(|o| {
+                o.atom("starting-player")?;
+                write_player(o, self.starting_player)
             })?;
 
             Ok(())
@@ -147,6 +153,13 @@ fn write_blocked_cells(o: &mut Sexpr, blocked_cells: BoardCells) -> FResult {
 
 fn write_hand(o: &mut Sexpr, hand: &Hand) -> FResult {
     o.array(hand, |o, card| write_card(o, *card))
+}
+
+fn write_player(o: &mut Sexpr, player: Player) -> FResult {
+    match player {
+        Player::Blue => o.atom("blue"),
+        Player::Red => o.atom("red"),
+    }
 }
 
 use sexpr::Sexpr;
@@ -291,15 +304,25 @@ mod tests {
         o
     }
 
+    #[test_case(Player::Blue => using assert_eq("blue"))]
+    #[test_case(Player::Red => using assert_eq("red"))]
+    fn write_player(input: Player) -> String {
+        let mut o = String::new();
+        super::write_player(&mut Sexpr::new(&mut o), input).unwrap();
+        o
+    }
+
     #[test_case(Setup {
         battle_system: BattleSystem::Dice { sides: 8 },
         blocked_cells: [2, 8, 0xA].into(),
         hand_blue: [C1P23_4, C5M67_8, C9XAB_C, CDAEF_0, C5M67_8],
         hand_red: [C5M67_8, C1P23_4, CDAEF_0, C5M67_8, C9XAB_C],
+        starting_player: Player::Blue
     } => using assert_eq(concat!("(setup (battle-system dice 8)",
                                        " (blocked-cells (2 8 A))",
                                        " (hand-blue (1P23_4 5M67_8 9XAB_C DAEF_0 5M67_8))",
-                                       " (hand-red (5M67_8 1P23_4 DAEF_0 5M67_8 9XAB_C)))\n")))]
+                                       " (hand-red (5M67_8 1P23_4 DAEF_0 5M67_8 9XAB_C))",
+                                       " (starting-player blue))\n")))]
     fn setup(input: Setup) -> String {
         let mut o = String::new();
         input.serialize(&mut o).unwrap();

@@ -32,6 +32,7 @@ impl Command {
             blocked_cells: BoardCells::NONE,
             hand_blue: HAND_BLUE,
             hand_red: HAND_RED,
+            starting_player: Player::Blue,
         }
     }
 
@@ -49,6 +50,7 @@ pub(super) trait SetupExt {
     fn blocked_cells(self, value: &[u8]) -> Self;
     fn hand_blue(self, value: &Hand) -> Self;
     fn hand_red(self, value: &Hand) -> Self;
+    fn starting_player(self, value: Player) -> Self;
 }
 
 impl SetupExt for command::Setup {
@@ -69,6 +71,11 @@ impl SetupExt for command::Setup {
 
     fn hand_red(mut self, value: &Hand) -> Self {
         self.hand_red = *value;
+        self
+    }
+
+    fn starting_player(mut self, value: Player) -> Self {
+        self.starting_player = value;
         self
     }
 }

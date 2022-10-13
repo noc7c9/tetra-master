@@ -6,7 +6,7 @@ pub struct Ai(State);
 
 pub fn init(setup: &core::command::Setup) -> Ai {
     Ai(State::new(
-        core::Player::Blue,
+        setup.starting_player,
         setup.blocked_cells,
         setup.hand_blue,
         setup.hand_red,

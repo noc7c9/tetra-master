@@ -7,7 +7,7 @@ pub struct Ai(State);
 pub fn init(max_depth: usize, setup: &core::command::Setup) -> Ai {
     Ai(State::new(
         max_depth,
-        core::Player::Blue,
+        setup.starting_player,
         setup.blocked_cells,
         setup.hand_blue,
         setup.hand_red,

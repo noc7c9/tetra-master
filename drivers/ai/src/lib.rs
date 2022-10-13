@@ -46,6 +46,7 @@ mod tests {
                 hand_blue,
                 hand_red,
                 battle_system: core::BattleSystem::Deterministic,
+                starting_player: core::Player::Blue,
             },
         );
 
@@ -99,6 +100,7 @@ mod tests {
                 hand_blue,
                 hand_red,
                 battle_system: core::BattleSystem::Deterministic,
+                starting_player: core::Player::Blue,
             },
         );
 
@@ -167,6 +169,7 @@ mod tests {
                 hand_blue,
                 hand_red,
                 battle_system: core::BattleSystem::Deterministic,
+                starting_player: core::Player::Blue,
             },
         );
 
@@ -240,6 +243,7 @@ mod tests {
                 hand_blue,
                 hand_red,
                 battle_system: core::BattleSystem::Deterministic,
+                starting_player: core::Player::Blue,
             },
         );
 

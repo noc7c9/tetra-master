@@ -40,11 +40,13 @@ impl Driver {
     pub fn random_setup(&mut self, battle_system: BattleSystem) -> command::Setup {
         let blocked_cells = random_setup::random_blocked_cells(&mut self.rng);
         let [hand_blue, hand_red] = random_setup::random_hands(&mut self.rng);
+        let starting_player = random_setup::random_starting_player(&mut self.rng);
         command::Setup {
             battle_system,
             blocked_cells,
             hand_blue,
             hand_red,
+            starting_player,
         }
     }
 
@@ -343,7 +345,9 @@ mod tests {
         // immediately after initialization it should be empty
         assert_eq!(get_rng_numbers_len(&driver), 0);
 
-        driver.send_random_setup(BattleSystem::Original)?;
+        let mut setup = driver.random_setup(BattleSystem::Original);
+        setup.starting_player = crate::Player::Blue;
+        driver.send(setup)?;
 
         // after setup command, rng should be auto fed
         assert_eq!(get_rng_numbers_len(&driver), MIN_RNG_NUMBERS);

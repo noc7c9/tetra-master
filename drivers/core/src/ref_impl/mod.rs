@@ -190,25 +190,21 @@ impl Step for command::Setup {
             let state = InGameState {
                 status: InGameStatus::WaitingPlace,
                 rng: state.rng.take().unwrap(),
-                turn: Player::Blue,
+                turn: self.starting_player,
                 board,
                 hand_blue: convert_hand(self.hand_blue),
                 hand_red: convert_hand(self.hand_red),
                 battle_system: self.battle_system,
             };
 
-            let blocked_cells = self.blocked_cells;
-            let battle_system = state.battle_system;
-            let hand_blue = self.hand_blue;
-            let hand_red = self.hand_red;
-
             *global = GlobalState::InGame(state);
 
             Ok(response::SetupOk {
-                blocked_cells,
-                battle_system,
-                hand_blue,
-                hand_red,
+                blocked_cells: self.blocked_cells,
+                battle_system: self.battle_system,
+                hand_blue: self.hand_blue,
+                hand_red: self.hand_red,
+                starting_player: self.starting_player,
             })
         } else {
             panic!("Unexpected command {self:?}")

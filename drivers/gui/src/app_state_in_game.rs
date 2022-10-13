@@ -124,6 +124,7 @@ fn on_enter(
     blocked_cells: Res<BlockedCells>,
     hand_blue: Res<HandBlue>,
     hand_red: Res<HandRed>,
+    turn: Res<Turn>,
     player_hands: Query<(Entity, &Owner, &Transform), With<Card>>,
 ) {
     commands.insert_resource(Status::Normal);
@@ -261,6 +262,7 @@ fn on_enter(
             hand_blue: hand_blue.0,
             hand_red: hand_red.0,
             battle_system: core::BattleSystem::Deterministic,
+            starting_player: turn.0,
         },
     );
     commands.insert_resource(AI(ai));

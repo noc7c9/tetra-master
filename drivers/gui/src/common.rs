@@ -103,7 +103,7 @@ pub(crate) fn start_new_game(
     commands.insert_resource(HandBlue(response.hand_blue));
     commands.insert_resource(HandRed(response.hand_red));
     commands.insert_resource(BlockedCells(response.blocked_cells));
-    commands.insert_resource(Turn(core::Player::Blue));
+    commands.insert_resource(Turn(response.starting_player));
 
     commands.insert_resource(Driver(driver));
 

@@ -348,9 +348,13 @@ fn run_battle(game_seed: core::Seed, blue_ai: &Initializer, red_ai: &Initializer
 
     let mut ais = [blue_ai(&setup), red_ai(&setup)];
 
+    let mut active_ai = match setup.starting_player {
+        core::Player::Blue => 0,
+        core::Player::Red => 1,
+    };
+
     driver.send(setup).unwrap();
 
-    let mut active_ai = 0;
     let mut move_times = [Vec::with_capacity(7), Vec::with_capacity(7)];
 
     loop {
