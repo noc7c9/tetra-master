@@ -325,6 +325,7 @@ impl Drop for ExternalDriver {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::Player;
 
     fn get_rng_numbers_len(driver: &Driver) -> usize {
         if let Inner::Reference(inner) = &driver.inner {
@@ -346,23 +347,35 @@ mod tests {
         assert_eq!(get_rng_numbers_len(&driver), 0);
 
         let mut setup = driver.random_setup(BattleSystem::Original);
-        setup.starting_player = crate::Player::Blue;
+        setup.starting_player = Player::Blue;
         driver.send(setup)?;
 
         // after setup command, rng should be auto fed
         assert_eq!(get_rng_numbers_len(&driver), MIN_RNG_NUMBERS);
 
         // doesn't use any numbers
-        driver.send(command::PlaceCard { card: 0, cell: 10 })?;
+        driver.send(command::PlaceCard {
+            player: Player::Blue,
+            card: 0,
+            cell: 10,
+        })?;
 
         assert_eq!(get_rng_numbers_len(&driver), MIN_RNG_NUMBERS);
 
         // triggers a battle and uses 4 numbers
-        driver.send(command::PlaceCard { card: 3, cell: 5 })?;
+        driver.send(command::PlaceCard {
+            player: Player::Red,
+            card: 3,
+            cell: 5,
+        })?;
         assert_eq!(get_rng_numbers_len(&driver), MIN_RNG_NUMBERS - 4);
 
         // doesn't use any numbers, but numbers should be refilled
-        driver.send(command::PlaceCard { card: 1, cell: 0 })?;
+        driver.send(command::PlaceCard {
+            player: Player::Blue,
+            card: 1,
+            cell: 0,
+        })?;
         assert_eq!(get_rng_numbers_len(&driver), MIN_RNG_NUMBERS);
 
         Ok(())

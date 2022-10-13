@@ -26,7 +26,10 @@ mod tests {
 
     use super::naive_minimax;
     use super::{Action, Ai};
-    use tetra_master_core::{self as core, Arrows, Card};
+    use tetra_master_core::{
+        self as core, Arrows, Card,
+        Player::{Blue, Red},
+    };
 
     const DEFAULT_DEPTH: usize = 3;
     const CARD: Card = Card::physical(0, 0, 0, Arrows(0));
@@ -46,28 +49,28 @@ mod tests {
                 hand_blue,
                 hand_red,
                 battle_system: core::BattleSystem::Deterministic,
-                starting_player: core::Player::Blue,
+                starting_player: Blue,
             },
         );
 
-        let mut apply_place_card = |card, cell| {
-            let cmd = core::command::PlaceCard { card, cell };
+        let mut apply_place_card = |card, cell, player| {
+            let cmd = core::command::PlaceCard { player, card, cell };
             state.update(Action::PlaceCard(cmd));
         };
 
-        apply_place_card(0, 0);
-        apply_place_card(0, 1);
+        apply_place_card(0, 0, Blue);
+        apply_place_card(0, 1, Red);
 
-        apply_place_card(1, 2);
-        apply_place_card(1, 3);
+        apply_place_card(1, 2, Blue);
+        apply_place_card(1, 3, Red);
 
-        apply_place_card(2, 4);
-        apply_place_card(2, 5);
+        apply_place_card(2, 4, Blue);
+        apply_place_card(2, 5, Red);
 
-        apply_place_card(3, 6);
-        apply_place_card(3, 7);
+        apply_place_card(3, 6, Blue);
+        apply_place_card(3, 7, Red);
 
-        apply_place_card(4, 9);
+        apply_place_card(4, 9, Blue);
 
         //  b | r | b | r
         // ---+---+---+---
@@ -82,7 +85,11 @@ mod tests {
         //  resulting in a score of 4 v 6
 
         let actual = state.get_action();
-        let expected = Action::PlaceCard(core::command::PlaceCard { card: 4, cell: 0xA });
+        let expected = Action::PlaceCard(core::command::PlaceCard {
+            card: 4,
+            cell: 0xA,
+            player: Red,
+        });
         assert_eq!(actual, expected);
     }
 
@@ -100,28 +107,28 @@ mod tests {
                 hand_blue,
                 hand_red,
                 battle_system: core::BattleSystem::Deterministic,
-                starting_player: core::Player::Blue,
+                starting_player: Blue,
             },
         );
 
-        let mut apply_place_card = |card, cell| {
-            let cmd = core::command::PlaceCard { card, cell };
+        let mut apply_place_card = |card, cell, player| {
+            let cmd = core::command::PlaceCard { player, card, cell };
             state.update(Action::PlaceCard(cmd));
         };
 
-        apply_place_card(0, 3);
-        apply_place_card(0, 0);
+        apply_place_card(0, 3, Blue);
+        apply_place_card(0, 0, Red);
 
-        apply_place_card(1, 2);
-        apply_place_card(1, 1);
+        apply_place_card(1, 2, Blue);
+        apply_place_card(1, 1, Red);
 
-        apply_place_card(2, 7);
-        apply_place_card(2, 4);
+        apply_place_card(2, 7, Blue);
+        apply_place_card(2, 4, Red);
 
-        apply_place_card(3, 8);
-        apply_place_card(3, 0xB);
+        apply_place_card(3, 8, Blue);
+        apply_place_card(3, 0xB, Red);
 
-        apply_place_card(4, 5);
+        apply_place_card(4, 5, Blue);
 
         //  r | r | b | b
         // ---+---+---+---
@@ -137,7 +144,11 @@ mod tests {
         //  resulting in a score of 4 v 6
 
         let actual = state.get_action();
-        let expected = Action::PlaceCard(core::command::PlaceCard { card: 4, cell: 6 });
+        let expected = Action::PlaceCard(core::command::PlaceCard {
+            card: 4,
+            cell: 6,
+            player: Red,
+        });
         assert_eq!(actual, expected);
     }
 
@@ -169,28 +180,28 @@ mod tests {
                 hand_blue,
                 hand_red,
                 battle_system: core::BattleSystem::Deterministic,
-                starting_player: core::Player::Blue,
+                starting_player: Blue,
             },
         );
 
-        let mut apply_place_card = |card, cell| {
-            let cmd = core::command::PlaceCard { card, cell };
+        let mut apply_place_card = |card, cell, player| {
+            let cmd = core::command::PlaceCard { player, card, cell };
             state.update(Action::PlaceCard(cmd));
         };
 
-        apply_place_card(0, 0);
-        apply_place_card(0, 3);
+        apply_place_card(0, 0, Blue);
+        apply_place_card(0, 3, Red);
 
-        apply_place_card(1, 2);
-        apply_place_card(1, 7);
+        apply_place_card(1, 2, Blue);
+        apply_place_card(1, 7, Red);
 
-        apply_place_card(2, 1);
-        apply_place_card(2, 6);
+        apply_place_card(2, 1, Blue);
+        apply_place_card(2, 6, Red);
 
-        apply_place_card(3, 5);
-        apply_place_card(3, 11);
+        apply_place_card(3, 5, Blue);
+        apply_place_card(3, 11, Red);
 
-        apply_place_card(4, 10);
+        apply_place_card(4, 10, Blue);
 
         //  b | b | b | r
         // ---+---+---+---
@@ -205,13 +216,20 @@ mod tests {
         //  resulting in a score of 3 v 7
 
         let actual = state.get_action();
-        let expected = Action::PlaceCard(core::command::PlaceCard { card: 4, cell: 9 });
+        let expected = Action::PlaceCard(core::command::PlaceCard {
+            card: 4,
+            cell: 9,
+            player: Red,
+        });
         assert_eq!(actual, expected);
 
         state.update(expected);
 
         let actual = state.get_action();
-        let expected = Action::PickBattle(core::command::PickBattle { cell: 10 });
+        let expected = Action::PickBattle(core::command::PickBattle {
+            cell: 10,
+            player: Red,
+        });
         assert_eq!(actual, expected);
     }
 
@@ -243,25 +261,25 @@ mod tests {
                 hand_blue,
                 hand_red,
                 battle_system: core::BattleSystem::Deterministic,
-                starting_player: core::Player::Blue,
+                starting_player: Blue,
             },
         );
 
-        let apply_place_card = |state: &mut naive_minimax::Ai, card, cell| {
-            let cmd = core::command::PlaceCard { card, cell };
+        let apply_place_card = |state: &mut naive_minimax::Ai, card, cell, player| {
+            let cmd = core::command::PlaceCard { player, card, cell };
             state.update(Action::PlaceCard(cmd));
         };
 
-        apply_place_card(&mut state, 0, 0);
-        apply_place_card(&mut state, 0, 2);
+        apply_place_card(&mut state, 0, 0, Blue);
+        apply_place_card(&mut state, 0, 2, Red);
 
-        apply_place_card(&mut state, 1, 0xC);
-        apply_place_card(&mut state, 1, 3);
+        apply_place_card(&mut state, 1, 0xC, Blue);
+        apply_place_card(&mut state, 1, 3, Red);
 
-        apply_place_card(&mut state, 2, 0xF);
-        apply_place_card(&mut state, 2, 7);
+        apply_place_card(&mut state, 2, 0xF, Blue);
+        apply_place_card(&mut state, 2, 7, Red);
 
-        apply_place_card(&mut state, 3, 6);
+        apply_place_card(&mut state, 3, 6, Blue);
 
         //  b | # | b | b
         // ---+---+-^-/---
@@ -277,11 +295,15 @@ mod tests {
         //  resulting in a score of 3 v 5
 
         let actual = state.get_action();
-        let expected = Action::PlaceCard(core::command::PlaceCard { card: 4, cell: 5 });
+        let expected = Action::PlaceCard(core::command::PlaceCard {
+            card: 4,
+            cell: 5,
+            player: Red,
+        });
         assert_eq!(actual, expected);
 
-        apply_place_card(&mut state, 4, 5); // AI move
-        apply_place_card(&mut state, 4, 4); // response
+        apply_place_card(&mut state, 4, 5, Red); // AI move
+        apply_place_card(&mut state, 4, 4, Blue); // response
 
         //  b | # | r | r
         // ---+---+-^-/---
@@ -296,7 +318,11 @@ mod tests {
         //  resulting in a score of 4 v 6
 
         let actual = state.get_action();
-        let expected = Action::PlaceCard(core::command::PlaceCard { card: 3, cell: 0xE });
+        let expected = Action::PlaceCard(core::command::PlaceCard {
+            card: 3,
+            cell: 0xE,
+            player: Red,
+        });
         assert_eq!(actual, expected);
     }
 }

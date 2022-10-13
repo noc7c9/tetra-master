@@ -93,6 +93,7 @@ impl Command for PushRngNumbers {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct PlaceCard {
+    pub player: Player,
     pub card: u8,
     pub cell: u8,
 }
@@ -103,6 +104,11 @@ impl Command for PlaceCard {
 
         o.list(|o| {
             o.atom("place-card")?;
+
+            o.list(|o| {
+                o.atom("player")?;
+                write_player(o, self.player)
+            })?;
             o.list(|o| o.atoms(("card", self.card)))?;
             o.list(|o| o.atoms(("cell", DisplayHex(self.cell))))
         })?;
@@ -115,6 +121,7 @@ impl Command for PlaceCard {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct PickBattle {
+    pub player: Player,
     pub cell: u8,
 }
 
@@ -124,6 +131,10 @@ impl Command for PickBattle {
 
         o.list(|o| {
             o.atom("pick-battle")?;
+            o.list(|o| {
+                o.atom("player")?;
+                write_player(o, self.player)
+            })?;
             o.list(|o| o.atoms(("cell", DisplayHex(self.cell))))
         })?;
 
@@ -341,18 +352,20 @@ mod tests {
         o
     }
 
-    #[test_case(PlaceCard { card: 0, cell: 0 }
-        => using assert_eq("(place-card (card 0) (cell 0))\n"))]
-    #[test_case(PlaceCard { card: 3, cell: 0xA }
-        => using assert_eq("(place-card (card 3) (cell A))\n"))]
+    #[test_case(PlaceCard { player: Player::Blue, card: 0, cell: 0 }
+        => using assert_eq("(place-card (player blue) (card 0) (cell 0))\n"))]
+    #[test_case(PlaceCard { player: Player::Red, card: 3, cell: 0xA }
+        => using assert_eq("(place-card (player red) (card 3) (cell A))\n"))]
     fn place_card(input: PlaceCard) -> String {
         let mut o = String::new();
         input.serialize(&mut o).unwrap();
         o
     }
 
-    #[test_case(PickBattle { cell: 0 } => using assert_eq("(pick-battle (cell 0))\n"))]
-    #[test_case(PickBattle { cell: 0xA } => using assert_eq("(pick-battle (cell A))\n"))]
+    #[test_case(PickBattle { player: Player::Blue, cell: 0 }
+        => using assert_eq("(pick-battle (player blue) (cell 0))\n"))]
+    #[test_case(PickBattle { player: Player::Red, cell: 0xA }
+        => using assert_eq("(pick-battle (player red) (cell A))\n"))]
     fn pick_battle(input: PickBattle) -> String {
         let mut o = String::new();
         input.serialize(&mut o).unwrap();

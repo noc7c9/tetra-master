@@ -228,6 +228,13 @@ impl Step for command::PushRngNumbers {
 impl Step for command::PlaceCard {
     fn step(self, global: &mut GlobalState) -> Result<Self::Response, ErrorResponse> {
         if let GlobalState::InGame(ref mut state) = global {
+            assert!(
+                self.player == state.turn,
+                "Unexpected player ({}) played move, expected move by {}",
+                self.player,
+                state.turn,
+            );
+
             let input = InGameInput::Place(self);
 
             let mut events = Vec::new();
@@ -252,6 +259,13 @@ impl Step for command::PlaceCard {
 impl Step for command::PickBattle {
     fn step(self, global: &mut GlobalState) -> Result<Self::Response, ErrorResponse> {
         if let GlobalState::InGame(ref mut state) = global {
+            assert!(
+                self.player == state.turn,
+                "Unexpected player ({}) played move, expected move by {}",
+                self.player,
+                state.turn,
+            );
+
             let input = InGameInput::Battle(self);
 
             let mut events = Vec::new();

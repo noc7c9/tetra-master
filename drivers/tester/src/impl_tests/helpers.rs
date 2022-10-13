@@ -36,12 +36,34 @@ impl Command {
         }
     }
 
-    pub(super) fn place_card(card: u8, cell: u8) -> command::PlaceCard {
-        command::PlaceCard { card, cell }
+    pub(super) fn place_card_blue(card: u8, cell: u8) -> command::PlaceCard {
+        command::PlaceCard {
+            player: Player::Blue,
+            card,
+            cell,
+        }
     }
 
-    pub(super) fn pick_battle(cell: u8) -> command::PickBattle {
-        command::PickBattle { cell }
+    pub(super) fn pick_battle_blue(cell: u8) -> command::PickBattle {
+        command::PickBattle {
+            player: Player::Blue,
+            cell,
+        }
+    }
+
+    pub(super) fn place_card_red(card: u8, cell: u8) -> command::PlaceCard {
+        command::PlaceCard {
+            player: Player::Red,
+            card,
+            cell,
+        }
+    }
+
+    pub(super) fn pick_battle_red(cell: u8) -> command::PickBattle {
+        command::PickBattle {
+            player: Player::Red,
+            cell,
+        }
     }
 }
 

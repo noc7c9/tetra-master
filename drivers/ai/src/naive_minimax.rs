@@ -139,6 +139,7 @@ impl State {
                 for cell in empty_cells {
                     for card in hand.clone() {
                         actions.push(Action::PlaceCard(core::command::PlaceCard {
+                            player: self.turn,
                             card: card as u8,
                             cell: cell as u8,
                         }));
@@ -147,7 +148,10 @@ impl State {
             }
             Status::WaitingBattle { choices, .. } => {
                 for cell in choices {
-                    actions.push(Action::PickBattle(core::command::PickBattle { cell }));
+                    actions.push(Action::PickBattle(core::command::PickBattle {
+                        player: self.turn,
+                        cell,
+                    }));
                 }
             }
         }

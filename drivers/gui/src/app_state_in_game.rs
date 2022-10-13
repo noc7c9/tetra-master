@@ -334,7 +334,10 @@ fn pick_battle(
                 commands.entity(entity).despawn_recursive();
             }
 
-            let cmd = core::command::PickBattle { cell: cell as u8 };
+            let cmd = core::command::PickBattle {
+                player: core::Player::Blue,
+                cell: cell as u8,
+            };
             let response = driver.0.send(cmd).expect("PickBattle command should work");
 
             ai.0.update(ai::Action::PickBattle(cmd));
@@ -375,6 +378,7 @@ fn place_card(
             let card = hand_idx.get(card_entity).unwrap().0 as u8;
 
             let cmd = core::command::PlaceCard {
+                player: core::Player::Blue,
                 card,
                 cell: cell as u8,
             };
