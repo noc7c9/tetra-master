@@ -97,7 +97,7 @@ pub struct PreSetupState {
 #[derive(Debug, Clone, PartialEq)]
 enum InGameStatus {
     WaitingPlace,
-    WaitingBattle {
+    WaitingPick {
         attacker_cell: u8,
         choices: BoardCells,
     },
@@ -240,7 +240,7 @@ impl Step for command::PlaceCard {
             let mut events = Vec::new();
             logic::game_next(state, &mut events, input)?;
 
-            let pick_battle = if let InGameStatus::WaitingBattle { choices, .. } = &state.status {
+            let pick_battle = if let InGameStatus::WaitingPick { choices, .. } = &state.status {
                 *choices
             } else {
                 BoardCells::NONE
@@ -271,7 +271,7 @@ impl Step for command::PickBattle {
             let mut events = Vec::new();
             logic::game_next(state, &mut events, input)?;
 
-            let pick_battle = if let InGameStatus::WaitingBattle { choices, .. } = &state.status {
+            let pick_battle = if let InGameStatus::WaitingPick { choices, .. } = &state.status {
                 *choices
             } else {
                 BoardCells::NONE

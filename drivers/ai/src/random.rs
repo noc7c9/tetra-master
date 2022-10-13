@@ -54,7 +54,7 @@ impl Default for Cell {
 #[derive(Debug, Clone)]
 pub enum Status {
     WaitingPlace,
-    WaitingBattle {
+    WaitingPick {
         attacker_cell: u8,
         choices: core::BoardCells,
     },
@@ -144,7 +144,7 @@ impl State {
                     }
                 }
             }
-            Status::WaitingBattle { choices, .. } => {
+            Status::WaitingPick { choices, .. } => {
                 for cell in choices {
                     actions.push(Action::PickBattle(core::command::PickBattle {
                         player: self.turn,
@@ -161,7 +161,7 @@ impl State {
             (Status::WaitingPlace, Action::PlaceCard(action)) => {
                 apply_place_card_action(self, action)
             }
-            (Status::WaitingBattle { .. }, Action::PickBattle(action)) => {
+            (Status::WaitingPick { .. }, Action::PickBattle(action)) => {
                 apply_pick_battle_action(self, action)
             }
             _ => unreachable!("apply called with invalid status/action pair"),
@@ -352,7 +352,7 @@ fn apply_pick_battle_action(state: &mut State, cmd: core::command::PickBattle) {
     let defender_cell = cmd.cell;
 
     let (attacker_cell, choices) = match &state.status {
-        Status::WaitingBattle {
+        Status::WaitingPick {
             attacker_cell,
             choices,
         } => (*attacker_cell, choices),
@@ -405,7 +405,7 @@ fn resolve_interactions(state: &mut State, attacker_cell: u8) {
 
     // handle multiple possible battles
     if defenders.len() > 1 {
-        state.status = Status::WaitingBattle {
+        state.status = Status::WaitingPick {
             attacker_cell,
             choices: defenders,
         };

@@ -13,8 +13,8 @@ pub(super) fn game_next(
         (InGameStatus::WaitingPlace, InGameInput::Place(input)) => {
             handle_waiting_place(state, events, input)
         }
-        (InGameStatus::WaitingBattle { .. }, InGameInput::Battle(input)) => {
-            handle_waiting_battle(state, events, input)
+        (InGameStatus::WaitingPick { .. }, InGameInput::Battle(input)) => {
+            handle_waiting_pick(state, events, input)
         }
         _ => unreachable!("next called with invalid status/input pair"),
     }
@@ -59,7 +59,7 @@ fn handle_waiting_place(
     Ok(())
 }
 
-fn handle_waiting_battle(
+fn handle_waiting_pick(
     state: &mut InGameState,
     events: &mut Vec<Event>,
     input: command::PickBattle,
@@ -67,7 +67,7 @@ fn handle_waiting_battle(
     let defender_cell = input.cell;
 
     let (attacker_cell, choices) = match &state.status {
-        InGameStatus::WaitingBattle {
+        InGameStatus::WaitingPick {
             attacker_cell,
             choices,
         } => (*attacker_cell, choices),
@@ -98,7 +98,7 @@ fn handle_waiting_battle(
     Ok(())
 }
 
-// common logic for both handle_waiting_place and handle_waiting_battle
+// common logic for both handle_waiting_place and handle_waiting_pick
 fn resolve_interactions(state: &mut InGameState, events: &mut Vec<Event>, attacker_cell: u8) {
     let attacker = match state.board[attacker_cell as usize] {
         Cell::Card(card) => card,
@@ -126,7 +126,7 @@ fn resolve_interactions(state: &mut InGameState, events: &mut Vec<Event>, attack
 
     // handle multiple possible battles
     if defenders.len() > 1 {
-        state.status = InGameStatus::WaitingBattle {
+        state.status = InGameStatus::WaitingPick {
             attacker_cell,
             choices: defenders,
         };
