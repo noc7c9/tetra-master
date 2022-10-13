@@ -196,7 +196,7 @@ fn in_game_tests(s: &mut Suite<Ctx>) {
         // all cards on board now belong to blue
 
         // flip 8 surrounding cards
-        let  events = driver.send(Command::place_card_red(4, 6))?.events;
+        let events = driver.send(Command::place_card_red(4, 6))?.events;
 
         assert_eq!(
             events,
@@ -227,7 +227,7 @@ fn in_game_tests(s: &mut Suite<Ctx>) {
 
         driver.send(Command::place_card_blue(0, 0))?;
 
-        let  events = driver.send(Command::place_card_red(0, 1))?.events;
+        let events = driver.send(Command::place_card_red(0, 1))?.events;
 
         assert_eq!(
             events,
@@ -254,7 +254,7 @@ fn in_game_tests(s: &mut Suite<Ctx>) {
 
         driver.send(Command::place_card_blue(0, 0))?;
 
-        let  events = driver.send(Command::place_card_red(0, 1))?.events;
+        let events = driver.send(Command::place_card_red(0, 1))?.events;
 
         assert_eq!(
             events,
@@ -281,7 +281,7 @@ fn in_game_tests(s: &mut Suite<Ctx>) {
 
         driver.send(Command::place_card_blue(0, 0))?;
 
-        let  events = driver.send(Command::place_card_red(0, 1))?.events;
+        let events = driver.send(Command::place_card_red(0, 1))?.events;
 
         assert_eq!(
             events,
@@ -431,7 +431,7 @@ fn in_game_tests(s: &mut Suite<Ctx>) {
 
         driver.send(Command::place_card_blue(3, 5))?; // defender
 
-        let  events = driver.send(Command::place_card_red(3, 9))?.events;
+        let events = driver.send(Command::place_card_red(3, 9))?.events;
 
         assert_eq!(events, vec![
             Event::battle(
