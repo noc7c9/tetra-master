@@ -38,7 +38,24 @@ impl bevy::app::Plugin for Plugin {
                             .after(handle_game_over_event)
                             .after(update_card_counter),
                     )
-                    .with_system(pick_battle)
+                    .with_system(
+                        pick_battle
+                            // FIXME: same reasoning as for place_card but this shouldn't be duplicated
+                            .after(handle_next_turn_event)
+                            .after(handle_flip_event)
+                            .after(handle_battle_event)
+                            .after(handle_game_over_event)
+                            .after(update_card_counter),
+                    )
+                    .with_system(
+                        ai_turn
+                            // FIXME: same reasoning as for place_card but this shouldn't be duplicated
+                            .after(handle_next_turn_event)
+                            .after(handle_flip_event)
+                            .after(handle_battle_event)
+                            .after(handle_game_over_event)
+                            .after(update_card_counter),
+                    )
                     .with_system(select_and_deselect_card)
                     .with_system(restart_game)
                     .with_system(maintain_card_hover_marker)
@@ -58,8 +75,7 @@ impl bevy::app::Plugin for Plugin {
                     .with_system(handle_flip_event)
                     .with_system(handle_battle_event)
                     .with_system(handle_game_over_event)
-                    .with_system(update_card_counter)
-                    .with_system(ai_turn),
+                    .with_system(update_card_counter),
                 // .with_system(animate_coin)
             )
             .add_system_set(
@@ -626,7 +642,7 @@ fn handle_flip_event(
             }
             debug_assert!(
                 debug_found_card_in_evt,
-                "Card in Flip event not a PlacedCard"
+                "Card in Flip event ({cell}) not a PlacedCard"
             );
         }
     }
@@ -829,9 +845,7 @@ fn ai_turn(
     board_hover_areas: Query<(Entity, &BoardCell)>,
     transforms: Query<&mut Transform>,
 ) {
-    // FIXME: this won't work if the AI makes a move that requires picking battles since the turn
-    // won't change in that case
-    if !turn.is_changed() || turn.0 == core::Player::Blue {
+    if turn.0 == core::Player::Blue {
         return;
     }
 
