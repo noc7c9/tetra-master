@@ -51,6 +51,25 @@ impl Driver {
         self.send(cmd)
     }
 
+    pub fn send_resolve_battle(
+        &mut self,
+        requests: response::ResolveBattle,
+    ) -> Result<response::PlayOk> {
+        fn fulfill(rng: &mut Rng, request: response::RandomNumberRequest) -> Vec<u8> {
+            let mut nums = Vec::with_capacity(request.numbers as usize);
+            for _ in 0..request.numbers {
+                let (min, max) = request.range;
+                nums.push(rng.gen_range(min..=max));
+            }
+            nums
+        }
+        let cmd = command::ResolveBattle {
+            attack_roll: fulfill(&mut self.rng, requests.attack_roll),
+            defend_roll: fulfill(&mut self.rng, requests.defend_roll),
+        };
+        self.send(cmd)
+    }
+
     pub fn send<C>(&mut self, cmd: C) -> Result<C::Response>
     where
         C: CommandResponse + Step + std::fmt::Display,

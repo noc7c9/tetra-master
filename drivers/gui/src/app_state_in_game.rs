@@ -342,7 +342,13 @@ fn pick_battle(
 
             ai.0.update(ai::Action::PickBattle(cmd));
 
-            *status = handle_play_ok(response, &mut commands, &mut event, &app_assets);
+            *status = handle_play_ok(
+                response,
+                &mut commands,
+                &mut event,
+                &mut driver.0,
+                &app_assets,
+            );
         }
     }
 }
@@ -401,7 +407,13 @@ fn place_card(
             // clear hovered cell
             hovered_cell.0 = None;
 
-            *status = handle_play_ok(response, &mut commands, &mut event, &app_assets);
+            *status = handle_play_ok(
+                response,
+                &mut commands,
+                &mut event,
+                &mut driver.0,
+                &app_assets,
+            );
         }
     }
 }
@@ -443,10 +455,16 @@ fn handle_play_ok(
     play_ok: core::response::PlayOk,
     commands: &mut Commands,
     event: &mut EventWriter<core::Event>,
+    driver: &mut core::Driver,
     app_assets: &AppAssets,
 ) -> Status {
     for evt in play_ok.events {
         event.send(evt)
+    }
+
+    if let Some(resolve_battle) = play_ok.resolve_battle {
+        let response = driver.send_resolve_battle(resolve_battle).unwrap();
+        return handle_play_ok(response, commands, event, driver, app_assets);
     }
 
     if play_ok.pick_battle.is_empty() {
@@ -860,5 +878,11 @@ fn ai_turn(
 
     ai.0.update(ai_cmd);
 
-    *status = handle_play_ok(response, &mut commands, &mut event, &app_assets);
+    *status = handle_play_ok(
+        response,
+        &mut commands,
+        &mut event,
+        &mut driver.0,
+        &app_assets,
+    );
 }
