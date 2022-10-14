@@ -90,13 +90,7 @@ impl BattlerWaitingResolve {
                 sum
             }
             BattleSystem::Deterministic => self.value,
-            // rolls are proportional to the rng number and falls in the range 0x00 - 0x{value}F
-            // meant for making battles in tests predictable
-            BattleSystem::Test => {
-                let max = (self.value << 4) | 0xF;
-                let rng = get_number!(numbers) as f64 / 0xFF as f64;
-                (rng * max as f64).round() as u8
-            }
+            BattleSystem::Test => get_number!(numbers),
         };
 
         Ok(Battler {
@@ -495,7 +489,7 @@ fn get_random_number_request(battle_system: BattleSystem, stat: u8) -> RandomNum
         },
         BattleSystem::Test => RandomNumberRequest {
             numbers: 1,
-            range: (0, 255),
+            range: (0, 1),
         },
     }
 }

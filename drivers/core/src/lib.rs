@@ -103,7 +103,8 @@ pub enum BattleSystem {
     Dice { sides: u8 },
     /// Non-random system that directly compares the stat values
     Deterministic,
-    /// A more predictable system intended for testing
+    /// A system entirely controlled externally (ignores the stat, uses roll directly)
+    /// intended for testing
     Test,
 }
 

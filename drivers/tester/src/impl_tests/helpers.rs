@@ -1,27 +1,11 @@
 use tetra_master_core::{
-    command, Arrows, BattleSystem, BattleWinner, Battler, BoardCells, Card, Driver, DriverBuilder,
-    Error, ErrorResponse, Event, Hand, Player,
+    command, Arrows, BattleSystem, BattleWinner, Battler, BoardCells, Card, Error, ErrorResponse,
+    Event, Hand, Player,
 };
 
 pub(super) const CARD: Card = Card::physical(0, 0, 0, Arrows(0));
 pub(super) const HAND_BLUE: Hand = [CARD, CARD, CARD, CARD, CARD];
 pub(super) const HAND_RED: Hand = [CARD, CARD, CARD, CARD, CARD];
-
-pub(super) trait DriverBuilderExt {
-    fn build_with_rng(self, numbers: &[u8]) -> Driver;
-}
-
-impl DriverBuilderExt for DriverBuilder {
-    fn build_with_rng(self, numbers: &[u8]) -> Driver {
-        let mut driver = self.no_auto_feed_rng().build();
-        driver
-            .send(command::PushRngNumbers {
-                numbers: numbers.to_vec(),
-            })
-            .unwrap();
-        driver
-    }
-}
 
 pub(super) struct Command;
 
@@ -63,6 +47,13 @@ impl Command {
         command::PickBattle {
             player: Player::Red,
             cell,
+        }
+    }
+
+    pub(super) fn resolve_battle(attack_roll: &[u8], defend_roll: &[u8]) -> command::ResolveBattle {
+        command::ResolveBattle {
+            attack_roll: attack_roll.to_vec(),
+            defend_roll: defend_roll.to_vec(),
         }
     }
 }

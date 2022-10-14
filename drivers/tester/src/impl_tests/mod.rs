@@ -216,7 +216,7 @@ fn in_game_tests(s: &mut Suite<Ctx>) {
 
     let ss = suite!(s "Battles");
     test!(ss "place card that results in a battle, attacker wins"; |ctx| {
-        let mut driver = ctx.new_driver().build_with_rng(&[255, 0]);
+        let mut driver = ctx.new_driver().build();
         let defender = Card::physical(0, 3, 7, Arrows::ALL);
         let attacker = Card::exploit(0xC, 0, 0, Arrows::ALL);
         let hands = [
@@ -227,13 +227,14 @@ fn in_game_tests(s: &mut Suite<Ctx>) {
 
         driver.send(Command::place_card_blue(0, 0))?;
 
-        let events = driver.send(Command::place_card_red(0, 1))?.events;
+        driver.send(Command::place_card_red(0, 1))?;
+        let events = driver.send(Command::resolve_battle(&[1], &[0]))?.events;
 
         assert_eq!(
             events,
             vec![
                 Event::battle(
-                    Battler::new(1, Digit::Attack, 0xC, 0xCF),
+                    Battler::new(1, Digit::Attack, 0xC, 1),
                     Battler::new(0, Digit::PhysicalDefense, 3, 0),
                     BattleWinner::Attacker,
                 ),
@@ -243,7 +244,7 @@ fn in_game_tests(s: &mut Suite<Ctx>) {
         );
     });
     test!(ss "place card that results in a battle, defender wins"; |ctx| {
-        let mut driver = ctx.new_driver().build_with_rng(&[0, 255]);
+        let mut driver = ctx.new_driver().build();
         let defender = Card::physical(0, 3, 7, Arrows::ALL);
         let attacker = Card::exploit(0xC, 0, 0, Arrows::ALL);
         let hands = [
@@ -254,14 +255,15 @@ fn in_game_tests(s: &mut Suite<Ctx>) {
 
         driver.send(Command::place_card_blue(0, 0))?;
 
-        let events = driver.send(Command::place_card_red(0, 1))?.events;
+        driver.send(Command::place_card_red(0, 1))?;
+        let events = driver.send(Command::resolve_battle(&[0], &[1]))?.events;
 
         assert_eq!(
             events,
             vec![
                 Event::battle(
                     Battler::new(1, Digit::Attack, 0xC, 0),
-                    Battler::new(0, Digit::PhysicalDefense, 3, 0x3F),
+                    Battler::new(0, Digit::PhysicalDefense, 3, 1),
                     BattleWinner::Defender,
                 ),
                 Event::flip(1),
@@ -269,8 +271,8 @@ fn in_game_tests(s: &mut Suite<Ctx>) {
             ]
         );
     });
-    test!(ss "place card that results in a battle, draw"; |ctx| {
-        let mut driver = ctx.new_driver().build_with_rng(&[100, 100]);
+    test!(ss "place card that results in a battle, draw (defender wins by default)"; |ctx| {
+        let mut driver = ctx.new_driver().build();
         let defender = Card::physical(0, 3, 7, Arrows::ALL);
         let attacker = Card::exploit(0x3, 0, 0, Arrows::ALL);
         let hands = [
@@ -281,14 +283,15 @@ fn in_game_tests(s: &mut Suite<Ctx>) {
 
         driver.send(Command::place_card_blue(0, 0))?;
 
-        let events = driver.send(Command::place_card_red(0, 1))?.events;
+        driver.send(Command::place_card_red(0, 1))?;
+        let events = driver.send(Command::resolve_battle(&[0], &[0]))?.events;
 
         assert_eq!(
             events,
             vec![
                 Event::battle(
-                    Battler::new(1, Digit::Attack, 3, 25),
-                    Battler::new(0, Digit::PhysicalDefense, 3, 25),
+                    Battler::new(1, Digit::Attack, 3, 0),
+                    Battler::new(0, Digit::PhysicalDefense, 3, 0),
                     BattleWinner::None,
                 ),
                 Event::flip(1),
@@ -297,7 +300,7 @@ fn in_game_tests(s: &mut Suite<Ctx>) {
         );
     });
     test!(ss "flip other undefended cards after attacker wins battle"; |ctx| {
-        let mut driver = ctx.new_driver().build_with_rng(&[255, 0]);
+        let mut driver = ctx.new_driver().build();
         let defender = Card::physical(0, 3, 7, Arrows::DOWN);
         let attacker = Card::exploit(0xC, 0, 0, Arrows::ALL);
         let hands = [
@@ -316,31 +319,28 @@ fn in_game_tests(s: &mut Suite<Ctx>) {
         driver.send(Command::place_card_red(3, 0xB))?; // out of the way
 
         driver.send(Command::place_card_blue(3, 9))?;
-        driver.send(Command::place_card_red(4, 0xF))?; // out of the way
 
-        driver.send(Command::place_card_blue(4, 8))?;
-
-        let events = driver.send(Command::place_card_red(0, 4))?.events;
+        driver.send(Command::place_card_red(0, 4))?;
+        let events = driver.send(Command::resolve_battle(&[1], &[0]))?.events;
 
         assert_eq!(
             events,
             vec![
                 Event::battle(
-                    Battler::new(4, Digit::Attack, 0xC, 0xCF),
+                    Battler::new(4, Digit::Attack, 0xC, 1),
                     Battler::new(0, Digit::PhysicalDefense, 3, 0),
                     BattleWinner::Attacker,
                 ),
                 Event::flip(0),
                 Event::flip(1),
                 Event::flip(5),
-                Event::flip(8),
                 Event::flip(9),
-                Event::game_over(Some(Player::Red)),
+                Event::turn_blue(),
             ]
         );
     });
     test!(ss "don't flip other undefended cards after attacker loses battle"; |ctx| {
-        let mut driver = ctx.new_driver().build_with_rng(&[0, 255]);
+        let mut driver = ctx.new_driver().build();
         let defender = Card::physical(0, 3, 7, Arrows::DOWN);
         let attacker = Card::exploit(0xC, 0, 0, Arrows::ALL);
         let hands = [
@@ -359,29 +359,27 @@ fn in_game_tests(s: &mut Suite<Ctx>) {
         driver.send(Command::place_card_red(3, 0xB))?; // out of the way
 
         driver.send(Command::place_card_blue(3, 9))?;
-        driver.send(Command::place_card_red(4, 0xF))?; // out of the way
 
-        driver.send(Command::place_card_blue(4, 8))?;
-
-        let events = driver.send(Command::place_card_red(0, 4))?.events;
+        driver.send(Command::place_card_red(0, 4))?;
+        let events = driver.send(Command::resolve_battle(&[0], &[1]))?.events;
 
         assert_eq!(
             events,
             vec![
                 Event::battle(
                     Battler::new(4, Digit::Attack, 0xC, 0),
-                    Battler::new(0, Digit::PhysicalDefense, 3, 0x3F),
+                    Battler::new(0, Digit::PhysicalDefense, 3, 1),
                     BattleWinner::Defender,
                 ),
                 Event::flip(4),
-                Event::game_over(Some(Player::Blue)),
+                Event::turn_blue(),
             ]
         );
     });
 
     let ss = suite!(s "Combos");
     test!(ss "place card that results in a combo"; |ctx| {
-        let mut driver = ctx.new_driver().build_with_rng(&[255, 0]);
+        let mut driver = ctx.new_driver().build();
         let defender = Card::physical(0, 3, 7, Arrows::ALL);
         let attacker = Card::exploit(0xC, 0, 0, Arrows::ALL);
         let hands = [
@@ -394,13 +392,14 @@ fn in_game_tests(s: &mut Suite<Ctx>) {
         driver.send(Command::place_card_red(1, 0xF))?; // out of the way
         driver.send(Command::place_card_blue(1, 0))?; // will be combo'd
 
-        let events = driver.send(Command::place_card_red(0, 9))?.events;
+        driver.send(Command::place_card_red(0, 9))?;
+        let events = driver.send(Command::resolve_battle(&[1], &[0]))?.events;
 
         assert_eq!(
             events,
             vec![
                 Event::battle(
-                    Battler::new(9, Digit::Attack, 0xC, 0xCF),
+                    Battler::new(9, Digit::Attack, 0xC, 1),
                     Battler::new(5, Digit::PhysicalDefense, 3, 0),
                     BattleWinner::Attacker,
                 ),
@@ -411,7 +410,7 @@ fn in_game_tests(s: &mut Suite<Ctx>) {
         );
     });
     test!(ss "combo flip cards that are pointed to by the defender if they lose"; |ctx| {
-        let mut driver = ctx.new_driver().build_with_rng(&[255, 0]);
+        let mut driver = ctx.new_driver().build();
         let defender = Card::physical(0, 0, 0, Arrows::ALL);
         let attacker = Card::physical(0, 0, 0, Arrows::ALL);
         let hands = [
@@ -431,11 +430,12 @@ fn in_game_tests(s: &mut Suite<Ctx>) {
 
         driver.send(Command::place_card_blue(3, 5))?; // defender
 
-        let events = driver.send(Command::place_card_red(3, 9))?.events;
+        driver.send(Command::place_card_red(3, 9))?;
+        let events = driver.send(Command::resolve_battle(&[1], &[0]))?.events;
 
         assert_eq!(events, vec![
             Event::battle(
-                Battler::new(9, Digit::Attack, 0, 0xF),
+                Battler::new(9, Digit::Attack, 0, 1),
                 Battler::new(5, Digit::PhysicalDefense, 0, 0),
                 BattleWinner::Attacker,
             ),
@@ -447,7 +447,7 @@ fn in_game_tests(s: &mut Suite<Ctx>) {
         ]);
     });
     test!(ss "combo flip cards that are pointed to by the attacker if they lose"; |ctx| {
-        let mut driver = ctx.new_driver().build_with_rng(&[0, 255]);
+        let mut driver = ctx.new_driver().build();
         let defender = Card::physical(0, 0, 0, Arrows::UP);
         let attacker = Card::physical(0, 0, 0, Arrows::ALL);
         let hands = [
@@ -467,12 +467,13 @@ fn in_game_tests(s: &mut Suite<Ctx>) {
 
         driver.send(Command::place_card_blue(3, 9))?; // defender
 
-        let events = driver.send(Command::place_card_red(3, 5))?.events;
+        driver.send(Command::place_card_red(3, 5))?;
+        let events = driver.send(Command::resolve_battle(&[0], &[1]))?.events;
 
         assert_eq!(events, vec![
             Event::battle(
                 Battler::new(5, Digit::Attack, 0, 0),
-                Battler::new(9, Digit::PhysicalDefense, 0, 0xF),
+                Battler::new(9, Digit::PhysicalDefense, 0, 1),
                 BattleWinner::Defender,
             ),
             Event::flip(5),
@@ -483,7 +484,7 @@ fn in_game_tests(s: &mut Suite<Ctx>) {
         ]);
     });
     test!(ss "don't flip back undefended cards if they are flipped due to combos"; |ctx| {
-        let mut driver = ctx.new_driver().build_with_rng(&[255, 0]);
+        let mut driver = ctx.new_driver().build();
         let hands = [
             [CARD, CARD.arrows(Arrows::ALL), CARD, CARD, CARD],
             [CARD.arrows(Arrows::ALL), CARD, CARD, CARD, CARD],
@@ -495,11 +496,12 @@ fn in_game_tests(s: &mut Suite<Ctx>) {
 
         // placed card points to both other cards, attacker wins,
         // flips card on 0 and card on 4 get's combo flipped
-        let events = driver.send(Command::place_card_blue(1, 5))?.events;
+        driver.send(Command::place_card_blue(1, 5))?;
+        let events = driver.send(Command::resolve_battle(&[1], &[0]))?.events;
 
         assert_eq!(events, vec![
             Event::battle(
-                Battler::new(5, Digit::Attack, 0, 0xF),
+                Battler::new(5, Digit::Attack, 0, 1),
                 Battler::new(0, Digit::PhysicalDefense, 0, 0),
                 BattleWinner::Attacker,
             ),
@@ -511,7 +513,7 @@ fn in_game_tests(s: &mut Suite<Ctx>) {
 
     let ss = suite!(s "Battle Choices");
     test!(ss "place card that results in a choice"; |ctx| {
-        let mut driver = ctx.new_driver().build_with_rng(&[255, 0, 0, 255]);
+        let mut driver = ctx.new_driver().build();
         let defender1 = Card::physical(0, 3, 7, Arrows::ALL);
         let defender2 = Card::physical(0, 9, 4, Arrows::ALL);
         let attacker = Card::exploit(0xC, 0, 0, Arrows::ALL);
@@ -529,20 +531,27 @@ fn in_game_tests(s: &mut Suite<Ctx>) {
 
         assert_eq!(choices, [0, 8].into());
 
-        let events = driver.send(Command::pick_battle_red(8))?.events;
-
+        driver.send(Command::pick_battle_red(8))?;
+        let events = driver.send(Command::resolve_battle(&[1], &[0]))?.events;
         assert_eq!(
             events,
             vec![
                 Event::battle(
-                    Battler::new(4, Digit::Attack, 0xC, 0xCF),
+                    Battler::new(4, Digit::Attack, 0xC, 1),
                     Battler::new(8, Digit::MagicalDefense, 4, 0),
                     BattleWinner::Attacker,
                 ),
                 Event::flip(8),
+            ]
+        );
+
+        let events = driver.send(Command::resolve_battle(&[0], &[1]))?.events;
+        assert_eq!(
+            events,
+            vec![
                 Event::battle(
                     Battler::new(4, Digit::Attack, 0xC, 0),
-                    Battler::new(0, Digit::PhysicalDefense, 3, 0x3F),
+                    Battler::new(0, Digit::PhysicalDefense, 3, 1),
                     BattleWinner::Defender,
                 ),
                 Event::flip(4),
@@ -572,7 +581,7 @@ fn in_game_tests(s: &mut Suite<Ctx>) {
         assert_eq!(error, ErrorResponse::InvalidBattlePick { cell: 0xC });
     });
     test!(ss "continue offering choices when multiple battles are still available"; |ctx| {
-        let mut driver = ctx.new_driver().build_with_rng(&[255, 0, 255, 0, 255, 0, 255, 0]);
+        let mut driver = ctx.new_driver().build();
         let defender0 = Card::physical(0, 2, 0, Arrows::DOWN);
         let defender1 = Card::physical(0, 4, 0, Arrows::LEFT);
         let defender2 = Card::physical(0, 6, 0, Arrows::UP);
@@ -596,39 +605,46 @@ fn in_game_tests(s: &mut Suite<Ctx>) {
         assert_eq!(res.pick_battle, [0, 5, 8, 9].into());
         assert_eq!(res.events, vec![]);
 
-        let res = driver.send(Command::pick_battle_red(5))?;
+        driver.send(Command::pick_battle_red(5))?;
+        let res = driver.send(Command::resolve_battle(&[1], &[0]))?;
         assert_eq!(res.pick_battle, [0, 8, 9].into());
         assert_eq!(res.events, vec![
             Event::battle(
-                Battler::new(4, Digit::Attack, 1, 0x1F),
+                Battler::new(4, Digit::Attack, 1, 1),
                 Battler::new(5, Digit::PhysicalDefense, 4, 0),
                 BattleWinner::Attacker,
             ),
             Event::flip(5),
         ]);
 
-        let res = driver.send(Command::pick_battle_red(8))?;
+        driver.send(Command::pick_battle_red(8))?;
+        let res = driver.send(Command::resolve_battle(&[1], &[0]))?;
         assert_eq!(res.pick_battle, [0, 9].into());
         assert_eq!(res.events, vec![
             Event::battle(
-                Battler::new(4, Digit::Attack, 1, 0x1F),
+                Battler::new(4, Digit::Attack, 1, 1),
                 Battler::new(8, Digit::PhysicalDefense, 6, 0),
                 BattleWinner::Attacker,
             ),
             Event::flip(8),
         ]);
 
-        let res = driver.send(Command::pick_battle_red(0))?;
+        driver.send(Command::pick_battle_red(0))?;
+        let res = driver.send(Command::resolve_battle(&[1], &[0]))?;
         assert_eq!(res.pick_battle, [].into());
         assert_eq!(res.events, vec![
             Event::battle(
-                Battler::new(4, Digit::Attack, 1, 0x1F),
+                Battler::new(4, Digit::Attack, 1, 1),
                 Battler::new(0, Digit::PhysicalDefense, 2, 0),
                 BattleWinner::Attacker,
             ),
             Event::flip(0),
+        ]);
+
+        let res = driver.send(Command::resolve_battle(&[1], &[0]))?;
+        assert_eq!(res.events, vec![
             Event::battle(
-                Battler::new(4, Digit::Attack, 1, 0x1F),
+                Battler::new(4, Digit::Attack, 1, 1),
                 Battler::new(9, Digit::PhysicalDefense, 8, 0),
                 BattleWinner::Attacker,
             ),
@@ -637,7 +653,7 @@ fn in_game_tests(s: &mut Suite<Ctx>) {
         ]);
     });
     test!(ss "don't continue offering choices if attacker loses"; |ctx| {
-        let mut driver = ctx.new_driver().build_with_rng(&[0, 255]);
+        let mut driver = ctx.new_driver().build();
         let defender0 = Card::physical(0, 2, 0, Arrows::DOWN);
         let defender1 = Card::physical(0, 4, 0, Arrows::LEFT);
         let defender2 = Card::physical(0, 6, 0, Arrows::UP);
@@ -661,54 +677,17 @@ fn in_game_tests(s: &mut Suite<Ctx>) {
         assert_eq!(res.pick_battle, [0, 5, 8, 9].into());
         assert_eq!(res.events, vec![]);
 
-        let res = driver.send(Command::pick_battle_red(5))?;
+        driver.send(Command::pick_battle_red(5))?;
+        let res = driver.send(Command::resolve_battle(&[0], &[1]))?;
         assert_eq!(res.pick_battle, [].into());
         assert_eq!(res.events, vec![
             Event::battle(
                 Battler::new(4, Digit::Attack, 1, 0),
-                Battler::new(5, Digit::PhysicalDefense, 4, 0x4F),
+                Battler::new(5, Digit::PhysicalDefense, 4, 1),
                 BattleWinner::Defender,
             ),
             Event::flip(4),
             Event::turn_blue(),
-        ]);
-    });
-    test!(ss "handle game over when attacker loses battle after a choice"; |ctx| {
-        let mut driver = ctx.new_driver().build_with_rng(&[0, 255]);
-        let defender0 = Card::physical(0, 0, 0, Arrows::DOWN);
-        let defender1 = Card::physical(0, 0, 0, Arrows::UP);
-        let attacker = Card::physical(0, 0, 0, Arrows::UP | Arrows::DOWN);
-        let hands = [
-            [defender0, defender1, CARD, CARD, CARD],
-            [CARD, CARD, CARD, CARD, attacker],
-        ];
-        driver.send(Command::setup().hand_blue(&hands[0]).hand_red(&hands[1]))?;
-
-        driver.send(Command::place_card_blue(0, 0))?; // defender0
-        driver.send(Command::place_card_red(0, 3))?;
-
-        driver.send(Command::place_card_blue(1, 8))?; // defender1
-        driver.send(Command::place_card_red(1, 7))?;
-
-        driver.send(Command::place_card_blue(2, 0xB))?;
-        driver.send(Command::place_card_red(2, 0xF))?;
-
-        driver.send(Command::place_card_blue(3, 2))?;
-        driver.send(Command::place_card_red(3, 6))?;
-
-        driver.send(Command::place_card_blue(4, 0xA))?;
-
-        driver.send(Command::place_card_red(4, 4))?;
-        let events = driver.send(Command::pick_battle_red(0))?.events;
-
-        assert_eq!(events, vec![
-            Event::battle(
-                Battler::new(4, Digit::Attack, 0, 0),
-                Battler::new(0, Digit::PhysicalDefense, 0, 0xF),
-                BattleWinner::Defender,
-            ),
-            Event::flip(4),
-            Event::game_over(Some(Player::Blue)),
         ]);
     });
 
@@ -778,6 +757,45 @@ fn in_game_tests(s: &mut Suite<Ctx>) {
             Event::game_over(None),
         ]);
     });
+    test!(ss "handle game over when attacker loses battle after a choice"; |ctx| {
+        let mut driver = ctx.new_driver().build();
+        let defender0 = Card::physical(0, 0, 0, Arrows::DOWN);
+        let defender1 = Card::physical(0, 0, 0, Arrows::UP);
+        let attacker = Card::physical(0, 0, 0, Arrows::UP | Arrows::DOWN);
+        let hands = [
+            [defender0, defender1, CARD, CARD, CARD],
+            [CARD, CARD, CARD, CARD, attacker],
+        ];
+        driver.send(Command::setup().hand_blue(&hands[0]).hand_red(&hands[1]))?;
+
+        driver.send(Command::place_card_blue(0, 0))?; // defender0
+        driver.send(Command::place_card_red(0, 3))?;
+
+        driver.send(Command::place_card_blue(1, 8))?; // defender1
+        driver.send(Command::place_card_red(1, 7))?;
+
+        driver.send(Command::place_card_blue(2, 0xB))?;
+        driver.send(Command::place_card_red(2, 0xF))?;
+
+        driver.send(Command::place_card_blue(3, 2))?;
+        driver.send(Command::place_card_red(3, 6))?;
+
+        driver.send(Command::place_card_blue(4, 0xA))?;
+
+        driver.send(Command::place_card_red(4, 4))?;
+        driver.send(Command::pick_battle_red(0))?;
+        let events = driver.send(Command::resolve_battle(&[0], &[1]))?.events;
+
+        assert_eq!(events, vec![
+            Event::battle(
+                Battler::new(4, Digit::Attack, 0, 0),
+                Battler::new(0, Digit::PhysicalDefense, 0, 1),
+                BattleWinner::Defender,
+            ),
+            Event::flip(4),
+            Event::game_over(Some(Player::Blue)),
+        ]);
+    });
 
     stat_selection(suite!(s "Stat Selection"));
 }
@@ -792,7 +810,8 @@ fn stat_selection(s: &mut Suite<Ctx>) {
         driver.send(Command::setup().hand_blue(&hands[0]).hand_red(&hands[1]))?;
 
         driver.send(Command::place_card_blue(0, 0))?;
-        let events = driver.send(Command::place_card_red(0, 1))?.events;
+        driver.send(Command::place_card_red(0, 1))?;
+        let events = driver.send(Command::resolve_battle(&[0], &[0]))?.events;
         let (attacker, defender, _) = events[0].as_battle();
         Ok((attacker, defender))
     }
