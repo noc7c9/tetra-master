@@ -838,12 +838,18 @@ fn ai_turn(
     println!("AI's Turn!");
 
     println!("Calculating AI Move");
+
+    #[cfg(not(target_arch = "wasm32"))]
     let now = std::time::Instant::now();
+
     let ai_cmd = ai.0.get_action();
+
+    #[cfg(not(target_arch = "wasm32"))]
     println!(
         "Time Taken: {} seconds",
         now.elapsed().as_millis() as f64 / 1000.
     );
+
     println!("AI Move = {ai_cmd:?}");
 
     let response = match ai_cmd {

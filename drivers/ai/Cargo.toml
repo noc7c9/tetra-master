@@ -8,6 +8,8 @@ tetra-master-core = { path = "../core" }
 
 anyhow = { workspace = true }
 clap = { workspace = true }
-crossterm = { workspace = true }
 rand = { workspace = true }
 rand_pcg = { workspace = true }
+
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+crossterm = { workspace = true }
