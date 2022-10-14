@@ -10,15 +10,11 @@ use rand::{thread_rng, Rng as _, SeedableRng as _};
 pub type Seed = u64;
 pub type Rng = rand_pcg::Pcg32;
 
-const MIN_RNG_NUMBERS: usize = 256;
-
 pub struct Driver {
     inner: Inner,
     pub initial_seed: Seed,
     rng: Rng,
-    auto_feed_rng: bool,
     log: bool,
-    prev_rng_numbers_left: usize,
 }
 
 enum Inner {
@@ -60,34 +56,6 @@ impl Driver {
         C: CommandResponse + Step + std::fmt::Display,
         C::Response: std::fmt::Display,
     {
-        let res = self.send_actual(cmd);
-        self.auto_feed_rng()?;
-        res
-    }
-
-    fn auto_feed_rng(&mut self) -> Result<()> {
-        if !self.auto_feed_rng {
-            return Ok(());
-        };
-
-        let count = MIN_RNG_NUMBERS.saturating_sub(self.prev_rng_numbers_left);
-
-        let mut numbers = Vec::with_capacity(count);
-        for _ in 0..count {
-            numbers.push(self.rng.gen());
-        }
-
-        let ok = self.send_actual(command::PushRngNumbers { numbers })?;
-        self.prev_rng_numbers_left = ok.numbers_left;
-
-        Ok(())
-    }
-
-    fn send_actual<C>(&mut self, cmd: C) -> Result<C::Response>
-    where
-        C: CommandResponse + Step + std::fmt::Display,
-        C::Response: std::fmt::Display,
-    {
         use owo_colors::OwoColorize;
 
         if self.log {
@@ -114,7 +82,6 @@ impl Driver {
 
 pub struct DriverBuilder {
     inner: Inner,
-    auto_feed_rng: bool,
     log: bool,
     seed: Option<Seed>,
 }
@@ -123,20 +90,9 @@ impl DriverBuilder {
     fn new(inner: Inner) -> Self {
         Self {
             inner,
-            auto_feed_rng: true,
             log: false,
             seed: None,
         }
-    }
-
-    pub fn auto_feed_rng(mut self) -> Self {
-        self.auto_feed_rng = true;
-        self
-    }
-
-    pub fn no_auto_feed_rng(mut self) -> Self {
-        self.auto_feed_rng = false;
-        self
     }
 
     pub fn log(mut self) -> Self {
@@ -172,9 +128,6 @@ impl DriverBuilder {
                 Inner::Reference(_) => eprint!("{}", "Reference Driver".green()),
             }
             eprint!(" | Seed: {}", initial_seed.green());
-            if self.auto_feed_rng {
-                eprint!(" | Auto Feed Rng: {}", "On".green())
-            }
             eprintln!();
 
             // turn on logging for the internal logger,
@@ -184,14 +137,11 @@ impl DriverBuilder {
             }
         }
 
-        let rng = Rng::seed_from_u64(initial_seed);
         Driver {
             inner: self.inner,
             initial_seed,
-            rng,
-            auto_feed_rng: self.auto_feed_rng,
+            rng: Rng::seed_from_u64(initial_seed),
             log: self.log,
-            prev_rng_numbers_left: 0,
         }
     }
 }
@@ -319,80 +269,5 @@ impl Drop for ExternalDriver {
         // if killing the child fails, just ignore it
         // the OS should clean up after the tester process closes
         let _ = self.proc.kill();
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::Player;
-
-    fn get_rng_numbers_len(driver: &Driver) -> usize {
-        if let Inner::Reference(inner) = &driver.inner {
-            return match &inner.ref_impl {
-                ReferenceImplementation::PreSetup(inner) => {
-                    inner.rng.as_ref().unwrap().numbers.len()
-                }
-                ReferenceImplementation::InGame(inner) => inner.rng.numbers.len(),
-            };
-        }
-        unreachable!()
-    }
-
-    #[test]
-    fn should_push_more_random_numbers_after_running_each_command() -> Result<()> {
-        let mut driver = Driver::reference().seed(0).log().build();
-
-        // immediately after initialization it should be empty
-        assert_eq!(get_rng_numbers_len(&driver), 0);
-
-        let mut setup = driver.random_setup(BattleSystem::Original);
-        setup.starting_player = Player::Blue;
-        driver.send(setup)?;
-
-        // after setup command, rng should be auto fed
-        assert_eq!(get_rng_numbers_len(&driver), MIN_RNG_NUMBERS);
-
-        // doesn't use any numbers
-        driver.send(command::PlaceCard {
-            player: Player::Blue,
-            card: 0,
-            cell: 10,
-        })?;
-
-        assert_eq!(get_rng_numbers_len(&driver), MIN_RNG_NUMBERS);
-
-        // triggers a battle and uses 4 numbers
-        driver.send(command::PlaceCard {
-            player: Player::Red,
-            card: 3,
-            cell: 5,
-        })?;
-        assert_eq!(get_rng_numbers_len(&driver), MIN_RNG_NUMBERS - 4);
-
-        // doesn't use any numbers, but numbers should be refilled
-        driver.send(command::PlaceCard {
-            player: Player::Blue,
-            card: 1,
-            cell: 0,
-        })?;
-        assert_eq!(get_rng_numbers_len(&driver), MIN_RNG_NUMBERS);
-
-        Ok(())
-    }
-
-    #[test]
-    fn should_not_push_more_random_numbers_if_auto_feed_rng_is_off() -> Result<()> {
-        let mut driver = Driver::reference().seed(0).log().no_auto_feed_rng().build();
-
-        // immediately after initialization it should be empty
-        assert_eq!(get_rng_numbers_len(&driver), 0);
-
-        driver.send_random_setup(BattleSystem::Original)?;
-
-        // after setup command, it should still be empty
-        assert_eq!(get_rng_numbers_len(&driver), 0);
-
-        Ok(())
     }
 }

@@ -22,13 +22,13 @@ pub trait CommandResponse: command::Command {
 impl CommandResponse for command::Setup {
     type Response = response::SetupOk;
 }
-impl CommandResponse for command::PushRngNumbers {
-    type Response = response::PushRngNumbersOk;
-}
 impl CommandResponse for command::PlaceCard {
     type Response = response::PlayOk;
 }
 impl CommandResponse for command::PickBattle {
+    type Response = response::PlayOk;
+}
+impl CommandResponse for command::ResolveBattle {
     type Response = response::PlayOk;
 }
 

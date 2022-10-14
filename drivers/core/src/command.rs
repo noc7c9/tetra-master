@@ -63,34 +63,6 @@ impl Command for Setup {
     }
 }
 
-#[derive(Debug)]
-pub struct PushRngNumbers {
-    pub numbers: Vec<u8>,
-}
-
-impl Command for PushRngNumbers {
-    fn serialize(self, out: &mut String) -> Result<(), Error> {
-        let mut o = Sexpr::new(out);
-
-        o.list(|o| {
-            o.atom("push-rng-numbers")?;
-
-            if !self.numbers.is_empty() {
-                o.list(|o| {
-                    o.atom("numbers")?;
-                    o.array(self.numbers, |o, number| o.atom(DisplayHex(number)))
-                })?;
-            }
-
-            Ok(())
-        })?;
-
-        out.push('\n');
-
-        Ok(())
-    }
-}
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct PlaceCard {
     pub player: Player,
@@ -111,6 +83,34 @@ impl Command for PlaceCard {
             })?;
             o.list(|o| o.atoms(("card", self.card)))?;
             o.list(|o| o.atoms(("cell", DisplayHex(self.cell))))
+        })?;
+
+        out.push('\n');
+
+        Ok(())
+    }
+}
+
+#[derive(Debug)]
+pub struct ResolveBattle {
+    pub attack_roll: Vec<u8>,
+    pub defend_roll: Vec<u8>,
+}
+
+impl Command for ResolveBattle {
+    fn serialize(self, out: &mut String) -> Result<(), Error> {
+        let mut o = Sexpr::new(out);
+
+        o.list(|o| {
+            o.atom("resolve-battle")?;
+            o.list(|o| {
+                o.atom("attack")?;
+                o.array(self.attack_roll, |o, num| o.atom(DisplayHex(num)))
+            })?;
+            o.list(|o| {
+                o.atom("defend")?;
+                o.array(self.defend_roll, |o, num| o.atom(DisplayHex(num)))
+            })
         })?;
 
         out.push('\n');
@@ -340,18 +340,6 @@ mod tests {
         o
     }
 
-    #[test_case(PushRngNumbers {
-        numbers: vec![24, 3, 5, 2, 134, 3, 5, 2, 94, 4],
-    } => using assert_eq("(push-rng-numbers (numbers (18 3 5 2 86 3 5 2 5E 4)))\n"))]
-    #[test_case(PushRngNumbers {
-        numbers: vec![],
-    } => using assert_eq("(push-rng-numbers)\n"))]
-    fn push_rng_numbers(input: PushRngNumbers) -> String {
-        let mut o = String::new();
-        input.serialize(&mut o).unwrap();
-        o
-    }
-
     #[test_case(PlaceCard { player: Player::Blue, card: 0, cell: 0 }
         => using assert_eq("(place-card (player blue) (card 0) (cell 0))\n"))]
     #[test_case(PlaceCard { player: Player::Red, card: 3, cell: 0xA }
@@ -367,6 +355,14 @@ mod tests {
     #[test_case(PickBattle { player: Player::Red, cell: 0xA }
         => using assert_eq("(pick-battle (player red) (cell A))\n"))]
     fn pick_battle(input: PickBattle) -> String {
+        let mut o = String::new();
+        input.serialize(&mut o).unwrap();
+        o
+    }
+
+    #[test_case(ResolveBattle { attack_roll: vec![1, 2, 8, 129], defend_roll: vec![2, 3, 233] }
+        => using assert_eq("(resolve-battle (attack (1 2 8 81)) (defend (2 3 E9)))\n"))]
+    fn resolve_battle(input: ResolveBattle) -> String {
         let mut o = String::new();
         input.serialize(&mut o).unwrap();
         o

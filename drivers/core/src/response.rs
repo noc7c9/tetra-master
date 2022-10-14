@@ -9,7 +9,7 @@ use nom::{
     combinator::{map, map_res, opt, verify},
     error::Error as NomError,
     multi::separated_list0,
-    sequence::{delimited, preceded, terminated, tuple},
+    sequence::{delimited, pair, preceded, terminated, tuple},
     IResult, Parser,
 };
 
@@ -25,6 +25,8 @@ pub enum ErrorResponse {
     CellIsNotEmpty { cell: u8 },
     CardAlreadyPlayed { card: u8 },
     InvalidBattlePick { cell: u8 },
+    InvalidCommandForState,
+    NotEnoughNumbersInResolve,
 }
 
 impl Response for ErrorResponse {
@@ -50,20 +52,21 @@ impl Response for SetupOk {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct PushRngNumbersOk {
-    pub numbers_left: usize,
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct RandomNumberRequest {
+    pub numbers: u8,
+    pub range: (u8, u8),
 }
 
-impl Response for PushRngNumbersOk {
-    fn deserialize(i: &str) -> Result<Self, Error> {
-        let (_, res) = push_rng_numbers_ok(i).map_err(|e| e.to_owned())?;
-        Ok(res)
-    }
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ResolveBattle {
+    pub attack_roll: RandomNumberRequest,
+    pub defend_roll: RandomNumberRequest,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PlayOk {
+    pub resolve_battle: Option<ResolveBattle>,
     pub pick_battle: BoardCells,
     pub events: Vec<Event>,
 }
@@ -242,15 +245,26 @@ fn setup_ok(i: &str) -> IResult<&str, SetupOk> {
     })(i)
 }
 
-fn push_rng_numbers_ok(i: &str) -> IResult<&str, PushRngNumbersOk> {
-    response("push-rng-numbers-ok", |i| {
-        let (i, numbers_left) = prop("numbers-left", hex_digit_1_n(8))(i)?;
-        let push_rng_numbers_ok = PushRngNumbersOk { numbers_left };
-        Ok((i, push_rng_numbers_ok))
-    })(i)
-}
-
 fn play_ok(i: &str) -> IResult<&str, PlayOk> {
+    fn resolve_battle(i: &str) -> IResult<&str, ResolveBattle> {
+        fn random_number_request(i: &str) -> IResult<&str, RandomNumberRequest> {
+            let (i, numbers) = atom(hex_digit_1_n(1))(i)?;
+            let (i, range) = list(pair(atom(hex_digit_1_n(1)), atom(hex_digit_1_n(1))))(i)?;
+            Ok((i, RandomNumberRequest { numbers, range }))
+        }
+        let (i, attack_roll) = prop("attack", random_number_request)(i)?;
+        let (i, defend_roll) = prop("defend", random_number_request)(i)?;
+        let resolve_battle = ResolveBattle {
+            attack_roll,
+            defend_roll,
+        };
+        Ok((i, resolve_battle))
+    }
+
+    fn pick_battle(i: &str) -> IResult<&str, BoardCells> {
+        map(array(hex_digit_1_n(1)), Into::into)(i)
+    }
+
     fn next_turn(i: &str) -> IResult<&str, Event> {
         let (i, to) = prop("next-turn", player)(i)?;
         Ok((i, Event::NextTurn { to }))
@@ -325,12 +339,11 @@ fn play_ok(i: &str) -> IResult<&str, PlayOk> {
     }
 
     response("play-ok", |i| {
+        let (i, resolve_battle) = opt(prop("resolve-battle", resolve_battle))(i)?;
+        let (i, pick_battle) = opt(prop("pick-battle", pick_battle))(i)?;
         let (i, events) = opt(prop("events", separated_list0(multispace1, event)))(i)?;
-        let (i, pick_battle) = opt(prop(
-            "pick-battle",
-            map(array(hex_digit_1_n(1)), Into::into),
-        ))(i)?;
         let play_ok = PlayOk {
+            resolve_battle,
             pick_battle: pick_battle.unwrap_or_default(),
             events: events.unwrap_or_default(),
         };
@@ -454,54 +467,79 @@ mod tests {
         Response::deserialize(&i).unwrap()
     }
 
-    #[test_case("(push-rng-numbers-ok (numbers-left 0))\n" => PushRngNumbersOk { numbers_left: 0 })]
-    #[test_case("(push-rng-numbers-ok (numbers-left aBc123))\n"
-        => PushRngNumbersOk { numbers_left: 0xABC123 })]
-    fn push_rng_numbers_ok(i: &str) -> PushRngNumbersOk {
-        Response::deserialize(i).unwrap()
-    }
-
     use Event::*;
     #[test_case("(play-ok (events))\n"
-        => PlayOk { pick_battle: BoardCells::NONE, events: vec![] })]
+        => using assert_eq(PlayOk { resolve_battle: None, pick_battle: BoardCells::NONE, events: vec![] }))]
     #[test_case("(play-ok (events (next-turn blue)))\n"
-        => PlayOk { pick_battle: BoardCells::NONE, events: vec![NextTurn { to: Player::Blue }] })]
+        => using assert_eq(PlayOk {
+            resolve_battle: None, pick_battle: BoardCells::NONE,
+            events: vec![NextTurn { to: Player::Blue }] }))]
     #[test_case("(play-ok (events (next-turn red)))\n"
-        => PlayOk { pick_battle: BoardCells::NONE, events: vec![NextTurn { to: Player::Red }] })]
+        => using assert_eq(PlayOk {
+            resolve_battle: None, pick_battle: BoardCells::NONE,
+            events: vec![NextTurn { to: Player::Red }] }))]
     #[test_case("(play-ok (events (flip 4)))\n"
-        => PlayOk { pick_battle: BoardCells::NONE, events: vec![Flip { cell: 4 }] })]
+        => using assert_eq(PlayOk {
+            resolve_battle: None, pick_battle: BoardCells::NONE,
+            events: vec![Flip { cell: 4 }] }))]
     #[test_case("(play-ok (events (flip 2) (flip A) (flip 7)))\n"
-        => PlayOk {
-            pick_battle: BoardCells::NONE,
-            events: vec![Flip { cell: 2 }, Flip { cell: 0xA }, Flip { cell: 7 }] })]
+        => using assert_eq(PlayOk {
+            resolve_battle: None, pick_battle: BoardCells::NONE,
+            events: vec![Flip { cell: 2 }, Flip { cell: 0xA }, Flip { cell: 7 }] }))]
     #[test_case("(play-ok (events (combo-flip A)))\n"
-        => PlayOk {
-            pick_battle: BoardCells::NONE,
-            events: vec![ComboFlip { cell: 0xA }] })]
+        => using assert_eq(PlayOk {
+            resolve_battle: None, pick_battle: BoardCells::NONE,
+            events: vec![ComboFlip { cell: 0xA }] }))]
     #[test_case("(play-ok (events (combo-flip 3) (combo-flip C)))\n"
-        => PlayOk {
-            pick_battle: BoardCells::NONE,
-            events: vec![ComboFlip { cell: 3 }, ComboFlip { cell: 0xC }] })]
+        => using assert_eq(PlayOk {
+            resolve_battle: None, pick_battle: BoardCells::NONE,
+            events: vec![ComboFlip { cell: 3 }, ComboFlip { cell: 0xC }] }))]
     #[test_case("(play-ok (events (battle (1 A D 2) (8 m 3 Cd) attacker)))\n"
-        => PlayOk {
-            pick_battle: BoardCells::NONE,
+        => using assert_eq(PlayOk {
+            resolve_battle: None, pick_battle: BoardCells::NONE,
             events: vec![Battle {
                 attacker: Battler { cell: 1, digit: Digit::Attack, value: 0xD, roll: 2 },
                 defender: Battler { cell: 8, digit: Digit::MagicalDefense, value: 3, roll: 0xCD },
                 winner: BattleWinner::Attacker,
-            }] })]
+            }] }))]
     #[test_case("(play-ok (events (game-over blue)))\n"
-        => PlayOk { pick_battle: BoardCells::NONE, events: vec![GameOver { winner: Some(Player::Blue) }] })]
+        => using assert_eq(PlayOk {
+            resolve_battle: None, pick_battle: BoardCells::NONE,
+            events: vec![GameOver { winner: Some(Player::Blue) }] }))]
     #[test_case("(play-ok (events (game-over red)))\n"
-        => PlayOk { pick_battle: BoardCells::NONE, events: vec![GameOver { winner: Some(Player::Red) }] })]
+        => using assert_eq(PlayOk {
+            resolve_battle: None, pick_battle: BoardCells::NONE,
+            events: vec![GameOver { winner: Some(Player::Red) }] }))]
     #[test_case("(play-ok (events (game-over draw)))\n"
-        => PlayOk { pick_battle: BoardCells::NONE, events: vec![GameOver { winner: None }] })]
-    #[test_case("(play-ok (events) (pick-battle (2 3 4)))\n"
-        => PlayOk { pick_battle: [2, 3, 4].into(), events: vec![] })]
+        => using assert_eq(PlayOk {
+            resolve_battle: None, pick_battle: BoardCells::NONE,
+            events: vec![GameOver { winner: None }] }))]
+    #[test_case("(play-ok (pick-battle (2 3 4)) (events))\n"
+        => using assert_eq(PlayOk {
+            resolve_battle: None, events: vec![],
+            pick_battle: [2, 3, 4].into() }))]
     #[test_case("(play-ok (pick-battle (F 4)))\n"
-        => PlayOk { pick_battle: [15, 4].into(), events: vec![] })]
-    #[test_case("(play-ok (events) (pick-battle ()))\n"
-        => PlayOk { pick_battle: BoardCells::NONE, events: vec![] })]
+        => using assert_eq(PlayOk {
+            resolve_battle: None, events: vec![],
+            pick_battle: [15, 4].into() }))]
+    #[test_case("(play-ok (pick-battle ()) (events))\n"
+        => using assert_eq(PlayOk {
+            resolve_battle: None, events: vec![],
+            pick_battle: BoardCells::NONE }))]
+    #[test_case("(play-ok (resolve-battle (attack 2 (3 4)) (defend 3 (7 A))) (events))\n"
+        => using assert_eq(PlayOk {
+            pick_battle: BoardCells::NONE, events: vec![],
+            resolve_battle: Some(ResolveBattle {
+                attack_roll: RandomNumberRequest { numbers: 2, range: (3, 4) },
+                defend_roll: RandomNumberRequest { numbers: 3, range: (7, 0xA) },
+            }) }))]
+    #[test_case("(play-ok (resolve-battle (attack C (0 8)) (defend F (8 A))) (events))\n"
+        => using assert_eq(PlayOk {
+            pick_battle: BoardCells::NONE, events: vec![],
+            resolve_battle: Some(ResolveBattle {
+                attack_roll: RandomNumberRequest { numbers: 0xC, range: (0, 8) },
+                defend_roll: RandomNumberRequest { numbers: 0xF, range: (8, 0xA) },
+            }) }))]
     fn place_card_ok(i: &str) -> PlayOk {
         Response::deserialize(i).unwrap()
     }

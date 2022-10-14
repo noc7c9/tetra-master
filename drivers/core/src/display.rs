@@ -123,16 +123,6 @@ impl Display for command::Setup {
     }
 }
 
-impl Display for command::PushRngNumbers {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(
-            f,
-            "PushRngNumbers {}",
-            DisplayList::new(self.numbers.iter().map(DisplayHex)),
-        )
-    }
-}
-
 impl Display for command::PlaceCard {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "PlaceCard card:{:X} cell:{:X}", self.card, self.cell)
@@ -145,15 +135,19 @@ impl Display for command::PickBattle {
     }
 }
 
-impl Display for response::SetupOk {
+impl Display for command::ResolveBattle {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "SetupOk")
+        write!(
+            f,
+            "ResolveBattle attack_roll:{:X?} defend_roll:{:X?}",
+            self.attack_roll, self.defend_roll
+        )
     }
 }
 
-impl Display for response::PushRngNumbersOk {
+impl Display for response::SetupOk {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "PushRngNumbersOk numbers-left:{:X}", self.numbers_left)
+        write!(f, "SetupOk")
     }
 }
 
