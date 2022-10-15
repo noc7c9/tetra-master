@@ -125,13 +125,17 @@ impl Display for command::Setup {
 
 impl Display for command::PlaceCard {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "PlaceCard card:{:X} cell:{:X}", self.card, self.cell)
+        write!(
+            f,
+            "PlaceCard player:{} card:{:X} cell:{:X}",
+            self.player, self.card, self.cell
+        )
     }
 }
 
 impl Display for command::PickBattle {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "PickBattle cell:{:X}", self.cell)
+        write!(f, "PickBattle player:{} cell:{:X}", self.player, self.cell)
     }
 }
 
@@ -154,6 +158,21 @@ impl Display for response::SetupOk {
 impl std::fmt::Display for response::PlayOk {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "PlayOk")?;
+        if let Some(resolve_battle) = &self.resolve_battle {
+            write!(f, " resolve-battle")?;
+            let atk = resolve_battle.attack_roll;
+            write!(
+                f,
+                " Attack({}x({}..{}))",
+                atk.numbers, atk.range.0, atk.range.1
+            )?;
+            let def = resolve_battle.defend_roll;
+            write!(
+                f,
+                " Defend({}x({}..{}))",
+                def.numbers, def.range.0, def.range.1
+            )?;
+        }
         if !self.pick_battle.is_empty() {
             write!(
                 f,
