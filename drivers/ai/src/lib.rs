@@ -1,5 +1,7 @@
 use tetra_master_core as core;
 
+mod battle_system_probabilities;
+
 pub mod naive_minimax;
 pub mod random;
 

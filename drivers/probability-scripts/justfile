@@ -1,0 +1,22 @@
+# note: fixjson is https://www.npmjs.com/package/fixjson
+
+_list:
+    @just --list
+
+gen-code: gen-probs
+    time ./generate-code.py | rustfmt > ../ai/src/battle_system_probabilities.rs
+
+gen-probs: gen-deterministic-probs gen-original-probs gen-dice-probs
+
+gen-deterministic-probs:
+    time ./calc-deterministic-probs.py | fixjson --indent 4 > ./data/deterministic.json
+
+gen-original-probs:
+    time ./calc-original-probs.rs | fixjson --indent 4 > ./data/original.json
+
+gen-dice-probs:
+    time ./calc-dice-probs.rs 4 | fixjson --indent 4 > ./data/dice-4.json
+    time ./calc-dice-probs.rs 6 | fixjson --indent 4 > ./data/dice-6.json
+    time ./calc-dice-probs.rs 8 | fixjson --indent 4 > ./data/dice-8.json
+    time ./calc-dice-probs.rs 10 | fixjson --indent 4 > ./data/dice-10.json
+    time ./calc-dice-probs.rs 12 | fixjson --indent 4 > ./data/dice-12.json

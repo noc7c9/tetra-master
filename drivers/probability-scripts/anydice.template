@@ -1,0 +1,9 @@
+function: roll N:n {
+    result: Nd4
+}
+
+loop A over {0..15} {
+    loop D over {0..15} {
+        output [roll A] > [roll D] named "[A] v [D]"
+    }
+}
