@@ -384,7 +384,7 @@ fn place_card(
     hand_hover_areas: Query<(Entity, &HandCardHoverArea)>,
     board_hover_areas: Query<(Entity, &BoardCell)>,
     transforms: Query<&mut Transform>,
-    mut battler_stat_displays: Query<Entity, With<BattlerStatDisplay>>,
+    battler_stat_displays: Query<Entity, With<BattlerStatDisplay>>,
 ) {
     if !matches!(*status, Status::Normal) {
         return;
@@ -393,7 +393,7 @@ fn place_card(
     if btns.just_pressed(MouseButton::Left) {
         if let (Some(card_entity), Some(cell)) = (active_card.0, hovered_cell.0) {
             // remove any battlers stats on the screen
-            for entity in battler_stat_displays.iter_mut() {
+            for entity in &battler_stat_displays {
                 commands.entity(entity).despawn_recursive();
             }
 
@@ -844,7 +844,14 @@ fn ai_turn(
     hand_hover_areas: Query<(Entity, &HandCardHoverArea)>,
     board_hover_areas: Query<(Entity, &BoardCell)>,
     transforms: Query<&mut Transform>,
+    battler_stat_displays: Query<Entity, With<BattlerStatDisplay>>,
+    select_indicators: Query<Entity, With<SelectIndicator>>,
 ) {
+    // don't play if game is over
+    if let Status::GameOver { .. } = *status {
+        return;
+    }
+    // don't play if not AI's turn
     if turn.0 == core::Player::Blue {
         return;
     }
@@ -865,6 +872,16 @@ fn ai_turn(
     );
 
     println!("AI Move = {ai_cmd:?}");
+
+    // remove any battlers stats on the screen
+    for entity in &battler_stat_displays {
+        commands.entity(entity).despawn_recursive();
+    }
+
+    // remove any select indicators
+    for entity in &select_indicators {
+        commands.entity(entity).despawn_recursive();
+    }
 
     let response = match ai_cmd {
         ai::Action::PlaceCard(ai_cmd) => {
