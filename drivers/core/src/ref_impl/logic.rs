@@ -58,39 +58,42 @@ impl BattlerWaitingResolve {
     fn resolve(
         self,
         battle_system: BattleSystem,
-        mut numbers: Vec<u8>,
+        numbers: &[u8],
     ) -> Result<Battler, ErrorResponse> {
-        macro_rules! get_number {
-            ($numbers:expr) => {
-                match $numbers.pop() {
-                    None => return Err(ErrorResponse::NotEnoughNumbersInResolve),
-                    Some(num) => num,
+        macro_rules! ensure_len {
+            ($numbers:expr, $len:expr) => {
+                if $numbers.len() < $len as usize {
+                    return Err(ErrorResponse::NotEnoughNumbersInResolve);
                 }
-            };
-            ($numbers:expr, $range:expr) => {
-                map_number_to_range(get_number!($numbers), $range)
             };
         }
 
         let roll = match battle_system {
             BattleSystem::Original => {
+                ensure_len!(numbers, 2);
+
                 let min = self.value << 4; // range: 00, 10, 20, ..., F0
                 let max = min | 0xF; // range: 0F, 1F, 2F, ..., FF
 
-                let stat1 = get_number!(numbers, min..=max);
-                let stat2 = get_number!(numbers, ..=stat1);
+                let stat1 = map_number_to_range(numbers[0], min..=max);
+                let stat2 = map_number_to_range(numbers[1], ..=stat1);
                 stat1 - stat2
             }
             BattleSystem::Dice { .. } => {
+                ensure_len!(numbers, self.value);
+
                 // roll {value} dice and return the sum
                 let mut sum = 0;
-                for _ in 0..self.value {
-                    sum += get_number!(numbers);
+                for idx in 0..self.value {
+                    sum += numbers[idx as usize];
                 }
                 sum
             }
             BattleSystem::Deterministic => self.value,
-            BattleSystem::Test => get_number!(numbers),
+            BattleSystem::Test => {
+                ensure_len!(numbers, 1);
+                numbers[0]
+            }
         };
 
         Ok(Battler {
@@ -168,10 +171,10 @@ impl State {
         if let Status::WaitingResolveBattle(ref status) = self.status {
             let attacker = status
                 .attacker
-                .resolve(self.battle_system, cmd.attack_roll)?;
+                .resolve(self.battle_system, &cmd.attack_roll)?;
             let defender = status
                 .defender
-                .resolve(self.battle_system, cmd.defend_roll)?;
+                .resolve(self.battle_system, &cmd.defend_roll)?;
 
             use std::cmp::Ordering;
             let winner = match attacker.roll.cmp(&defender.roll) {
