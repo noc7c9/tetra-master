@@ -7,8 +7,8 @@ pub mod random;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Action {
-    PlaceCard(core::command::PlaceCard),
-    PickBattle(core::command::PickBattle),
+    PlaceCard(core::PlaceCard),
+    PickBattle(core::PickBattle),
 }
 
 pub trait Ai {
@@ -46,7 +46,7 @@ mod tests {
         let hand_red = [CARD, CARD, CARD, CARD, left];
         let mut state = naive_minimax::init(
             DEFAULT_DEPTH,
-            &core::command::Setup {
+            &core::Setup {
                 blocked_cells: core::BoardCells::NONE,
                 hand_blue,
                 hand_red,
@@ -56,7 +56,7 @@ mod tests {
         );
 
         let mut apply_place_card = |card, cell, player| {
-            let cmd = core::command::PlaceCard { player, card, cell };
+            let cmd = core::PlaceCard { player, card, cell };
             state.update(Action::PlaceCard(cmd));
         };
 
@@ -87,7 +87,7 @@ mod tests {
         //  resulting in a score of 4 v 6
 
         let actual = state.get_action();
-        let expected = Action::PlaceCard(core::command::PlaceCard {
+        let expected = Action::PlaceCard(core::PlaceCard {
             card: 4,
             cell: 0xA,
             player: Red,
@@ -104,7 +104,7 @@ mod tests {
         let hand_red = [CARD, CARD, CARD, CARD, att];
         let mut state = naive_minimax::init(
             DEFAULT_DEPTH,
-            &core::command::Setup {
+            &core::Setup {
                 blocked_cells: core::BoardCells::NONE,
                 hand_blue,
                 hand_red,
@@ -114,7 +114,7 @@ mod tests {
         );
 
         let mut apply_place_card = |card, cell, player| {
-            let cmd = core::command::PlaceCard { player, card, cell };
+            let cmd = core::PlaceCard { player, card, cell };
             state.update(Action::PlaceCard(cmd));
         };
 
@@ -146,7 +146,7 @@ mod tests {
         //  resulting in a score of 4 v 6
 
         let actual = state.get_action();
-        let expected = Action::PlaceCard(core::command::PlaceCard {
+        let expected = Action::PlaceCard(core::PlaceCard {
             card: 4,
             cell: 6,
             player: Red,
@@ -177,7 +177,7 @@ mod tests {
         ];
         let mut state = naive_minimax::init(
             DEFAULT_DEPTH,
-            &core::command::Setup {
+            &core::Setup {
                 blocked_cells: core::BoardCells::NONE,
                 hand_blue,
                 hand_red,
@@ -187,7 +187,7 @@ mod tests {
         );
 
         let mut apply_place_card = |card, cell, player| {
-            let cmd = core::command::PlaceCard { player, card, cell };
+            let cmd = core::PlaceCard { player, card, cell };
             state.update(Action::PlaceCard(cmd));
         };
 
@@ -218,7 +218,7 @@ mod tests {
         //  resulting in a score of 3 v 7
 
         let actual = state.get_action();
-        let expected = Action::PlaceCard(core::command::PlaceCard {
+        let expected = Action::PlaceCard(core::PlaceCard {
             card: 4,
             cell: 9,
             player: Red,
@@ -228,7 +228,7 @@ mod tests {
         state.update(expected);
 
         let actual = state.get_action();
-        let expected = Action::PickBattle(core::command::PickBattle {
+        let expected = Action::PickBattle(core::PickBattle {
             cell: 10,
             player: Red,
         });
@@ -258,7 +258,7 @@ mod tests {
         ];
         let mut state = naive_minimax::init(
             DEFAULT_DEPTH,
-            &core::command::Setup {
+            &core::Setup {
                 blocked_cells: [1, 10, 11].into(),
                 hand_blue,
                 hand_red,
@@ -268,7 +268,7 @@ mod tests {
         );
 
         let apply_place_card = |state: &mut naive_minimax::Ai, card, cell, player| {
-            let cmd = core::command::PlaceCard { player, card, cell };
+            let cmd = core::PlaceCard { player, card, cell };
             state.update(Action::PlaceCard(cmd));
         };
 
@@ -297,7 +297,7 @@ mod tests {
         //  resulting in a score of 3 v 5
 
         let actual = state.get_action();
-        let expected = Action::PlaceCard(core::command::PlaceCard {
+        let expected = Action::PlaceCard(core::PlaceCard {
             card: 4,
             cell: 5,
             player: Red,
@@ -320,7 +320,7 @@ mod tests {
         //  resulting in a score of 4 v 6
 
         let actual = state.get_action();
-        let expected = Action::PlaceCard(core::command::PlaceCard {
+        let expected = Action::PlaceCard(core::PlaceCard {
             card: 3,
             cell: 0xE,
             player: Red,

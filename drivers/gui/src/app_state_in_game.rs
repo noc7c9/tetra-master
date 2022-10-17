@@ -273,7 +273,7 @@ fn on_enter(
     // Setup the AI
     let ai = ai::naive_minimax::init(
         3,
-        &core::command::Setup {
+        &core::Setup {
             blocked_cells: blocked_cells.0,
             hand_blue: hand_blue.0,
             hand_red: hand_red.0,
@@ -350,7 +350,7 @@ fn pick_battle(
                 commands.entity(entity).despawn_recursive();
             }
 
-            let cmd = core::command::PickBattle {
+            let cmd = core::PickBattle {
                 player: core::Player::Blue,
                 cell: cell as u8,
             };
@@ -399,7 +399,7 @@ fn place_card(
 
             let card = hand_idx.get(card_entity).unwrap().0 as u8;
 
-            let cmd = core::command::PlaceCard {
+            let cmd = core::PlaceCard {
                 player: core::Player::Blue,
                 card,
                 cell: cell as u8,
@@ -468,7 +468,7 @@ fn place_card_common(
 }
 
 fn handle_play_ok(
-    play_ok: core::response::PlayOk,
+    play_ok: core::PlayOk,
     commands: &mut Commands,
     event: &mut EventWriter<core::Event>,
     driver: &mut core::Driver,

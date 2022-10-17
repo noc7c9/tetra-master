@@ -4,7 +4,7 @@ use super::Action;
 
 pub struct Ai(State);
 
-pub fn init(setup: &core::command::Setup) -> Ai {
+pub fn init(setup: &core::Setup) -> Ai {
     Ai(State::new(
         setup.starting_player,
         setup.blocked_cells,
@@ -136,7 +136,7 @@ impl State {
 
                 for cell in empty_cells {
                     for card in hand.clone() {
-                        actions.push(Action::PlaceCard(core::command::PlaceCard {
+                        actions.push(Action::PlaceCard(core::PlaceCard {
                             player: self.turn,
                             card: card as u8,
                             cell: cell as u8,
@@ -146,7 +146,7 @@ impl State {
             }
             Status::WaitingPick { choices, .. } => {
                 for cell in choices {
-                    actions.push(Action::PickBattle(core::command::PickBattle {
+                    actions.push(Action::PickBattle(core::PickBattle {
                         player: self.turn,
                         cell,
                     }));
@@ -317,7 +317,7 @@ impl std::fmt::Display for Indent {
     }
 }
 
-fn apply_place_card_action(state: &mut State, cmd: core::command::PlaceCard) {
+fn apply_place_card_action(state: &mut State, cmd: core::PlaceCard) {
     let hand_index = cmd.card;
     let attacker_cell = cmd.cell;
 
@@ -348,7 +348,7 @@ fn apply_place_card_action(state: &mut State, cmd: core::command::PlaceCard) {
     resolve_interactions(state, attacker_cell);
 }
 
-fn apply_pick_battle_action(state: &mut State, cmd: core::command::PickBattle) {
+fn apply_pick_battle_action(state: &mut State, cmd: core::PickBattle) {
     let defender_cell = cmd.cell;
 
     let (attacker_cell, choices) = match &state.status {

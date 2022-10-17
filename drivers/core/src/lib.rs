@@ -3,6 +3,9 @@ mod driver;
 mod random_setup;
 mod ref_impl;
 
+mod command;
+mod response;
+
 pub use driver::{Driver, DriverBuilder, Seed};
 pub use ref_impl::ReferenceImplementation;
 
@@ -10,10 +13,8 @@ pub use ref_impl::ReferenceImplementation;
  * Command / Response
  */
 
-pub mod command;
-pub mod response;
-
-pub use response::ErrorResponse;
+pub use command::{PickBattle, PlaceCard, ResolveBattle, Setup};
+pub use response::{ErrorResponse, PlayOk, SetupOk};
 
 pub trait CommandResponse: command::Command {
     type Response: response::Response;

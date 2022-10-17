@@ -32,7 +32,7 @@ struct Args {
 }
 
 type AiName = &'static str;
-type Initializer = Box<dyn Fn(&core::command::Setup) -> Box<dyn ai::Ai>>;
+type Initializer = Box<dyn Fn(&core::Setup) -> Box<dyn ai::Ai>>;
 
 fn main() -> anyhow::Result<()> {
     macro_rules! register {

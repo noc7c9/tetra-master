@@ -1,6 +1,6 @@
 use tetra_master_core::{
-    command, Arrows, BattleSystem, BattleWinner, Battler, BoardCells, Card, Error, ErrorResponse,
-    Event, Hand, Player,
+    Arrows, BattleSystem, BattleWinner, Battler, BoardCells, Card, Error, ErrorResponse, Event,
+    Hand, PickBattle, PlaceCard, Player, ResolveBattle, Setup,
 };
 
 pub(super) const CARD: Card = Card::physical(0, 0, 0, Arrows(0));
@@ -10,8 +10,8 @@ pub(super) const HAND_RED: Hand = [CARD, CARD, CARD, CARD, CARD];
 pub(super) struct Command;
 
 impl Command {
-    pub(super) fn setup() -> command::Setup {
-        command::Setup {
+    pub(super) fn setup() -> Setup {
+        Setup {
             battle_system: BattleSystem::Test,
             blocked_cells: BoardCells::NONE,
             hand_blue: HAND_BLUE,
@@ -20,38 +20,38 @@ impl Command {
         }
     }
 
-    pub(super) fn place_card_blue(card: u8, cell: u8) -> command::PlaceCard {
-        command::PlaceCard {
+    pub(super) fn place_card_blue(card: u8, cell: u8) -> PlaceCard {
+        PlaceCard {
             player: Player::Blue,
             card,
             cell,
         }
     }
 
-    pub(super) fn pick_battle_blue(cell: u8) -> command::PickBattle {
-        command::PickBattle {
+    pub(super) fn pick_battle_blue(cell: u8) -> PickBattle {
+        PickBattle {
             player: Player::Blue,
             cell,
         }
     }
 
-    pub(super) fn place_card_red(card: u8, cell: u8) -> command::PlaceCard {
-        command::PlaceCard {
+    pub(super) fn place_card_red(card: u8, cell: u8) -> PlaceCard {
+        PlaceCard {
             player: Player::Red,
             card,
             cell,
         }
     }
 
-    pub(super) fn pick_battle_red(cell: u8) -> command::PickBattle {
-        command::PickBattle {
+    pub(super) fn pick_battle_red(cell: u8) -> PickBattle {
+        PickBattle {
             player: Player::Red,
             cell,
         }
     }
 
-    pub(super) fn resolve_battle(attack_roll: &[u8], defend_roll: &[u8]) -> command::ResolveBattle {
-        command::ResolveBattle {
+    pub(super) fn resolve_battle(attack_roll: &[u8], defend_roll: &[u8]) -> ResolveBattle {
+        ResolveBattle {
             attack_roll: attack_roll.to_vec(),
             defend_roll: defend_roll.to_vec(),
         }
@@ -66,7 +66,7 @@ pub(super) trait SetupExt {
     fn starting_player(self, value: Player) -> Self;
 }
 
-impl SetupExt for command::Setup {
+impl SetupExt for Setup {
     fn battle_system(mut self, value: BattleSystem) -> Self {
         self.battle_system = value;
         self
