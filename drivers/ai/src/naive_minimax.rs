@@ -96,9 +96,9 @@ fn min_value(state: State, this_action: Option<Action>) -> (isize, Option<Action
     for action in state.actions() {
         let new_state = state.apply(action);
         let max_value = if new_state.turn == state.player {
-            min_value(new_state, Some(action)).0
-        } else {
             max_value(new_state, Some(action)).0
+        } else {
+            min_value(new_state, Some(action)).0
         };
         if max_value < value {
             value = max_value;
