@@ -32,20 +32,16 @@ impl super::Ai for Ai {
 
 fn minimax_search(state: State) -> Action {
     debug_assert!(state.player == state.turn);
-    let (_value, action) = max_value(state.turn, state, None);
+    let (_value, action) = max_value(state, None);
     action.unwrap()
 }
 
-fn max_value(
-    player: core::Player,
-    state: State,
-    this_action: Option<Action>,
-) -> (isize, Option<Action>) {
+fn max_value(state: State, this_action: Option<Action>) -> (isize, Option<Action>) {
     if state.logging_enabled {
         println!("{}max_value after {this_action:?}", state.indent);
     }
     if state.is_terminal() {
-        let value = state.utility(player);
+        let value = state.utility();
         if state.logging_enabled {
             let label = match value.cmp(&0) {
                 std::cmp::Ordering::Less => "LOSS",
@@ -60,10 +56,10 @@ fn max_value(
     let mut selected_action = None;
     for action in state.actions() {
         let new_state = state.apply(action);
-        let min_value = if new_state.turn == player {
-            max_value(player, new_state, Some(action)).0
+        let min_value = if new_state.turn == state.player {
+            max_value(new_state, Some(action)).0
         } else {
-            min_value(player, new_state, Some(action)).0
+            min_value(new_state, Some(action)).0
         };
         if min_value > value {
             value = min_value;
@@ -79,16 +75,12 @@ fn max_value(
     (value, selected_action)
 }
 
-fn min_value(
-    player: core::Player,
-    state: State,
-    this_action: Option<Action>,
-) -> (isize, Option<Action>) {
+fn min_value(state: State, this_action: Option<Action>) -> (isize, Option<Action>) {
     if state.logging_enabled {
         println!("{}min_value after {this_action:?}", state.indent);
     }
     if state.is_terminal() {
-        let value = state.utility(player);
+        let value = state.utility();
         if state.logging_enabled {
             let label = match value.cmp(&0) {
                 std::cmp::Ordering::Less => "LOSS",
@@ -103,10 +95,10 @@ fn min_value(
     let mut selected_action = None;
     for action in state.actions() {
         let new_state = state.apply(action);
-        let max_value = if new_state.turn == player {
-            min_value(player, new_state, Some(action)).0
+        let max_value = if new_state.turn == state.player {
+            min_value(new_state, Some(action)).0
         } else {
-            max_value(player, new_state, Some(action)).0
+            max_value(new_state, Some(action)).0
         };
         if max_value < value {
             value = max_value;
@@ -231,11 +223,11 @@ impl State {
         self.depth >= self.max_depth || matches!(self.status, Status::GameOver { .. })
     }
 
-    fn utility(&self, player: core::Player) -> isize {
+    fn utility(&self) -> isize {
         let mut count = 0;
         for cell in self.board {
             if let Cell::Card(card) = cell {
-                if card.owner == player {
+                if card.owner == self.player {
                     count += 1;
                 } else {
                     count -= 1;
