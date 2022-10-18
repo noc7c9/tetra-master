@@ -49,7 +49,7 @@ mod tests {
     // TODO: change these to test-cases over each of the AIs
 
     #[test]
-    fn sanity_check_1_move_left_need_flip_to_win() {
+    fn sanity_check_1_one_move_left_need_flip_to_win() {
         let left = Card::physical(0, 0, 0, Arrows::LEFT);
 
         let hand_blue = [CARD, CARD, CARD, CARD, CARD];
@@ -107,7 +107,7 @@ mod tests {
     }
 
     #[test]
-    fn sanity_check_1_move_left_need_combo_to_win() {
+    fn sanity_check_2_one_move_left_need_combo_to_win() {
         let def = Card::physical(0, 0, 0, Arrows::LEFT | Arrows::RIGHT);
         let att = Card::physical(0xF, 0, 0, Arrows::LEFT);
 
@@ -167,7 +167,7 @@ mod tests {
     }
 
     #[test]
-    fn sanity_check_1_move_left_pick_specific_battle_first() {
+    fn sanity_check_3_one_move_left_pick_specific_battle_first() {
         let hand_blue = [
             CARD,
             CARD,
@@ -249,7 +249,7 @@ mod tests {
     }
 
     #[test]
-    fn sanity_check_2_moves_left() {
+    fn sanity_check_4_two_moves_left() {
         let hand_blue = [
             CARD,
             CARD,
@@ -340,5 +340,49 @@ mod tests {
             player: Red,
         });
         assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn sanity_check_5_should_pick_obvious_great_move() {
+        let mut driver = core::Driver::reference().seed(4763088336469180526).build();
+        let setup = driver.random_setup(core::BattleSystem::Deterministic);
+        let mut state = naive_minimax::init(3, core::Player::Red, &setup);
+
+        let apply_place_card = |state: &mut naive_minimax::Ai, card, cell, player| {
+            let cmd = core::PlaceCard { player, card, cell };
+            state.apply_place_card(cmd);
+        };
+
+        apply_place_card(&mut state, 2, 0xF, Blue);
+
+        let actual = state.get_action();
+        let expected = Action::PlaceCard(core::PlaceCard {
+            card: 1,
+            cell: 14,
+            player: Red,
+        });
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn sanity_check_6_should_not_pick_obviously_bad_move() {
+        let mut driver = core::Driver::reference().seed(4015497306351127204).build();
+        let setup = driver.random_setup(core::BattleSystem::Deterministic);
+        let mut state = naive_minimax::init(3, core::Player::Red, &setup);
+
+        let apply_place_card = |state: &mut naive_minimax::Ai, card, cell, player| {
+            let cmd = core::PlaceCard { player, card, cell };
+            state.apply_place_card(cmd);
+        };
+
+        apply_place_card(&mut state, 4, 1, Blue);
+
+        let actual = state.get_action();
+        let not_expected = Action::PlaceCard(core::PlaceCard {
+            card: 0,
+            cell: 2,
+            player: Red,
+        });
+        assert_ne!(actual, not_expected);
     }
 }
