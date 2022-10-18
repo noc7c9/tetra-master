@@ -41,38 +41,41 @@ fn max_value(state: State, this_action: Option<Action>) -> (isize, Option<Action
         println!("{}max_value after {this_action:?}", state.indent);
     }
     if state.is_terminal() {
-        let value = state.utility();
+        let terminal_value = state.utility();
         if state.logging_enabled {
-            let label = match value.cmp(&0) {
+            let label = match terminal_value.cmp(&0) {
                 std::cmp::Ordering::Less => "LOSS",
                 std::cmp::Ordering::Greater => "WIN",
                 std::cmp::Ordering::Equal => "DRAW",
             };
-            println!("{}value = {value} (terminal, {})", state.indent, label);
+            println!(
+                "{}value = {terminal_value} (terminal, {label})",
+                state.indent
+            );
         }
-        return (value, None);
+        return (terminal_value, None);
     }
-    let mut value = isize::MIN;
+    let mut curr_value = isize::MIN;
     let mut selected_action = None;
     for action in state.actions() {
         let new_state = state.apply(action);
-        let min_value = if new_state.turn == state.player {
+        let new_state_value = if new_state.turn == state.player {
             max_value(new_state, Some(action)).0
         } else {
             min_value(new_state, Some(action)).0
         };
-        if min_value > value {
-            value = min_value;
+        if new_state_value > curr_value {
+            curr_value = new_state_value;
             selected_action = Some(action);
         }
     }
     if state.logging_enabled {
         println!(
-            "{}value = {value} | selected_action = {selected_action:?}",
+            "{}value = {curr_value} | selected_action = {selected_action:?}",
             state.indent
         );
     }
-    (value, selected_action)
+    (curr_value, selected_action)
 }
 
 fn min_value(state: State, this_action: Option<Action>) -> (isize, Option<Action>) {
@@ -80,38 +83,41 @@ fn min_value(state: State, this_action: Option<Action>) -> (isize, Option<Action
         println!("{}min_value after {this_action:?}", state.indent);
     }
     if state.is_terminal() {
-        let value = state.utility();
+        let terminal_value = state.utility();
         if state.logging_enabled {
-            let label = match value.cmp(&0) {
+            let label = match terminal_value.cmp(&0) {
                 std::cmp::Ordering::Less => "LOSS",
                 std::cmp::Ordering::Greater => "WIN",
                 std::cmp::Ordering::Equal => "DRAW",
             };
-            println!("{}value = {value} (terminal, {})", state.indent, label);
+            println!(
+                "{}value = {terminal_value} (terminal, {label})",
+                state.indent
+            );
         }
-        return (value, None);
+        return (terminal_value, None);
     }
-    let mut value = isize::MAX;
+    let mut curr_value = isize::MAX;
     let mut selected_action = None;
     for action in state.actions() {
         let new_state = state.apply(action);
-        let max_value = if new_state.turn == state.player {
+        let new_state_value = if new_state.turn == state.player {
             max_value(new_state, Some(action)).0
         } else {
             min_value(new_state, Some(action)).0
         };
-        if max_value < value {
-            value = max_value;
+        if new_state_value < curr_value {
+            curr_value = new_state_value;
             selected_action = Some(action);
         }
     }
     if state.logging_enabled {
         println!(
-            "{}value = {value} | selected_action = {selected_action:?}",
+            "{}value = {curr_value} | selected_action = {selected_action:?}",
             state.indent
         );
     }
-    (value, selected_action)
+    (curr_value, selected_action)
 }
 
 //**************************************************************************************************
