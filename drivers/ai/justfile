@@ -14,7 +14,7 @@ cargo +ARGS='':
     cargo {{ARGS}}
 
 run +ARGS='':
-    cargo run --bin ai_tester -- {{ARGS}}
+    cargo run --release --bin ai_tester -- {{ARGS}}
 
 check +ARGS='':
     cargo clippy {{ARGS}}

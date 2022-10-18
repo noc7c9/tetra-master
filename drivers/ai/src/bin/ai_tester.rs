@@ -32,7 +32,7 @@ struct Args {
 }
 
 type AiName = &'static str;
-type Initializer = Box<dyn Fn(&core::Setup) -> Box<dyn ai::Ai>>;
+type Initializer = Box<dyn Fn(core::Player, &core::Setup) -> Box<dyn ai::Ai>>;
 
 fn main() -> anyhow::Result<()> {
     macro_rules! register {
@@ -41,7 +41,7 @@ fn main() -> anyhow::Result<()> {
         }};
         ($all_ais:expr, $name:ident, $($arg:expr),* $(,)?) => {{
             let initializer: Initializer
-                = Box::new(|cmd| Box::new(ai::$name::init($($arg,)* cmd)));
+                = Box::new(|player, cmd| Box::new(ai::$name::init($($arg,)* player, cmd)));
             let name = concat!(stringify!($name), $('_', $arg)*);
             $all_ais.insert(name, initializer);
         }};
@@ -346,7 +346,10 @@ fn run_battle(game_seed: core::Seed, blue_ai: &Initializer, red_ai: &Initializer
     let mut driver = core::Driver::reference().seed(game_seed).build();
     let setup = driver.random_setup(core::BattleSystem::Deterministic);
 
-    let mut ais = [blue_ai(&setup), red_ai(&setup)];
+    let mut ais = [
+        blue_ai(core::Player::Blue, &setup),
+        red_ai(core::Player::Red, &setup),
+    ];
 
     let mut active_ai = match setup.starting_player {
         core::Player::Blue => 0,
@@ -357,31 +360,51 @@ fn run_battle(game_seed: core::Seed, blue_ai: &Initializer, red_ai: &Initializer
 
     let mut move_times = [Vec::with_capacity(7), Vec::with_capacity(7)];
 
+    let mut res: Option<core::PlayOk> = None;
     loop {
-        let now = std::time::Instant::now();
-        let action = ais[active_ai].get_action();
-        move_times[active_ai].push(now.elapsed().as_nanos());
+        // battle to resolve
+        res = if let Some(resolve) = res.and_then(|r| r.resolve_battle) {
+            let cmd = driver.resolve_battle(resolve);
+            ais[0].apply_resolve_battle(&cmd);
+            ais[1].apply_resolve_battle(&cmd);
+            Some(driver.send(cmd).unwrap())
+        }
+        // ai to move
+        else {
+            let now = std::time::Instant::now();
+            let action = ais[active_ai].get_action();
+            move_times[active_ai].push(now.elapsed().as_nanos());
 
-        let res = match action {
-            ai::Action::PlaceCard(cmd) => driver.send(cmd).unwrap(),
-            ai::Action::PickBattle(cmd) => driver.send(cmd).unwrap(),
+            match action {
+                ai::Action::PlaceCard(cmd) => {
+                    ais[0].apply_place_card(cmd);
+                    ais[1].apply_place_card(cmd);
+                    Some(driver.send(cmd).unwrap())
+                }
+                ai::Action::PickBattle(cmd) => {
+                    ais[0].apply_pick_battle(cmd);
+                    ais[1].apply_pick_battle(cmd);
+                    Some(driver.send(cmd).unwrap())
+                }
+            }
         };
 
-        for event in res.events.iter() {
-            if let core::Event::GameOver { winner } = *event {
-                let [blue_ai_move_times, red_ai_move_times] = move_times;
-                return BattleResult {
-                    winner,
-                    blue_ai_move_times,
-                    red_ai_move_times,
-                };
+        for event in res.as_ref().unwrap().events.iter() {
+            match *event {
+                core::Event::NextTurn { .. } => {
+                    active_ai = 1 - active_ai;
+                }
+                core::Event::GameOver { winner } => {
+                    let [blue_ai_move_times, red_ai_move_times] = move_times;
+                    return BattleResult {
+                        winner,
+                        blue_ai_move_times,
+                        red_ai_move_times,
+                    };
+                }
+                _ => {}
             }
         }
-
-        ais[active_ai].update(action);
-        ais[1 - active_ai].update(action);
-
-        active_ai = 1 - active_ai;
     }
 }
 

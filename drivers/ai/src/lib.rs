@@ -13,7 +13,17 @@ pub enum Action {
 
 pub trait Ai {
     fn get_action(&mut self) -> Action;
-    fn update(&mut self, action: Action);
+
+    fn apply_place_card(&mut self, cmd: core::PlaceCard);
+    fn apply_pick_battle(&mut self, cmd: core::PickBattle);
+    fn apply_resolve_battle(&mut self, cmd: &core::ResolveBattle);
+
+    fn apply_action(&mut self, action: Action) {
+        match action {
+            Action::PlaceCard(cmd) => self.apply_place_card(cmd),
+            Action::PickBattle(cmd) => self.apply_pick_battle(cmd),
+        }
+    }
 }
 
 #[cfg(test)]
@@ -46,6 +56,7 @@ mod tests {
         let hand_red = [CARD, CARD, CARD, CARD, left];
         let mut state = naive_minimax::init(
             DEFAULT_DEPTH,
+            core::Player::Red,
             &core::Setup {
                 blocked_cells: core::BoardCells::NONE,
                 hand_blue,
@@ -57,7 +68,7 @@ mod tests {
 
         let mut apply_place_card = |card, cell, player| {
             let cmd = core::PlaceCard { player, card, cell };
-            state.update(Action::PlaceCard(cmd));
+            state.apply_place_card(cmd);
         };
 
         apply_place_card(0, 0, Blue);
@@ -104,6 +115,7 @@ mod tests {
         let hand_red = [CARD, CARD, CARD, CARD, att];
         let mut state = naive_minimax::init(
             DEFAULT_DEPTH,
+            core::Player::Red,
             &core::Setup {
                 blocked_cells: core::BoardCells::NONE,
                 hand_blue,
@@ -115,7 +127,7 @@ mod tests {
 
         let mut apply_place_card = |card, cell, player| {
             let cmd = core::PlaceCard { player, card, cell };
-            state.update(Action::PlaceCard(cmd));
+            state.apply_place_card(cmd);
         };
 
         apply_place_card(0, 3, Blue);
@@ -177,6 +189,7 @@ mod tests {
         ];
         let mut state = naive_minimax::init(
             DEFAULT_DEPTH,
+            core::Player::Red,
             &core::Setup {
                 blocked_cells: core::BoardCells::NONE,
                 hand_blue,
@@ -188,7 +201,7 @@ mod tests {
 
         let mut apply_place_card = |card, cell, player| {
             let cmd = core::PlaceCard { player, card, cell };
-            state.update(Action::PlaceCard(cmd));
+            state.apply_place_card(cmd);
         };
 
         apply_place_card(0, 0, Blue);
@@ -225,7 +238,7 @@ mod tests {
         });
         assert_eq!(actual, expected);
 
-        state.update(expected);
+        state.apply_action(expected);
 
         let actual = state.get_action();
         let expected = Action::PickBattle(core::PickBattle {
@@ -258,6 +271,7 @@ mod tests {
         ];
         let mut state = naive_minimax::init(
             DEFAULT_DEPTH,
+            core::Player::Red,
             &core::Setup {
                 blocked_cells: [1, 10, 11].into(),
                 hand_blue,
@@ -269,7 +283,7 @@ mod tests {
 
         let apply_place_card = |state: &mut naive_minimax::Ai, card, cell, player| {
             let cmd = core::PlaceCard { player, card, cell };
-            state.update(Action::PlaceCard(cmd));
+            state.apply_place_card(cmd);
         };
 
         apply_place_card(&mut state, 0, 0, Blue);

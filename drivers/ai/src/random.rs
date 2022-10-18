@@ -4,14 +4,8 @@ use super::Action;
 
 pub struct Ai(State);
 
-pub fn init(setup: &core::Setup) -> Ai {
-    Ai(State::new(
-        setup.starting_player,
-        setup.blocked_cells,
-        setup.hand_blue,
-        setup.hand_red,
-        setup.battle_system,
-    ))
+pub fn init(player: core::Player, setup: &core::Setup) -> Ai {
+    Ai(State::new(player, setup))
 }
 
 impl super::Ai for Ai {
@@ -22,23 +16,32 @@ impl super::Ai for Ai {
         actions[idx]
     }
 
-    fn update(&mut self, action: Action) {
-        self.0.apply_in_place(action)
+    fn apply_place_card(&mut self, cmd: core::PlaceCard) {
+        self.0.handle_place_card(cmd);
+    }
+
+    fn apply_pick_battle(&mut self, cmd: core::PickBattle) {
+        self.0.handle_pick_battle(cmd);
+    }
+
+    fn apply_resolve_battle(&mut self, cmd: &core::ResolveBattle) {
+        self.0.handle_resolve_battle(cmd);
     }
 }
 
-const MAX_DEPTH: usize = 3;
+//**************************************************************************************************
+// game logic
 
-type Board = [Cell; core::BOARD_SIZE];
 type Hand = [Option<core::Card>; core::HAND_SIZE];
+type Board = [Cell; core::BOARD_SIZE];
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 struct OwnedCard {
     owner: core::Player,
     card: core::Card,
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, PartialEq)]
 enum Cell {
     Blocked,
     Card(OwnedCard),
@@ -52,22 +55,8 @@ impl Default for Cell {
 }
 
 #[derive(Debug, Clone)]
-pub enum Status {
-    WaitingPlace,
-    WaitingPick {
-        attacker_cell: u8,
-        choices: core::BoardCells,
-    },
-    GameOver {
-        winner: Option<core::Player>,
-    },
-}
-
-#[derive(Debug, Clone)]
-pub struct State {
-    logging_enabled: bool,
-    indent: Indent,
-    depth: usize,
+struct State {
+    player: core::Player,
     status: Status,
     turn: core::Player,
     board: Board,
@@ -76,48 +65,89 @@ pub struct State {
     battle_system: core::BattleSystem,
 }
 
+#[derive(Debug, Clone)]
+enum Status {
+    WaitingPlaceCard,
+    WaitingResolveBattle(WaitingResolveBattle),
+    WaitingPickBattle {
+        attacker_cell: u8,
+        choices: core::BoardCells,
+    },
+    GameOver,
+}
+
+#[derive(Debug, Clone)]
+struct WaitingResolveBattle {
+    attacker: BattlerWaitingResolve,
+    defender: BattlerWaitingResolve,
+}
+
+#[derive(Debug, Clone, Copy)]
+struct BattlerWaitingResolve {
+    cell: u8,
+    digit: core::Digit,
+    value: u8,
+}
+
+impl BattlerWaitingResolve {
+    fn resolve(self, battle_system: core::BattleSystem, numbers: &[u8]) -> core::Battler {
+        let roll = match battle_system {
+            core::BattleSystem::Original => {
+                let min = self.value << 4; // range: 00, 10, 20, ..., F0
+                let max = min | 0xF; // range: 0F, 1F, 2F, ..., FF
+
+                let stat1 = map_number_to_range(numbers[0], min..=max);
+                let stat2 = map_number_to_range(numbers[1], ..=stat1);
+                stat1 - stat2
+            }
+            core::BattleSystem::Dice { .. } => {
+                // roll {value} dice and return the sum
+                let mut sum = 0;
+                for idx in 0..self.value {
+                    sum += numbers[idx as usize];
+                }
+                sum
+            }
+            core::BattleSystem::Deterministic => self.value,
+            core::BattleSystem::Test => numbers[0],
+        };
+
+        core::Battler {
+            cell: self.cell,
+            digit: self.digit,
+            value: self.value,
+            roll,
+        }
+    }
+}
+
 impl State {
-    pub fn new(
-        turn: core::Player,
-        blocked_cells: core::BoardCells,
-        hand_blue: core::Hand,
-        hand_red: core::Hand,
-        battle_system: core::BattleSystem,
-    ) -> Self {
+    fn new(player: core::Player, cmd: &core::Setup) -> Self {
         fn convert_hand([a, b, c, d, e]: core::Hand) -> Hand {
             [Some(a), Some(b), Some(c), Some(d), Some(e)]
         }
 
         let mut board: Board = Default::default();
-        for cell in blocked_cells {
+        for cell in cmd.blocked_cells {
             board[cell as usize] = Cell::Blocked;
         }
 
-        let hand_blue = convert_hand(hand_blue);
-        let hand_red = convert_hand(hand_red);
-
         Self {
-            logging_enabled: false,
-            indent: Indent::new(),
-            depth: 0,
-            status: Status::WaitingPlace,
-            turn,
+            player,
+            status: Status::WaitingPlaceCard,
+            turn: cmd.starting_player,
             board,
-            hand_blue,
-            hand_red,
-            battle_system,
+            hand_blue: convert_hand(cmd.hand_blue),
+            hand_red: convert_hand(cmd.hand_red),
+            battle_system: cmd.battle_system,
         }
-    }
-
-    fn to_move(&self) -> core::Player {
-        self.turn
     }
 
     fn actions(&self) -> Vec<Action> {
         let mut actions = Vec::new();
         match self.status {
-            Status::GameOver { .. } => unreachable!(),
-            Status::WaitingPlace => {
+            Status::GameOver { .. } | Status::WaitingResolveBattle { .. } => unreachable!(),
+            Status::WaitingPlaceCard => {
                 let hand = match self.turn {
                     core::Player::Blue => &self.hand_blue,
                     core::Player::Red => &self.hand_red,
@@ -137,17 +167,17 @@ impl State {
                 for cell in empty_cells {
                     for card in hand.clone() {
                         actions.push(Action::PlaceCard(core::PlaceCard {
-                            player: self.turn,
+                            player: self.player,
                             card: card as u8,
                             cell: cell as u8,
                         }));
                     }
                 }
             }
-            Status::WaitingPick { choices, .. } => {
+            Status::WaitingPickBattle { choices, .. } => {
                 for cell in choices {
                     actions.push(Action::PickBattle(core::PickBattle {
-                        player: self.turn,
+                        player: self.player,
                         cell,
                     }));
                 }
@@ -156,391 +186,229 @@ impl State {
         actions
     }
 
-    pub fn apply_in_place(&mut self, action: Action) {
-        match (&self.status, action) {
-            (Status::WaitingPlace, Action::PlaceCard(action)) => {
-                apply_place_card_action(self, action)
+    fn handle_place_card(&mut self, cmd: core::PlaceCard) {
+        if let Status::WaitingPlaceCard = self.status {
+            self.assert_command_player(cmd.player);
+
+            // ensure cell being placed is empty
+            if self.board[cmd.cell as usize] != Cell::Empty {
+                panic!("Cell is not empty {:X}", cmd.cell);
             }
-            (Status::WaitingPick { .. }, Action::PickBattle(action)) => {
-                apply_pick_battle_action(self, action)
-            }
-            _ => unreachable!("apply called with invalid status/action pair"),
+
+            let hand = match self.turn {
+                core::Player::Blue => &mut self.hand_blue,
+                core::Player::Red => &mut self.hand_red,
+            };
+
+            // remove the card from the hand
+            let card = match hand[cmd.card as usize].take() {
+                Some(card) => card,
+                None => panic!("Card already played {}", cmd.card),
+            };
+
+            // place card onto the board
+            let owner = self.turn;
+            self.board[cmd.cell as usize] = Cell::Card(OwnedCard { owner, card });
+
+            self.resolve_interactions(cmd.cell);
+        } else {
+            panic!("Invalid command({cmd:?}) for status({:?})", self.status)
         }
     }
 
-    fn apply(&self, action: Action) -> Self {
-        let mut clone = self.clone();
-        clone.apply_in_place(action);
-        clone.indent = clone.indent.push();
-        clone.depth += 1;
-        clone
-    }
+    fn handle_resolve_battle(&mut self, cmd: &core::ResolveBattle) {
+        if let Status::WaitingResolveBattle(ref status) = self.status {
+            let attacker = status
+                .attacker
+                .resolve(self.battle_system, &cmd.attack_roll);
+            let defender = status
+                .defender
+                .resolve(self.battle_system, &cmd.defend_roll);
 
-    fn is_terminal(&self) -> bool {
-        self.depth >= MAX_DEPTH || matches!(self.status, Status::GameOver { .. })
-    }
+            use std::cmp::Ordering;
+            let winner = match attacker.roll.cmp(&defender.roll) {
+                Ordering::Greater => core::BattleWinner::Attacker,
+                Ordering::Less => core::BattleWinner::Defender,
+                Ordering::Equal => core::BattleWinner::None,
+            };
 
-    fn utility(&self, player: core::Player) -> isize {
-        let mut count = 0;
-        for cell in self.board {
-            if let Cell::Card(card) = cell {
-                if card.owner == player {
-                    count += 1;
-                } else {
-                    count -= 1;
+            // flip losing card
+            let loser_cell = match winner {
+                core::BattleWinner::Defender | core::BattleWinner::None => {
+                    self.flip(attacker.cell);
+                    attacker.cell
+                }
+                core::BattleWinner::Attacker => {
+                    self.flip(defender.cell);
+                    defender.cell
+                }
+            };
+
+            // combo flip any cards the losing card points at
+            for &(comboed_cell, arrow) in get_possible_neighbours(loser_cell) {
+                let loser = match &self.board[loser_cell as usize] {
+                    Cell::Card(card) => card,
+                    _ => unreachable!(),
+                };
+                let comboed = match &self.board[comboed_cell as usize] {
+                    Cell::Card(card) => card,
+                    _ => continue,
+                };
+
+                if !does_interact(*loser, *comboed, arrow) {
+                    continue;
+                }
+
+                self.flip(comboed_cell);
+            }
+
+            // if the attacker won
+            // resolve further interactions
+            if winner == core::BattleWinner::Attacker {
+                self.resolve_interactions(attacker.cell);
+            } else {
+                // next turn
+                if !self.is_game_over() {
+                    self.turn = self.turn.opposite();
                 }
             }
-        }
-        count
-    }
-}
-
-pub fn minimax_search_with_logging(mut state: State) -> Action {
-    state.logging_enabled = true;
-    minimax_search(state)
-}
-
-pub fn minimax_search(state: State) -> Action {
-    let player = state.to_move();
-    let (_value, action) = max_value(player, state, None);
-    action.unwrap()
-}
-
-fn max_value(
-    player: core::Player,
-    state: State,
-    this_action: Option<Action>,
-) -> (isize, Option<Action>) {
-    if state.logging_enabled {
-        println!("{}max_value after {this_action:?}", state.indent);
-    }
-    if state.is_terminal() {
-        let value = state.utility(player);
-        if state.logging_enabled {
-            let label = match value.cmp(&0) {
-                std::cmp::Ordering::Less => "LOSS",
-                std::cmp::Ordering::Greater => "WIN",
-                std::cmp::Ordering::Equal => "DRAW",
-            };
-            println!("{}value = {value} (terminal, {})", state.indent, label);
-        }
-        return (value, None);
-    }
-    let mut value = isize::MIN;
-    let mut selected_action = None;
-    for action in state.actions() {
-        let new_state = state.apply(action);
-        let min_value = if new_state.to_move() == player {
-            max_value(player, new_state, Some(action)).0
         } else {
-            min_value(player, new_state, Some(action)).0
-        };
-        if min_value > value {
-            value = min_value;
-            selected_action = Some(action);
+            panic!("Invalid command({cmd:?}) for status({:?})", self.status)
         }
     }
-    if state.logging_enabled {
-        println!(
-            "{}value = {value} | selected_action = {selected_action:?}",
-            state.indent
-        );
-    }
-    (value, selected_action)
-}
 
-fn min_value(
-    player: core::Player,
-    state: State,
-    this_action: Option<Action>,
-) -> (isize, Option<Action>) {
-    if state.logging_enabled {
-        println!("{}min_value after {this_action:?}", state.indent);
-    }
-    if state.is_terminal() {
-        let value = state.utility(player);
-        if state.logging_enabled {
-            let label = match value.cmp(&0) {
-                std::cmp::Ordering::Less => "LOSS",
-                std::cmp::Ordering::Greater => "WIN",
-                std::cmp::Ordering::Equal => "DRAW",
-            };
-            println!("{}value = {value} (terminal, {})", state.indent, label);
-        }
-        return (value, None);
-    }
-    let mut value = isize::MAX;
-    let mut selected_action = None;
-    for action in state.actions() {
-        let new_state = state.apply(action);
-        let max_value = if new_state.to_move() == player {
-            min_value(player, new_state, Some(action)).0
-        } else {
-            max_value(player, new_state, Some(action)).0
-        };
-        if max_value < value {
-            value = max_value;
-            selected_action = Some(action);
-        }
-    }
-    if state.logging_enabled {
-        println!(
-            "{}value = {value} | selected_action = {selected_action:?}",
-            state.indent
-        );
-    }
-    (value, selected_action)
-}
-
-#[derive(Debug, Clone)]
-struct Indent {
-    level: usize,
-}
-
-impl Indent {
-    fn new() -> Self {
-        Self { level: 0 }
-    }
-    fn push(&self) -> Self {
-        Self {
-            level: self.level + 1,
-        }
-    }
-}
-
-impl std::fmt::Display for Indent {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        for _ in 0..self.level {
-            write!(f, "|     ")?;
-        }
-        Ok(())
-    }
-}
-
-fn apply_place_card_action(state: &mut State, cmd: core::PlaceCard) {
-    let hand_index = cmd.card;
-    let attacker_cell = cmd.cell;
-
-    let hand = match state.turn {
-        core::Player::Blue => &mut state.hand_blue,
-        core::Player::Red => &mut state.hand_red,
-    };
-
-    // ensure cell being placed is empty
-    if !matches!(state.board[attacker_cell as usize], Cell::Empty) {
-        panic!("Cell is not empty {attacker_cell}");
-    }
-
-    // remove the card from the hand
-    let attacker = match hand[hand_index as usize].take() {
-        None => {
-            panic!("Card already played {hand_index}");
-        }
-        Some(card) => OwnedCard {
-            owner: state.turn,
-            card,
-        },
-    };
-
-    // place card onto the board
-    state.board[attacker_cell as usize] = Cell::Card(attacker);
-
-    resolve_interactions(state, attacker_cell);
-}
-
-fn apply_pick_battle_action(state: &mut State, cmd: core::PickBattle) {
-    let defender_cell = cmd.cell;
-
-    let (attacker_cell, choices) = match &state.status {
-        Status::WaitingPick {
+    fn handle_pick_battle(&mut self, cmd: core::PickBattle) {
+        if let Status::WaitingPickBattle {
             attacker_cell,
             choices,
-        } => (*attacker_cell, choices),
-        _ => unreachable!(),
-    };
+        } = self.status
+        {
+            self.assert_command_player(cmd.player);
 
-    // ensure input cell is a valid choice
-    if choices.into_iter().all(|cell| cell != defender_cell) {
-        panic!("Invalid battle pick {defender_cell}");
-    }
+            let defender_cell = cmd.cell;
 
-    let winner = battle(state, attacker_cell, defender_cell);
+            // ensure input cell is a valid choice
+            if choices.into_iter().all(|cell| cell != defender_cell) {
+                panic!("Invalid battle pick {defender_cell}");
+            }
 
-    // if the attacker won
-    // resolve further interactions
-    if winner == core::BattleWinner::Attacker {
-        resolve_interactions(state, attacker_cell);
-    } else {
-        // next turn
-        if !check_for_game_over(state) {
-            state.turn = state.turn.opposite();
-        }
-    }
-}
-
-fn resolve_interactions(state: &mut State, attacker_cell: u8) {
-    let attacker = match state.board[attacker_cell as usize] {
-        Cell::Card(card) => card,
-        _ => unreachable!("resolve_interactions can't be called with an invalid attacker_cell"),
-    };
-
-    let mut defenders = core::BoardCells::NONE;
-    let mut non_defenders = core::BoardCells::NONE;
-    for &(defender_cell, arrow) in get_possible_neighbours(attacker_cell) {
-        let defender = match state.board[defender_cell as usize] {
-            Cell::Card(card) => card,
-            _ => continue,
-        };
-
-        if !does_interact(attacker, defender, arrow) {
-            continue;
-        }
-
-        if defender.card.arrows.has_any(arrow.reverse()) {
-            defenders.set(defender_cell);
+            self.resolve_battle(attacker_cell, defender_cell);
         } else {
-            non_defenders.set(defender_cell);
+            panic!("Invalid command({cmd:?}) for status({:?})", self.status)
         }
     }
 
-    // handle multiple possible battles
-    if defenders.len() > 1 {
-        state.status = Status::WaitingPick {
-            attacker_cell,
-            choices: defenders,
-        };
-        return;
+    fn assert_command_player(&mut self, player: core::Player) {
+        assert!(
+            player == self.turn,
+            "Unexpected player ({}) played move, expected move by {}",
+            player,
+            self.turn,
+        );
     }
 
-    // handle battles
-    let winner = defenders
-        .into_iter()
-        .next()
-        .map(|defender_cell| battle(state, attacker_cell, defender_cell));
+    fn resolve_interactions(&mut self, attacker_cell: u8) {
+        let attacker = match self.board[attacker_cell as usize] {
+            Cell::Card(card) => card,
+            _ => unreachable!(),
+        };
 
-    // if the attacker won or if there was no battle
-    // handle free flips
-    if winner == Some(core::BattleWinner::Attacker) || winner.is_none() {
-        for cell in non_defenders {
-            let defender = match &mut state.board[cell as usize] {
+        let mut defenders = core::BoardCells::NONE;
+        let mut non_defenders = core::BoardCells::NONE;
+        for &(defender_cell, arrow) in get_possible_neighbours(attacker_cell) {
+            let defender = match self.board[defender_cell as usize] {
                 Cell::Card(card) => card,
-                _ => unreachable!(),
+                _ => continue,
             };
-            // skip card if it's already been flipped by a battle
-            if defender.owner != attacker.owner {
-                flip(defender);
+
+            if !does_interact(attacker, defender, arrow) {
+                continue;
+            }
+
+            if defender.card.arrows.has_any(arrow.reverse()) {
+                defenders.set(defender_cell);
+            } else {
+                non_defenders.set(defender_cell);
             }
         }
-    }
 
-    // next turn
-    if !check_for_game_over(state) {
-        state.turn = state.turn.opposite();
-    }
-}
+        match defenders.len() {
+            0 => {
+                // no battles, flip non-defenders
+                for cell in non_defenders {
+                    self.flip(cell);
+                }
 
-fn check_for_game_over(state: &mut State) -> bool {
-    if state.hand_blue.iter().all(Option::is_none) && state.hand_red.iter().all(Option::is_none) {
-        let mut blue_cards = 0;
-        let mut red_cards = 0;
-
-        for cell in &state.board {
-            if let Cell::Card(OwnedCard { owner, .. }) = cell {
-                match owner {
-                    core::Player::Blue => blue_cards += 1,
-                    core::Player::Red => red_cards += 1,
+                // no more interactions found, next turn
+                if !self.is_game_over() {
+                    self.turn = self.turn.opposite();
                 }
             }
+            1 => {
+                // handle battle
+                let defender_cell = defenders.into_iter().next().unwrap();
+                self.resolve_battle(attacker_cell, defender_cell);
+            }
+            _ => {
+                // handle multiple possible battles
+                self.status = Status::WaitingPickBattle {
+                    attacker_cell,
+                    choices: defenders,
+                };
+            }
         }
-
-        use std::cmp::Ordering;
-        let winner = match blue_cards.cmp(&red_cards) {
-            Ordering::Greater => Some(core::Player::Blue),
-            Ordering::Less => Some(core::Player::Red),
-            Ordering::Equal => None,
-        };
-
-        state.status = Status::GameOver { winner };
-
-        true
-    } else {
-        state.status = Status::WaitingPlace;
-
-        false
     }
-}
 
-// take out card from the given cell
-// panics if there is no card in the given cell
-fn take_card(state: &mut State, cell: u8) -> OwnedCard {
-    match std::mem::take(&mut state.board[cell as usize]) {
-        Cell::Card(card) => card,
-        _ => panic!("Cell didn't have a card"),
-    }
-}
-
-fn battle(state: &mut State, attacker_cell: u8, defender_cell: u8) -> core::BattleWinner {
-    // temporarily take out both cards from the board to allow 2 mut references
-    let mut attacker = take_card(state, attacker_cell);
-    let mut defender = take_card(state, defender_cell);
-
-    let winner = calculate_battle_result(
-        state,
-        (attacker_cell, attacker.card),
-        (defender_cell, defender.card),
-    );
-
-    let (loser_cell, loser) = match winner {
-        core::BattleWinner::Defender | core::BattleWinner::None => {
-            // flip attacker
-            flip(&mut attacker);
-            (attacker_cell, attacker)
-        }
-        core::BattleWinner::Attacker => {
-            // flip defender
-            flip(&mut defender);
-            (defender_cell, defender)
-        }
-    };
-
-    // combo flip any cards the losing card points at
-    for &(comboed_cell, arrow) in get_possible_neighbours(loser_cell) {
-        let comboed = match &mut state.board[comboed_cell as usize] {
+    fn flip(&mut self, cell: u8) {
+        let card = match &mut self.board[cell as usize] {
             Cell::Card(card) => card,
-            _ => continue,
+            _ => unreachable!(),
+        };
+        card.owner = card.owner.opposite();
+    }
+
+    fn resolve_battle(&mut self, attacker_cell: u8, defender_cell: u8) {
+        let attacker = match &self.board[attacker_cell as usize] {
+            Cell::Card(owned) => owned.card,
+            _ => unreachable!(),
+        };
+        let defender = match &self.board[defender_cell as usize] {
+            Cell::Card(owned) => owned.card,
+            _ => unreachable!(),
         };
 
-        if !does_interact(loser, *comboed, arrow) {
-            continue;
+        let (attacker_digit, attacker_value) = get_attack_stat(attacker);
+        let (defender_digit, defender_value) = get_defend_stat(attacker, defender);
+
+        self.status = Status::WaitingResolveBattle(WaitingResolveBattle {
+            attacker: BattlerWaitingResolve {
+                cell: attacker_cell,
+                digit: attacker_digit,
+                value: attacker_value,
+            },
+            defender: BattlerWaitingResolve {
+                cell: defender_cell,
+                digit: defender_digit,
+                value: defender_value,
+            },
+        });
+    }
+
+    fn is_game_over(&mut self) -> bool {
+        if self.hand_blue.iter().all(Option::is_none) && self.hand_red.iter().all(Option::is_none) {
+            self.status = Status::GameOver;
+
+            true
+        } else {
+            self.status = Status::WaitingPlaceCard;
+
+            false
         }
-
-        flip(comboed);
-    }
-
-    // place both cards back into the board
-    state.board[attacker_cell as usize] = Cell::Card(attacker);
-    state.board[defender_cell as usize] = Cell::Card(defender);
-
-    winner
-}
-
-fn flip(card: &mut OwnedCard) {
-    let to = card.owner.opposite();
-    card.owner = to;
-}
-
-fn roll(battle_system: &mut core::BattleSystem, value: u8) -> u8 {
-    match battle_system {
-        core::BattleSystem::Deterministic => value,
-        _ => todo!(),
     }
 }
 
-fn get_attacker(
-    battle_system: &mut core::BattleSystem,
-    (cell, attacker): (u8, core::Card),
-) -> core::Battler {
-    let (digit, value) = if let core::CardType::Assault = attacker.card_type {
+fn get_attack_stat(attacker: core::Card) -> (core::Digit, u8) {
+    if let core::CardType::Assault = attacker.card_type {
         // use the highest stat
         let att = attacker.attack;
         let phy = attacker.physical_defense;
@@ -555,23 +423,11 @@ fn get_attacker(
     } else {
         // otherwise use the attack stat
         (core::Digit::Attack, attacker.attack)
-    };
-
-    let roll = roll(battle_system, value);
-    core::Battler {
-        cell,
-        digit,
-        value,
-        roll,
     }
 }
 
-fn get_defender(
-    battle_system: &mut core::BattleSystem,
-    (_, attacker): (u8, core::Card),
-    (cell, defender): (u8, core::Card),
-) -> core::Battler {
-    let (digit, value) = match attacker.card_type {
+fn get_defend_stat(attacker: core::Card, defender: core::Card) -> (core::Digit, u8) {
+    match attacker.card_type {
         core::CardType::Physical => (core::Digit::PhysicalDefense, defender.physical_defense),
         core::CardType::Magical => (core::Digit::MagicalDefense, defender.magical_defense),
         core::CardType::Exploit => {
@@ -595,32 +451,6 @@ fn get_defender(
                 (core::Digit::MagicalDefense, mag)
             }
         }
-    };
-
-    let roll = roll(battle_system, value);
-    core::Battler {
-        cell,
-        digit,
-        value,
-        roll,
-    }
-}
-
-fn calculate_battle_result(
-    state: &mut State,
-    attacker_pos: (u8, core::Card),
-    defender_pos: (u8, core::Card),
-) -> core::BattleWinner {
-    let battle_system = &mut state.battle_system;
-
-    let attacker = get_attacker(battle_system, attacker_pos);
-    let defender = get_defender(battle_system, attacker_pos, defender_pos);
-
-    use std::cmp::Ordering;
-    match attacker.roll.cmp(&defender.roll) {
-        Ordering::Greater => core::BattleWinner::Attacker,
-        Ordering::Less => core::BattleWinner::Defender,
-        Ordering::Equal => core::BattleWinner::None,
     }
 }
 
@@ -702,5 +532,38 @@ fn get_possible_neighbours(cell: u8) -> &'static [(u8, core::Arrows)] {
         0xE => &[(0x9, UL), (0xA, U), (0xB, UR), (0xD, L), (0xF, R)],
         0xF => &[(0xA, UL), (0xB, U), (0xE, L)],
         _ => unreachable!(),
+    }
+}
+
+fn map_number_to_range(num: u8, range: impl std::ops::RangeBounds<u8>) -> u8 {
+    // Simple way to map the given num to the range 0..max
+    // This isn't a perfect mapping but will suffice
+    // src: https://lemire.me/blog/2016/06/27/a-fast-alternative-to-the-modulo-reduction
+    fn map_0_to_max(num: u8, max: u8) -> u8 {
+        ((num as u16 * max as u16) >> 8) as u8
+    }
+
+    use std::ops::Bound::*;
+
+    let min = match range.start_bound() {
+        Included(x) => *x,
+        Excluded(x) => *x + 1,
+        Unbounded => u8::MIN,
+    };
+    let max = match range.end_bound() {
+        Included(x) => *x,
+        Excluded(x) => *x - 1,
+        Unbounded => u8::MAX,
+    };
+    debug_assert!(min <= max);
+
+    if min == u8::MIN {
+        if max == u8::MAX {
+            num
+        } else {
+            map_0_to_max(num, max)
+        }
+    } else {
+        min + map_0_to_max(num, max - min + 1)
     }
 }

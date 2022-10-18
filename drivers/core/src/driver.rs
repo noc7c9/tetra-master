@@ -51,10 +51,7 @@ impl Driver {
         self.send(cmd)
     }
 
-    pub fn send_resolve_battle(
-        &mut self,
-        requests: response::ResolveBattle,
-    ) -> Result<response::PlayOk> {
+    pub fn resolve_battle(&mut self, requests: response::ResolveBattle) -> command::ResolveBattle {
         fn fulfill(rng: &mut Rng, request: response::RandomNumberRequest) -> Vec<u8> {
             let mut nums = Vec::with_capacity(request.numbers as usize);
             for _ in 0..request.numbers {
@@ -63,10 +60,17 @@ impl Driver {
             }
             nums
         }
-        let cmd = command::ResolveBattle {
+        command::ResolveBattle {
             attack_roll: fulfill(&mut self.rng, requests.attack_roll),
             defend_roll: fulfill(&mut self.rng, requests.defend_roll),
-        };
+        }
+    }
+
+    pub fn send_resolve_battle(
+        &mut self,
+        requests: response::ResolveBattle,
+    ) -> Result<response::PlayOk> {
+        let cmd = self.resolve_battle(requests);
         self.send(cmd)
     }
 

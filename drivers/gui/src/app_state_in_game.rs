@@ -8,7 +8,7 @@ use crate::{
 };
 use bevy::{prelude::*, sprite::Anchor};
 use rand::prelude::*;
-use tetra_master_ai::{self as ai, Ai};
+use tetra_master_ai::{self as ai, Ai as _};
 use tetra_master_core as core;
 
 const CARD_COUNTER_PADDING: Vec2 = Vec2::new(10., 5.);
@@ -273,6 +273,7 @@ fn on_enter(
     // Setup the AI
     let ai = ai::naive_minimax::init(
         3,
+        core::Player::Red,
         &core::Setup {
             blocked_cells: blocked_cells.0,
             hand_blue: hand_blue.0,
@@ -356,13 +357,14 @@ fn pick_battle(
             };
             let response = driver.0.send(cmd).expect("PickBattle command should work");
 
-            ai.0.update(ai::Action::PickBattle(cmd));
+            ai.0.apply_pick_battle(cmd);
 
             *status = handle_play_ok(
                 response,
                 &mut commands,
                 &mut event,
                 &mut driver.0,
+                &mut ai.0,
                 &app_assets,
             );
         }
@@ -406,7 +408,7 @@ fn place_card(
             };
             let response = driver.0.send(cmd).expect("PlaceCard command should work");
 
-            ai.0.update(ai::Action::PlaceCard(cmd));
+            ai.0.apply_place_card(cmd);
 
             place_card_common(
                 &mut commands,
@@ -428,6 +430,7 @@ fn place_card(
                 &mut commands,
                 &mut event,
                 &mut driver.0,
+                &mut ai.0,
                 &app_assets,
             );
         }
@@ -472,6 +475,7 @@ fn handle_play_ok(
     commands: &mut Commands,
     event: &mut EventWriter<core::Event>,
     driver: &mut core::Driver,
+    ai: &mut impl ai::Ai,
     app_assets: &AppAssets,
 ) -> Status {
     for evt in play_ok.events {
@@ -479,8 +483,10 @@ fn handle_play_ok(
     }
 
     if let Some(resolve_battle) = play_ok.resolve_battle {
-        let response = driver.send_resolve_battle(resolve_battle).unwrap();
-        return handle_play_ok(response, commands, event, driver, app_assets);
+        let cmd = driver.resolve_battle(resolve_battle);
+        ai.apply_resolve_battle(&cmd);
+        let response = driver.send(cmd).unwrap();
+        return handle_play_ok(response, commands, event, driver, ai, app_assets);
     }
 
     if play_ok.pick_battle.is_empty() {
@@ -913,13 +919,14 @@ fn ai_turn(
             .expect("AI PickBattle command should work"),
     };
 
-    ai.0.update(ai_cmd);
+    ai.0.apply_action(ai_cmd);
 
     *status = handle_play_ok(
         response,
         &mut commands,
         &mut event,
         &mut driver.0,
+        &mut ai.0,
         &app_assets,
     );
 }
