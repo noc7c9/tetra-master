@@ -37,26 +37,33 @@ mod tests {
     // ---+---+---+---
     //  C | D | E | F
 
-    use super::naive_minimax;
-    use super::{Action, Ai};
+    use test_case::test_case;
     use tetra_master_core::{
         self as core, Arrows, Card,
         Player::{Blue, Red},
     };
 
-    const DEFAULT_DEPTH: usize = 3;
+    use super::{Action, Ai};
+
+    type Initializer = Box<dyn Fn(core::Player, &core::Setup) -> Box<dyn Ai>>;
+
     const CARD: Card = Card::physical(0, 0, 0, Arrows(0));
 
-    // TODO: change these to test-cases over each of the AIs
+    macro_rules! init {
+        ($name:ident) => { init!($name,) };
+        ($name:ident, $($arg:expr),* $(,)?) => {{
+            Box::new(|player, cmd| Box::new(crate::$name::init($($arg,)* player, cmd)))
+        }};
+    }
 
-    #[test]
-    fn sanity_check_1_one_move_left_need_flip_to_win() {
+    #[test_case(init!(naive_minimax, 3))]
+    #[test_case(init!(naive_expectiminimax, 3))]
+    fn sanity_check_1_one_move_left_need_flip_to_win(init: Initializer) {
         let left = Card::physical(0, 0, 0, Arrows::LEFT);
 
         let hand_blue = [CARD, CARD, CARD, CARD, CARD];
         let hand_red = [CARD, CARD, CARD, CARD, left];
-        let mut state = naive_minimax::init(
-            DEFAULT_DEPTH,
+        let mut state = init(
             core::Player::Red,
             &core::Setup {
                 blocked_cells: core::BoardCells::NONE,
@@ -107,15 +114,15 @@ mod tests {
         assert_eq!(actual, expected);
     }
 
-    #[test]
-    fn sanity_check_2_one_move_left_need_combo_to_win() {
+    #[test_case(init!(naive_minimax, 3))]
+    #[test_case(init!(naive_expectiminimax, 3))]
+    fn sanity_check_2_one_move_left_need_combo_to_win(init: Initializer) {
         let def = Card::physical(0, 0, 0, Arrows::LEFT | Arrows::RIGHT);
         let att = Card::physical(0xF, 0, 0, Arrows::LEFT);
 
         let hand_blue = [CARD, CARD, CARD, CARD, def];
         let hand_red = [CARD, CARD, CARD, CARD, att];
-        let mut state = naive_minimax::init(
-            DEFAULT_DEPTH,
+        let mut state = init(
             core::Player::Red,
             &core::Setup {
                 blocked_cells: core::BoardCells::NONE,
@@ -167,8 +174,9 @@ mod tests {
         assert_eq!(actual, expected);
     }
 
-    #[test]
-    fn sanity_check_3_one_move_left_pick_specific_battle_first() {
+    #[test_case(init!(naive_minimax, 3))]
+    #[test_case(init!(naive_expectiminimax, 3))]
+    fn sanity_check_3_one_move_left_pick_specific_battle_first(init: Initializer) {
         let hand_blue = [
             CARD,
             CARD,
@@ -188,8 +196,7 @@ mod tests {
             CARD,
             Card::physical(1, 0, 0, Arrows::UP | Arrows::UP_RIGHT | Arrows::RIGHT),
         ];
-        let mut state = naive_minimax::init(
-            DEFAULT_DEPTH,
+        let mut state = init(
             core::Player::Red,
             &core::Setup {
                 blocked_cells: core::BoardCells::NONE,
@@ -249,8 +256,9 @@ mod tests {
         assert_eq!(actual, expected);
     }
 
-    #[test]
-    fn sanity_check_4_two_moves_left() {
+    #[test_case(init!(naive_minimax, 3))]
+    #[test_case(init!(naive_expectiminimax, 3))]
+    fn sanity_check_4_two_moves_left(init: Initializer) {
         let hand_blue = [
             CARD,
             CARD,
@@ -270,8 +278,7 @@ mod tests {
             Card::physical(0xF, 0, 0, Arrows::RIGHT),
             Card::magical(0xF, 0, 0, Arrows::RIGHT),
         ];
-        let mut state = naive_minimax::init(
-            DEFAULT_DEPTH,
+        let mut state = init(
             core::Player::Red,
             &core::Setup {
                 blocked_cells: [1, 10, 11].into(),
@@ -282,7 +289,7 @@ mod tests {
             },
         );
 
-        let apply_place_card = |state: &mut naive_minimax::Ai, card, cell, player| {
+        let apply_place_card = |state: &mut Box<dyn Ai>, card, cell, player| {
             let cmd = core::PlaceCard { player, card, cell };
             state.apply_place_card(cmd);
         };
@@ -320,6 +327,10 @@ mod tests {
         assert_eq!(actual, expected);
 
         apply_place_card(&mut state, 4, 5, Red); // AI move
+        state.apply_resolve_battle(&core::ResolveBattle {
+            attack_roll: vec![],
+            defend_roll: vec![],
+        });
         apply_place_card(&mut state, 4, 4, Blue); // response
 
         //  b | # | r | r
@@ -343,13 +354,14 @@ mod tests {
         assert_eq!(actual, expected);
     }
 
-    #[test]
-    fn sanity_check_5_should_pick_obvious_great_move() {
+    #[test_case(init!(naive_minimax, 3))]
+    #[test_case(init!(naive_expectiminimax, 3))]
+    fn sanity_check_5_should_pick_obvious_great_move(init: Initializer) {
         let mut driver = core::Driver::reference().seed(4763088336469180526).build();
         let setup = driver.random_setup(core::BattleSystem::Deterministic);
-        let mut state = naive_minimax::init(3, core::Player::Red, &setup);
+        let mut state = init(core::Player::Red, &setup);
 
-        let apply_place_card = |state: &mut naive_minimax::Ai, card, cell, player| {
+        let apply_place_card = |state: &mut Box<dyn Ai>, card, cell, player| {
             let cmd = core::PlaceCard { player, card, cell };
             state.apply_place_card(cmd);
         };
@@ -365,13 +377,14 @@ mod tests {
         assert_eq!(actual, expected);
     }
 
-    #[test]
-    fn sanity_check_6_should_not_pick_obviously_bad_move() {
+    #[test_case(init!(naive_minimax, 3))]
+    #[test_case(init!(naive_expectiminimax, 3))]
+    fn sanity_check_6_should_not_pick_obviously_bad_move(init: Initializer) {
         let mut driver = core::Driver::reference().seed(4015497306351127204).build();
         let setup = driver.random_setup(core::BattleSystem::Deterministic);
-        let mut state = naive_minimax::init(3, core::Player::Red, &setup);
+        let mut state = init(core::Player::Red, &setup);
 
-        let apply_place_card = |state: &mut naive_minimax::Ai, card, cell, player| {
+        let apply_place_card = |state: &mut Box<dyn Ai>, card, cell, player| {
             let cmd = core::PlaceCard { player, card, cell };
             state.apply_place_card(cmd);
         };
