@@ -399,4 +399,84 @@ mod tests {
         });
         assert_ne!(actual, not_expected);
     }
+
+    #[test_case(init!(naive_expectiminimax, 3))]
+    fn sanity_check_7_pick_more_likely_battle_when_using_non_deterministic_battle_systems(
+        init: Initializer,
+    ) {
+        for battle_system in [
+            core::BattleSystem::Original,
+            core::BattleSystem::Dice { sides: 4 },
+            core::BattleSystem::Dice { sides: 6 },
+            core::BattleSystem::Dice { sides: 8 },
+            core::BattleSystem::Dice { sides: 10 },
+            core::BattleSystem::Dice { sides: 12 },
+        ] {
+            let hand_blue = [
+                CARD,
+                CARD,
+                CARD,
+                Card::physical(0, 9, 0, Arrows::DOWN | Arrows::DOWN_RIGHT),
+                Card::physical(0, 7, 0, Arrows::LEFT | Arrows::UP_LEFT),
+            ];
+            let hand_red = [
+                CARD,
+                CARD,
+                CARD,
+                CARD,
+                Card::physical(3, 0, 0, Arrows::UP | Arrows::RIGHT),
+            ];
+            let mut state = init(
+                core::Player::Red,
+                &core::Setup {
+                    blocked_cells: core::BoardCells::NONE,
+                    hand_blue,
+                    hand_red,
+                    battle_system,
+                    starting_player: Blue,
+                },
+            );
+
+            let apply_place_card = |state: &mut Box<dyn Ai>, card, cell, player| {
+                let cmd = core::PlaceCard { player, card, cell };
+                state.apply_place_card(cmd);
+            };
+
+            apply_place_card(&mut state, 0, 0, Blue);
+            apply_place_card(&mut state, 0, 1, Red);
+
+            apply_place_card(&mut state, 1, 2, Blue);
+            apply_place_card(&mut state, 1, 3, Red);
+
+            apply_place_card(&mut state, 2, 4, Blue);
+            apply_place_card(&mut state, 2, 5, Red);
+
+            apply_place_card(&mut state, 3, 6, Blue); // points down at 10 and at 11
+            apply_place_card(&mut state, 3, 7, Red);
+
+            apply_place_card(&mut state, 4, 11, Blue); // points left at 10 and at 6
+            apply_place_card(&mut state, 4, 10, Red); // attacks 6 and 11
+
+            //  b | r | b | r
+            // ---+---+---+---
+            //  b | r | b | r
+            // ---+---+-v-\---
+            //  _ | _ | r < b
+            // ---+---+---+---
+            //  _ | _ | _ | _
+            //
+            // Expected Action:
+            //  Picking to battle card on 11 which has a defense of 7
+            //  and NOT the card on 6 which has a defense of 9.
+            //  As both cards point at each other winning either battle would skip the other battle,
+            //  so by defeating the weaker card, the stronger card won't have to be fought
+
+            let actual = state.get_action();
+            let expected = Action::PickBattle(core::PickBattle {
+                cell: 11,
+                player: Red,
+            });
+            assert_eq!(actual, expected);
+        }
+    }
 }
