@@ -1,6 +1,8 @@
 use crate::battle_system_probabilities::lookup;
 use tetra_master_core as core;
 
+use super::Action;
+
 pub struct Ai(State);
 
 pub fn init(max_depth: usize, player: core::Player, setup: &core::Setup) -> Ai {
@@ -26,12 +28,6 @@ impl super::Ai for Ai {
     fn apply_resolve_battle(&mut self, cmd: &core::ResolveBattle) {
         self.0.handle_resolve_battle(ResolveBattle::Command(cmd));
     }
-}
-
-#[derive(Debug, Clone, Copy)]
-enum Action {
-    PlaceCard(core::PlaceCard),
-    PickBattle(core::PickBattle),
 }
 
 #[derive(Debug, Clone, Copy)]
