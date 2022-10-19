@@ -179,20 +179,12 @@ struct WaitingResolveBattle {
 #[derive(Debug, Clone, Copy)]
 struct BattlerWaitingResolve {
     cell: u8,
-    digit: core::Digit,
     value: u8,
 }
 
 impl BattlerWaitingResolve {
-    fn resolve(self) -> core::Battler {
-        let roll = self.value;
-
-        core::Battler {
-            cell: self.cell,
-            digit: self.digit,
-            value: self.value,
-            roll,
-        }
+    fn resolve(self) -> u8 {
+        self.value
     }
 }
 
@@ -290,12 +282,14 @@ impl State {
         let mut clone = self.clone();
 
         match action {
-            Action::PlaceCard(cmd) => clone.handle_place_card(cmd),
+            Action::PlaceCard(cmd) => {
+                clone.handle_place_card(cmd);
+                clone.depth += 1;
+            }
             Action::PickBattle(cmd) => clone.handle_pick_battle(cmd),
         }
 
         clone.indent = clone.indent.push();
-        clone.depth += 1;
         clone
     }
 
@@ -331,11 +325,14 @@ impl State {
 
     fn handle_resolve_battle(&mut self, cmd: &core::ResolveBattle) {
         if let Status::WaitingResolveBattle(ref status) = self.status {
-            let attacker = status.attacker.resolve();
-            let defender = status.defender.resolve();
+            let attacker = status.attacker;
+            let defender = status.defender;
+
+            let attacker_roll = attacker.resolve();
+            let defender_roll = defender.resolve();
 
             use std::cmp::Ordering;
-            let winner = match attacker.roll.cmp(&defender.roll) {
+            let winner = match attacker_roll.cmp(&defender_roll) {
                 Ordering::Greater => core::BattleWinner::Attacker,
                 Ordering::Less => core::BattleWinner::Defender,
                 Ordering::Equal => core::BattleWinner::None,
@@ -486,18 +483,16 @@ impl State {
             _ => unreachable!(),
         };
 
-        let (attacker_digit, attacker_value) = get_attack_stat(attacker);
-        let (defender_digit, defender_value) = get_defend_stat(attacker, defender);
+        let attacker_value = get_attack_stat(attacker);
+        let defender_value = get_defend_stat(attacker, defender);
 
         self.status = Status::WaitingResolveBattle(WaitingResolveBattle {
             attacker: BattlerWaitingResolve {
                 cell: attacker_cell,
-                digit: attacker_digit,
                 value: attacker_value,
             },
             defender: BattlerWaitingResolve {
                 cell: defender_cell,
-                digit: defender_digit,
                 value: defender_value,
             },
         });
@@ -523,35 +518,35 @@ impl State {
     }
 }
 
-fn get_attack_stat(attacker: core::Card) -> (core::Digit, u8) {
+fn get_attack_stat(attacker: core::Card) -> u8 {
     if let core::CardType::Assault = attacker.card_type {
         // use the highest stat
         let att = attacker.attack;
         let phy = attacker.physical_defense;
         let mag = attacker.magical_defense;
         if mag > att && mag > phy {
-            (core::Digit::MagicalDefense, mag)
+            mag
         } else if phy > att {
-            (core::Digit::PhysicalDefense, phy)
+            phy
         } else {
-            (core::Digit::Attack, att)
+            att
         }
     } else {
         // otherwise use the attack stat
-        (core::Digit::Attack, attacker.attack)
+        attacker.attack
     }
 }
 
-fn get_defend_stat(attacker: core::Card, defender: core::Card) -> (core::Digit, u8) {
+fn get_defend_stat(attacker: core::Card, defender: core::Card) -> u8 {
     match attacker.card_type {
-        core::CardType::Physical => (core::Digit::PhysicalDefense, defender.physical_defense),
-        core::CardType::Magical => (core::Digit::MagicalDefense, defender.magical_defense),
+        core::CardType::Physical => defender.physical_defense,
+        core::CardType::Magical => defender.magical_defense,
         core::CardType::Exploit => {
             // use the lowest defense stat
             if defender.physical_defense < defender.magical_defense {
-                (core::Digit::PhysicalDefense, defender.physical_defense)
+                defender.physical_defense
             } else {
-                (core::Digit::MagicalDefense, defender.magical_defense)
+                defender.magical_defense
             }
         }
         core::CardType::Assault => {
@@ -560,11 +555,11 @@ fn get_defend_stat(attacker: core::Card, defender: core::Card) -> (core::Digit, 
             let phy = defender.physical_defense;
             let mag = defender.magical_defense;
             if att < phy && att < mag {
-                (core::Digit::Attack, att)
+                att
             } else if phy < mag {
-                (core::Digit::PhysicalDefense, phy)
+                phy
             } else {
-                (core::Digit::MagicalDefense, mag)
+                mag
             }
         }
     }
