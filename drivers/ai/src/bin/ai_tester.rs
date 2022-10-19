@@ -50,6 +50,8 @@ fn main() -> anyhow::Result<()> {
     register!(all_ais, random);
     register!(all_ais, naive_minimax, 3);
     register!(all_ais, naive_minimax, 4);
+    register!(all_ais, naive_expectiminimax, 3);
+    register!(all_ais, naive_expectiminimax, 4);
 
     let mut args = Args::parse();
     if args.list {
