@@ -47,11 +47,13 @@ fn main() -> anyhow::Result<()> {
         }};
     }
     let mut all_ais: HashMap<AiName, Initializer> = HashMap::new();
-    register!(all_ais, random);
-    register!(all_ais, naive_minimax, 3);
-    register!(all_ais, naive_minimax, 4);
-    register!(all_ais, naive_expectiminimax, 3);
-    register!(all_ais, naive_expectiminimax, 4);
+    // register!(all_ais, random);
+    // register!(all_ais, naive_minimax, 3);
+    // register!(all_ais, naive_minimax, 4);
+
+    register!(all_ais, expectiminimax_0_naive, 3);
+    register!(all_ais, expectiminimax_1_simplify, 3);
+    register!(all_ais, expectiminimax_2_ab_pruning, 3);
 
     let mut args = Args::parse();
     if args.list {

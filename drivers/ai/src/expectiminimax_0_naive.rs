@@ -771,7 +771,6 @@ fn map_number_to_range(num: u8, range: impl std::ops::RangeBounds<u8>) -> u8 {
         Excluded(x) => *x - 1,
         Unbounded => u8::MAX,
     };
-    debug_assert!(min <= max);
 
     if min == u8::MIN {
         if max == u8::MAX {
