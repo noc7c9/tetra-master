@@ -108,7 +108,7 @@ fn test_ais(ais: Vec<(AiName, Initializer)>, global_seed: Option<core::Seed>, ti
     let mut results = Results::new();
 
     let num_pairings = num_pairings(ais.len());
-    let total_expected_time = time_per_pair * num_pairings as u64;
+    let mut total_expected_time = time_per_pair * num_pairings as u64;
 
     print!("Testing {} AIs", ais.len());
     print!(" | total-pairings: {num_pairings}");
@@ -134,6 +134,7 @@ fn test_ais(ais: Vec<(AiName, Initializer)>, global_seed: Option<core::Seed>, ti
 
                 let mut print_progress = |game_count, elapsed| {
                     let time_left = time_per_pair.saturating_sub(elapsed);
+                    let total_time_left = total_expected_time.saturating_sub(elapsed);
                     execute!(
                         stdout,
                         MoveToPreviousLine(0),
@@ -141,7 +142,7 @@ fn test_ais(ais: Vec<(AiName, Initializer)>, global_seed: Option<core::Seed>, ti
                         Print(format!("{ai1_name} v {ai2_name}")),
                         Print(format!(" | pairing: {pairing_count} of {num_pairings}")),
                         Print(format!(" | game {game_count}")),
-                        Print(format!(" | time-left: {time_left}s")),
+                        Print(format!(" | time-left: {time_left}s ({total_time_left}s)")),
                         Print(format!(" | seed: {game_seed}")),
                         Print("\n"),
                     )
@@ -162,6 +163,8 @@ fn test_ais(ais: Vec<(AiName, Initializer)>, global_seed: Option<core::Seed>, ti
 
                 elapsed = now.elapsed().as_secs();
             }
+
+            total_expected_time -= time_per_pair;
         }
     }
 
