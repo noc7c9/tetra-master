@@ -46,6 +46,9 @@ enum ResolveBattle<'a> {
 // expectiminimax logic
 
 fn expectiminimax_search(state: State) -> Action {
+    reset!();
+    indent!(module_path!());
+
     debug_assert!(state.player == state.turn);
 
     // same logic as max_value but also tracks which move has the highest value
@@ -53,14 +56,22 @@ fn expectiminimax_search(state: State) -> Action {
     let mut curr_value = f32::NEG_INFINITY;
     let mut selected_action = None;
     for action in state.get_actions() {
+        indent!("{action}");
         let new_state_value = state_value(state.apply_action(action), alpha, beta);
+        dedent!("{action} | {new_state_value}");
+
         if new_state_value > curr_value {
             curr_value = new_state_value;
             alpha = curr_value.max(alpha);
             selected_action = Some(action);
         }
     }
-    selected_action.unwrap()
+    let selected_action = selected_action.unwrap();
+
+    log!("SELECTED {selected_action} | {curr_value}");
+    dedent!();
+
+    selected_action
 }
 
 #[inline(always)]
@@ -69,32 +80,42 @@ fn state_value(state: State, alpha: f32, beta: f32) -> f32 {
         Status::WaitingResolveBattle(_) => chance_value(state, alpha, beta),
         Status::WaitingPlaceCard { .. } => -negamax_value(state, -beta, -alpha),
         Status::WaitingPickBattle { .. } => negamax_value(state, alpha, beta),
-        Status::GameOver => state.utility(),
+        Status::GameOver => {
+            let value = state.utility();
+            log!("TERMINAL | {value}");
+            value
+        }
     }
 }
 
 fn negamax_value(state: State, mut alpha: f32, beta: f32) -> f32 {
     if state.is_terminal() {
-        return state.utility();
+        let value = state.utility();
+        log!("DEPTH-LIMIT | {value}");
+        return value;
     }
 
+    indent!("NEGAMAX alpha({alpha}) beta({beta})");
     let mut curr_value = f32::NEG_INFINITY;
     for action in state.get_actions() {
+        indent!("{action}");
         let new_state_value = state_value(state.apply_action(action), alpha, beta);
+        dedent!("{action} | {new_state_value}");
+
         if new_state_value > curr_value {
             curr_value = new_state_value;
             alpha = curr_value.max(alpha);
         }
         if alpha >= beta {
+            log!("PRUNE | alpha({alpha}) >= beta({beta})");
             break;
         }
     }
+    dedent!("NEGAMAX | {curr_value}");
     curr_value
 }
 
 fn chance_value(state: State, mut alpha: f32, mut beta: f32) -> f32 {
-    let mut sum_value = 0.0;
-
     let resolutions = state.get_resolutions();
 
     // Reset the alpha-beta values if we hit a chance node with multiple children to avoid
@@ -109,10 +130,18 @@ fn chance_value(state: State, mut alpha: f32, mut beta: f32) -> f32 {
         (alpha, beta) = (f32::NEG_INFINITY, f32::INFINITY);
     }
 
+    indent!("CHANCE alpha({alpha}) beta({beta})");
+    let mut sum_value = 0.0;
     for resolution in resolutions {
-        let new_state_value = state_value(state.apply_resolution(resolution), alpha, beta);
-        sum_value += resolution.probability * new_state_value;
+        indent!("{resolution:?}");
+        let raw_value = state_value(state.apply_resolution(resolution), alpha, beta);
+        let probability = resolution.probability;
+        let value = probability * raw_value;
+        dedent!("{resolution:?} | probability({probability}) * value({raw_value}) = {value}");
+
+        sum_value += value;
     }
+    dedent!("CHANCE | {sum_value}");
     sum_value
 }
 

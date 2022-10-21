@@ -46,19 +46,30 @@ enum ResolveBattle<'a> {
 // expectiminimax logic
 
 fn expectiminimax_search(state: State) -> Action {
+    reset!();
+    indent!(module_path!());
+
     debug_assert!(state.player == state.turn);
 
     // same logic as max_value but also tracks which move has the highest value
     let mut curr_value = f32::NEG_INFINITY;
     let mut selected_action = None;
     for action in state.get_actions() {
+        indent!("{action}");
         let new_state_value = state_value(state.apply_action(action));
+        dedent!("{action} | {new_state_value}");
+
         if new_state_value > curr_value {
             curr_value = new_state_value;
             selected_action = Some(action);
         }
     }
-    selected_action.unwrap()
+    let selected_action = selected_action.unwrap();
+
+    log!("SELECTED {selected_action} | {curr_value}");
+    dedent!();
+
+    selected_action
 }
 
 #[inline(always)]
@@ -74,36 +85,57 @@ fn state_value(state: State) -> f32 {
 
 fn max_value(state: State) -> f32 {
     if state.is_terminal() {
-        return state.utility();
+        let value = state.utility();
+        log!("TERMINAL | {value}");
+        return value;
     }
 
+    indent!("MAX");
     let mut curr_value = f32::NEG_INFINITY;
     for action in state.get_actions() {
+        indent!("{action}");
         let new_state_value = state_value(state.apply_action(action));
+        dedent!("{action} | {new_state_value}");
+
         curr_value = curr_value.max(new_state_value);
     }
+    dedent!("MAX | {curr_value}");
     curr_value
 }
 
 fn min_value(state: State) -> f32 {
     if state.is_terminal() {
-        return state.utility();
+        let value = state.utility();
+        log!("TERMINAL | {value}");
+        return value;
     }
 
+    indent!("MIN");
     let mut curr_value = f32::INFINITY;
     for action in state.get_actions() {
+        indent!("{action}");
         let new_state_value = state_value(state.apply_action(action));
+        dedent!("{action} | {new_state_value}");
+
         curr_value = curr_value.min(new_state_value);
     }
+    dedent!("MIN | {curr_value}");
     curr_value
 }
 
 fn chance_value(state: State) -> f32 {
+    indent!("CHANCE");
     let mut sum_value = 0.0;
     for resolution in state.get_resolutions() {
-        let new_state_value = state_value(state.apply_resolution(resolution));
-        sum_value += resolution.probability * new_state_value;
+        indent!("{resolution:?}");
+        let raw_value = state_value(state.apply_resolution(resolution));
+        let probability = resolution.probability;
+        let value = probability * raw_value;
+        dedent!("{resolution:?} | probability({probability}) * value({raw_value}) = {value}");
+
+        sum_value += value;
     }
+    dedent!("CHANCE | {sum_value}");
     sum_value
 }
 

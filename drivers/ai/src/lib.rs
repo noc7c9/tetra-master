@@ -2,6 +2,14 @@ use tetra_master_core as core;
 
 mod battle_system_probabilities;
 
+#[cfg(feature = "logging")]
+#[macro_use]
+mod logging;
+
+#[cfg(not(feature = "logging"))]
+#[macro_use]
+mod logging_noop;
+
 pub mod naive_minimax;
 pub mod random;
 
@@ -16,6 +24,26 @@ pub mod expectiminimax_5_no_alloc_get_resolutions;
 pub enum Action {
     PlaceCard(core::PlaceCard),
     PickBattle(core::PickBattle),
+}
+
+impl std::fmt::Display for Action {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let player = match match self {
+            Action::PlaceCard(core::PlaceCard { player, .. }) => player,
+            Action::PickBattle(core::PickBattle { player, .. }) => player,
+        } {
+            core::Player::Red => "Red ",
+            core::Player::Blue => "Blue",
+        };
+        match self {
+            Action::PlaceCard(core::PlaceCard { card, cell, .. }) => {
+                write!(f, "{player} Place({card:X}, {cell:X})")
+            }
+            Action::PickBattle(core::PickBattle { cell, .. }) => {
+                write!(f, "{player} Pick({cell:X})    ")
+            }
+        }
+    }
 }
 
 pub trait Ai {
