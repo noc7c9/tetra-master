@@ -76,7 +76,7 @@ fn main() -> anyhow::Result<()> {
         ($all_ais:expr, $name:ident, $($arg:expr),* $(,)?) => {{
             let initializer: Initializer
                 = Box::new(|player, cmd| Box::new(ai::$name::init($($arg,)* player, cmd)));
-            let name = concat!(stringify!($name), $('_', $arg)*);
+            let name = concat!(stringify!($name), $('_', $arg,)*);
             $all_ais.insert(name, initializer);
         }};
     }
@@ -89,6 +89,7 @@ fn main() -> anyhow::Result<()> {
     register!(all_ais, expectiminimax_1_simplify, 3);
     register!(all_ais, expectiminimax_2_ab_pruning, 3);
     register!(all_ais, expectiminimax_3_negamax, 3);
+    register!(all_ais, expectiminimax_4_prob_cutoff, 3, 0.1);
 
     let mut args = Args::parse();
     if args.list {
