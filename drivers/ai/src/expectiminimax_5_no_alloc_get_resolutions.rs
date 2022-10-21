@@ -3,30 +3,37 @@ use tetra_master_core as core;
 
 use super::Action;
 
-pub struct Ai(State);
+pub struct Ai {
+    metrics: crate::metrics::Metrics,
+    state: State,
+}
 
 pub fn init(max_depth: usize, prob_cutoff: f32, player: core::Player, setup: &core::Setup) -> Ai {
-    Ai(State::new(max_depth, prob_cutoff, player, setup))
+    Ai {
+        metrics: crate::metrics::Metrics::new(module_path!()),
+        state: State::new(max_depth, prob_cutoff, player, setup),
+    }
 }
 
 impl super::Ai for Ai {
     fn get_action(&mut self) -> crate::Action {
-        match expectiminimax_search(self.0.clone()) {
+        match expectiminimax_search(self, self.state.clone()) {
             Action::PlaceCard(cmd) => crate::Action::PlaceCard(cmd),
             Action::PickBattle(cmd) => crate::Action::PickBattle(cmd),
         }
     }
 
     fn apply_place_card(&mut self, cmd: core::PlaceCard) {
-        self.0.handle_place_card(cmd);
+        self.state.handle_place_card(cmd);
     }
 
     fn apply_pick_battle(&mut self, cmd: core::PickBattle) {
-        self.0.handle_pick_battle(cmd);
+        self.state.handle_pick_battle(cmd);
     }
 
     fn apply_resolve_battle(&mut self, cmd: &core::ResolveBattle) {
-        self.0.handle_resolve_battle(ResolveBattle::Command(cmd));
+        self.state
+            .handle_resolve_battle(ResolveBattle::Command(cmd));
     }
 }
 
@@ -45,7 +52,7 @@ enum ResolveBattle<'a> {
 //**************************************************************************************************
 // expectiminimax logic
 
-fn expectiminimax_search(state: State) -> Action {
+fn expectiminimax_search(ai: &mut Ai, state: State) -> Action {
     reset!();
     indent!(module_path!());
 
@@ -57,7 +64,7 @@ fn expectiminimax_search(state: State) -> Action {
     let mut selected_action = None;
     for action in state.get_actions() {
         indent!("{action}");
-        let new_state_value = state_value(state.apply_action(action), alpha, beta);
+        let new_state_value = state_value(ai, state.apply_action(action), alpha, beta);
         dedent!("{action} | {new_state_value}");
 
         if new_state_value > curr_value {
@@ -71,16 +78,22 @@ fn expectiminimax_search(state: State) -> Action {
     log!("SELECTED {selected_action} | {curr_value}");
     dedent!();
 
+    ai.metrics.print_report();
+
     selected_action
 }
 
 #[inline(always)]
-fn state_value(state: State, alpha: f32, beta: f32) -> f32 {
+fn state_value(ai: &mut Ai, state: State, alpha: f32, beta: f32) -> f32 {
+    ai.metrics.inc_expanded_nodes();
+
     match &state.status {
-        Status::WaitingResolveBattle(_) => chance_value(state, alpha, beta),
-        Status::WaitingPlaceCard { .. } => -negamax_value(state, -beta, -alpha),
-        Status::WaitingPickBattle { .. } => negamax_value(state, alpha, beta),
+        Status::WaitingResolveBattle(_) => chance_value(ai, state, alpha, beta),
+        Status::WaitingPlaceCard { .. } => -negamax_value(ai, state, -beta, -alpha),
+        Status::WaitingPickBattle { .. } => negamax_value(ai, state, alpha, beta),
         Status::GameOver => {
+            ai.metrics.inc_terminal_leafs();
+
             let value = state.utility();
             log!("TERMINAL | {value}");
             value
@@ -88,8 +101,10 @@ fn state_value(state: State, alpha: f32, beta: f32) -> f32 {
     }
 }
 
-fn negamax_value(state: State, mut alpha: f32, beta: f32) -> f32 {
+fn negamax_value(ai: &mut Ai, state: State, mut alpha: f32, beta: f32) -> f32 {
     if state.is_terminal() {
+        ai.metrics.inc_depth_limit_leafs();
+
         let value = state.utility();
         log!("DEPTH-LIMIT | {value}");
         return value;
@@ -99,7 +114,7 @@ fn negamax_value(state: State, mut alpha: f32, beta: f32) -> f32 {
     let mut curr_value = f32::NEG_INFINITY;
     for action in state.get_actions() {
         indent!("{action}");
-        let new_state_value = state_value(state.apply_action(action), alpha, beta);
+        let new_state_value = state_value(ai, state.apply_action(action), alpha, beta);
         dedent!("{action} | {new_state_value}");
 
         if new_state_value > curr_value {
@@ -107,6 +122,8 @@ fn negamax_value(state: State, mut alpha: f32, beta: f32) -> f32 {
             alpha = curr_value.max(alpha);
         }
         if alpha >= beta {
+            ai.metrics.inc_pruned_nodes(state.depth);
+
             log!("PRUNE | alpha({alpha}) >= beta({beta})");
             break;
         }
@@ -115,7 +132,7 @@ fn negamax_value(state: State, mut alpha: f32, beta: f32) -> f32 {
     curr_value
 }
 
-fn chance_value(state: State, mut alpha: f32, mut beta: f32) -> f32 {
+fn chance_value(ai: &mut Ai, state: State, mut alpha: f32, mut beta: f32) -> f32 {
     let resolutions = state.get_resolutions();
 
     // Reset the alpha-beta values if we hit a chance node with multiple children to avoid
@@ -134,7 +151,7 @@ fn chance_value(state: State, mut alpha: f32, mut beta: f32) -> f32 {
     let mut sum_value = 0.0;
     for resolution in resolutions {
         indent!("{resolution:?}");
-        let raw_value = state_value(state.apply_resolution(resolution), alpha, beta);
+        let raw_value = state_value(ai, state.apply_resolution(resolution), alpha, beta);
         let probability = resolution.probability;
         let value = probability * raw_value;
         dedent!("{resolution:?} | probability({probability}) * value({raw_value}) = {value}");

@@ -5,6 +5,7 @@ edition = "2021"
 
 [features]
 logging = []
+metrics = []
 
 [dependencies]
 tetra-master-core = { path = "../core" }

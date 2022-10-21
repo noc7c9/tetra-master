@@ -10,6 +10,8 @@ mod logging;
 #[macro_use]
 mod logging_noop;
 
+mod metrics;
+
 pub mod naive_minimax;
 pub mod random;
 
