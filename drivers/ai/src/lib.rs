@@ -8,6 +8,7 @@ pub mod random;
 pub mod expectiminimax_0_naive;
 pub mod expectiminimax_1_simplify;
 pub mod expectiminimax_2_ab_pruning;
+pub mod expectiminimax_3_negamax;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Action {
@@ -63,6 +64,7 @@ mod tests {
     #[test_case(init!(expectiminimax_0_naive, 3))]
     #[test_case(init!(expectiminimax_1_simplify, 3))]
     #[test_case(init!(expectiminimax_2_ab_pruning, 3))]
+    #[test_case(init!(expectiminimax_3_negamax, 3))]
     fn sanity_check_1_one_move_left_need_flip_to_win(init: Initializer) {
         let left = Card::physical(0, 0, 0, Arrows::LEFT);
 
@@ -123,6 +125,7 @@ mod tests {
     #[test_case(init!(expectiminimax_0_naive, 3))]
     #[test_case(init!(expectiminimax_1_simplify, 3))]
     #[test_case(init!(expectiminimax_2_ab_pruning, 3))]
+    #[test_case(init!(expectiminimax_3_negamax, 3))]
     fn sanity_check_2_one_move_left_need_combo_to_win(init: Initializer) {
         let def = Card::physical(0, 0, 0, Arrows::LEFT | Arrows::RIGHT);
         let att = Card::physical(0xF, 0, 0, Arrows::LEFT);
@@ -185,6 +188,7 @@ mod tests {
     #[test_case(init!(expectiminimax_0_naive, 3))]
     #[test_case(init!(expectiminimax_1_simplify, 3))]
     #[test_case(init!(expectiminimax_2_ab_pruning, 3))]
+    #[test_case(init!(expectiminimax_3_negamax, 3))]
     fn sanity_check_3_one_move_left_pick_specific_battle_first(init: Initializer) {
         let hand_blue = [
             CARD,
@@ -269,6 +273,7 @@ mod tests {
     #[test_case(init!(expectiminimax_0_naive, 3))]
     #[test_case(init!(expectiminimax_1_simplify, 3))]
     #[test_case(init!(expectiminimax_2_ab_pruning, 3))]
+    #[test_case(init!(expectiminimax_3_negamax, 3))]
     fn sanity_check_4_two_moves_left(init: Initializer) {
         let hand_blue = [
             CARD,
@@ -369,6 +374,7 @@ mod tests {
     #[test_case(init!(expectiminimax_0_naive, 3))]
     #[test_case(init!(expectiminimax_1_simplify, 3))]
     #[test_case(init!(expectiminimax_2_ab_pruning, 3))]
+    #[test_case(init!(expectiminimax_3_negamax, 3))]
     fn sanity_check_5_should_pick_obvious_great_move(init: Initializer) {
         let mut driver = core::Driver::reference().seed(4763088336469180526).build();
         let setup = driver.random_setup(core::BattleSystem::Deterministic);
@@ -394,6 +400,7 @@ mod tests {
     #[test_case(init!(expectiminimax_0_naive, 3))]
     #[test_case(init!(expectiminimax_1_simplify, 3))]
     #[test_case(init!(expectiminimax_2_ab_pruning, 3))]
+    #[test_case(init!(expectiminimax_3_negamax, 3))]
     fn sanity_check_6_should_not_pick_obviously_bad_move(init: Initializer) {
         let mut driver = core::Driver::reference().seed(4015497306351127204).build();
         let setup = driver.random_setup(core::BattleSystem::Deterministic);
@@ -418,6 +425,7 @@ mod tests {
     #[test_case(init!(expectiminimax_0_naive, 3))]
     #[test_case(init!(expectiminimax_1_simplify, 3))]
     #[test_case(init!(expectiminimax_2_ab_pruning, 3))]
+    #[test_case(init!(expectiminimax_3_negamax, 3))]
     fn sanity_check_7_pick_more_likely_battle_when_using_non_deterministic_battle_systems(
         init: Initializer,
     ) {

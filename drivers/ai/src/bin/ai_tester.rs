@@ -54,6 +54,7 @@ fn main() -> anyhow::Result<()> {
     register!(all_ais, expectiminimax_0_naive, 3);
     register!(all_ais, expectiminimax_1_simplify, 3);
     register!(all_ais, expectiminimax_2_ab_pruning, 3);
+    register!(all_ais, expectiminimax_3_negamax, 3);
 
     let mut args = Args::parse();
     if args.list {
