@@ -21,14 +21,48 @@ struct Args {
         long,
         short,
         name = "SECONDS",
-        default_value = "10"
+        default_value_t = 10
     )]
     time: u64,
+
+    #[arg(
+        conflicts_with = "list",
+        long,
+        short,
+        value_enum,
+        default_value_t = BattleSystemArg::Original
+    )]
+    battle_system: BattleSystemArg,
 
     /// Which AIs to test, specify nothing to test all available AIs
     /// At least 2 AIs must by specified
     #[arg(conflicts_with = "list")]
     ais: Vec<String>,
+}
+
+#[derive(Debug, Clone, clap::ValueEnum)]
+enum BattleSystemArg {
+    Deterministic,
+    Original,
+    Dice4,
+    Dice6,
+    Dice8,
+    Dice10,
+    Dice12,
+}
+
+impl From<BattleSystemArg> for core::BattleSystem {
+    fn from(battle_system: BattleSystemArg) -> Self {
+        match battle_system {
+            BattleSystemArg::Deterministic => core::BattleSystem::Deterministic,
+            BattleSystemArg::Original => core::BattleSystem::Original,
+            BattleSystemArg::Dice4 => core::BattleSystem::Dice { sides: 4 },
+            BattleSystemArg::Dice6 => core::BattleSystem::Dice { sides: 6 },
+            BattleSystemArg::Dice8 => core::BattleSystem::Dice { sides: 8 },
+            BattleSystemArg::Dice10 => core::BattleSystem::Dice { sides: 10 },
+            BattleSystemArg::Dice12 => core::BattleSystem::Dice { sides: 12 },
+        }
+    }
 }
 
 type AiName = &'static str;
@@ -82,7 +116,7 @@ fn main() -> anyhow::Result<()> {
                 .map(|name| all_ais.remove_entry(name.as_str()).unwrap())
                 .collect()
         };
-        test_ais(ais, args.seed, args.time);
+        test_ais(ais, args.battle_system.into(), args.seed, args.time);
     }
 
     Ok(())
@@ -95,7 +129,12 @@ fn list_ais(ais: impl Iterator<Item = AiName>) {
     }
 }
 
-fn test_ais(ais: Vec<(AiName, Initializer)>, global_seed: Option<core::Seed>, time_per_pair: u64) {
+fn test_ais(
+    ais: Vec<(AiName, Initializer)>,
+    battle_system: core::BattleSystem,
+    global_seed: Option<core::Seed>,
+    time_per_pair: u64,
+) {
     use crossterm::{
         cursor::MoveToPreviousLine,
         execute,
@@ -116,6 +155,7 @@ fn test_ais(ais: Vec<(AiName, Initializer)>, global_seed: Option<core::Seed>, ti
     print!(" | time-per-pair: {time_per_pair}s");
     print!(" | total-expected-time: {total_expected_time}s");
     print!(" | global-seed: {global_seed}");
+    print!(" | battle-system: {battle_system:?}");
     print!("\n\n\n");
 
     let mut stdout = std::io::stdout().lock();
@@ -152,14 +192,14 @@ fn test_ais(ais: Vec<(AiName, Initializer)>, global_seed: Option<core::Seed>, ti
 
                 game_count += 1;
                 print_progress(game_count, elapsed);
-                let res = run_battle(game_seed, ai1, ai2);
+                let res = run_battle(battle_system, game_seed, ai1, ai2);
                 results.record(ai1_name, ai2_name, res);
 
                 elapsed = now.elapsed().as_secs();
 
                 game_count += 1;
                 print_progress(game_count, elapsed);
-                let res = run_battle(game_seed, ai2, ai1);
+                let res = run_battle(battle_system, game_seed, ai2, ai1);
                 results.record(ai2_name, ai1_name, res);
 
                 elapsed = now.elapsed().as_secs();
@@ -350,9 +390,14 @@ impl FinalizedResults {
     }
 }
 
-fn run_battle(game_seed: core::Seed, blue_ai: &Initializer, red_ai: &Initializer) -> BattleResult {
+fn run_battle(
+    battle_system: core::BattleSystem,
+    game_seed: core::Seed,
+    blue_ai: &Initializer,
+    red_ai: &Initializer,
+) -> BattleResult {
     let mut driver = core::Driver::reference().seed(game_seed).build();
-    let setup = driver.random_setup(core::BattleSystem::Deterministic);
+    let setup = driver.random_setup(battle_system);
 
     let mut ais = [
         blue_ai(core::Player::Blue, &setup),
