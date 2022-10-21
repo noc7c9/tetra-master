@@ -7,6 +7,7 @@ edition = "2021"
 tetra-master-core = { path = "../core" }
 
 anyhow = { workspace = true }
+arrayvec = { workspace = true }
 clap = { workspace = true }
 rand = { workspace = true }
 rand_pcg = { workspace = true }
