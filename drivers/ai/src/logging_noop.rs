@@ -7,23 +7,23 @@ macro_rules! noop {
 
 #[macro_export]
 macro_rules! log {
-    () => {};
-    ($($tt:tt)*) => { noop!($($tt)*) };
+    () => {{}};
+    ($($tt:tt)*) => {{ noop!($($tt)*) }};
 }
 
 #[macro_export]
 macro_rules! indent {
-    () => {};
-    ($($tt:tt)*) => { noop!($($tt)*) };
+    () => {{}};
+    ($($tt:tt)*) => {{ noop!($($tt)*) }};
 }
 
 #[macro_export]
 macro_rules! dedent {
-    () => {};
-    ($($tt:tt)*) => { noop!($($tt)*) };
+    () => {{}};
+    ($($tt:tt)*) => {{ noop!($($tt)*) }};
 }
 
 #[macro_export]
 macro_rules! reset {
-    () => {};
+    () => {{}};
 }

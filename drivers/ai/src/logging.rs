@@ -8,9 +8,9 @@ pub static INDENT: AtomicUsize = AtomicUsize::new(0);
 
 #[macro_export]
 macro_rules! log {
-    () => {
+    () => {{
         println!();
-    };
+    }};
     ($($tt:tt)*) => {{
         use std::sync::atomic::Ordering::SeqCst;
         use $crate::logging::{INDENT, INDENT_WIDTH};
