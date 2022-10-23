@@ -25,6 +25,9 @@ struct Args {
     )]
     time: u64,
 
+    #[arg(conflicts_with = "list", long, short)]
+    continuous: bool,
+
     #[arg(
         conflicts_with = "list",
         long,
@@ -70,14 +73,26 @@ type Initializer = Box<dyn Fn(core::Player, &core::Setup) -> Box<dyn ai::Ai>>;
 
 fn main() -> anyhow::Result<()> {
     macro_rules! register {
-        ($all_ais:expr, $name:ident) => {{
-            register!($all_ais, $name,)
-        }};
-        ($all_ais:expr, $name:ident, $($arg:expr),* $(,)?) => {{
+        (@$all_ais:expr, $name:expr, $mod:ident, $($arg:expr),* $(,)?) => {{
             let initializer: Initializer
-                = Box::new(|player, cmd| Box::new(ai::$name::init($($arg,)* player, cmd)));
-            let name = concat!(stringify!($name), $('_', $arg,)*);
-            $all_ais.insert(name, initializer);
+                = Box::new(|player, cmd| Box::new(ai::$mod::init($($arg,)* player, cmd)));
+            $all_ais.insert($name, initializer);
+        }};
+
+        ($all_ais:expr, $mod:ident) => {{
+            let name = stringify!($mod);
+            register!(@$all_ais, name, $mod,);
+        }};
+        ($all_ais:expr, $mod:ident as $name:expr) => {{
+            register!(@$all_ais, $name, $mod,);
+        }};
+
+        ($all_ais:expr, $mod:ident, $($arg:expr),* $(,)?) => {{
+            let name = concat!(stringify!($mod), $('_', $arg,)*);
+            register!(@$all_ais, name, $mod, $($arg,)*);
+        }};
+        ($all_ais:expr, $mod:ident as $name:expr, $($arg:expr),* $(,)?) => {{
+            register!(@$all_ais, $name, $mod, $($arg,)*);
         }};
     }
     let mut all_ais: HashMap<AiName, Initializer> = HashMap::new();
@@ -85,13 +100,15 @@ fn main() -> anyhow::Result<()> {
     // register!(all_ais, naive_minimax, 3);
     // register!(all_ais, naive_minimax, 4);
 
-    register!(all_ais, expectiminimax_0_naive, 3);
-    register!(all_ais, expectiminimax_1_simplify, 3);
-    register!(all_ais, expectiminimax_2_ab_pruning, 3);
-    register!(all_ais, expectiminimax_3_negamax, 3);
-    register!(all_ais, expectiminimax_4_prob_cutoff, 3, 0.0);
-    register!(all_ais, expectiminimax_5_no_alloc_get_resolutions, 3, 0.0);
-    register!(all_ais, expectiminimax_6_reduce_cloned_data, 3, 0.0);
+    register!(all_ais, expectiminimax_0_naive as "v0", 3);
+    register!(all_ais, expectiminimax_1_simplify as "v1", 3);
+    register!(all_ais, expectiminimax_2_ab_pruning as "v2", 3);
+    register!(all_ais, expectiminimax_3_negamax as "v3", 3);
+    register!(all_ais, expectiminimax_4_prob_cutoff as "v4", 3, 0.0);
+    register!(all_ais, expectiminimax_5_no_alloc_get_resolutions as "v5", 3, 0.0);
+    register!(all_ais, expectiminimax_6_reduce_cloned_data as "v6", 3, 0.0);
+
+    assert!(all_ais.len() >= 2);
 
     let mut args = Args::parse();
     if args.list {
@@ -119,7 +136,14 @@ fn main() -> anyhow::Result<()> {
                 .map(|name| all_ais.remove_entry(name.as_str()).unwrap())
                 .collect()
         };
-        test_ais(ais, args.battle_system.into(), args.seed, args.time);
+
+        test_ais(
+            ais,
+            args.battle_system.into(),
+            args.seed,
+            args.time,
+            args.continuous,
+        );
     }
 
     Ok(())
@@ -137,9 +161,10 @@ fn test_ais(
     battle_system: core::BattleSystem,
     global_seed: Option<core::Seed>,
     time_per_pair: u64,
+    continuous_mode: bool,
 ) {
     use crossterm::{
-        cursor::MoveToPreviousLine,
+        cursor::{MoveToPreviousLine, RestorePosition, SavePosition},
         execute,
         style::Print,
         terminal::{Clear, ClearType},
@@ -151,32 +176,37 @@ fn test_ais(
     let mut results = Results::new();
 
     let num_pairings = num_pairings(ais.len());
-    let mut total_expected_time = time_per_pair * num_pairings as u64;
 
+    if continuous_mode {
+        print!("Continuously ");
+    }
     print!("Testing {} AIs", ais.len());
     print!(" | total-pairings: {num_pairings}");
     print!(" | time-per-pair: {time_per_pair}s");
-    print!(" | total-expected-time: {total_expected_time}s");
+    if !continuous_mode {
+        let total_expected_time = time_per_pair * num_pairings as u64;
+        print!(" | total-expected-time: {total_expected_time}s");
+    }
     print!(" | global-seed: {global_seed}");
     print!(" | battle-system: {battle_system:?}");
     print!("\n\n\n");
 
     let mut stdout = std::io::stdout().lock();
 
-    let mut pairing_count = 0;
-    for (i, (ai1_name, ai1)) in ais.iter().enumerate() {
-        for (ai2_name, ai2) in &ais[i + 1..] {
-            pairing_count += 1;
+    loop {
+        let mut total_expected_time = time_per_pair * num_pairings as u64;
+        let mut pairing_count = 0;
+        for (i, (ai1_name, ai1)) in ais.iter().enumerate() {
+            for (ai2_name, ai2) in &ais[i + 1..] {
+                pairing_count += 1;
 
-            let now = std::time::Instant::now();
-            let mut elapsed = now.elapsed().as_secs();
+                let now = std::time::Instant::now();
 
-            let mut game_count = 0;
+                let mut elapsed = now.elapsed().as_secs();
+                let mut game_count = 0;
+                let mut game_seed = 0;
 
-            while elapsed < time_per_pair {
-                let game_seed = global_rng.gen();
-
-                let mut print_progress = |game_count, elapsed| {
+                let mut print_progress = |game_count, game_seed, elapsed| {
                     let time_left = time_per_pair.saturating_sub(elapsed);
                     let total_time_left = total_expected_time.saturating_sub(elapsed);
                     execute!(
@@ -193,27 +223,45 @@ fn test_ais(
                     .unwrap()
                 };
 
-                game_count += 1;
-                print_progress(game_count, elapsed);
-                let res = run_battle(battle_system, game_seed, ai1, ai2);
-                results.record(ai1_name, ai2_name, res);
+                while elapsed < time_per_pair {
+                    game_seed = global_rng.gen();
 
-                elapsed = now.elapsed().as_secs();
+                    game_count += 1;
+                    print_progress(game_count, game_seed, elapsed);
+                    let res = run_battle(battle_system, game_seed, ai1, ai2);
+                    results.record(ai1_name, ai2_name, res);
 
-                game_count += 1;
-                print_progress(game_count, elapsed);
-                let res = run_battle(battle_system, game_seed, ai2, ai1);
-                results.record(ai2_name, ai1_name, res);
+                    elapsed = now.elapsed().as_secs();
+                    pause(continuous_mode);
 
-                elapsed = now.elapsed().as_secs();
+                    game_count += 1;
+                    print_progress(game_count, game_seed, elapsed);
+                    let res = run_battle(battle_system, game_seed, ai2, ai1);
+                    results.record(ai2_name, ai1_name, res);
+
+                    elapsed = now.elapsed().as_secs();
+                    pause(continuous_mode);
+                }
+
+                print_progress(game_count, game_seed, elapsed);
+
+                total_expected_time -= time_per_pair;
             }
+        }
 
-            total_expected_time -= time_per_pair;
+        if continuous_mode {
+            execute!(stdout, SavePosition).unwrap();
+            println!();
+            render_result(results.clone().finalize());
+            execute!(stdout, RestorePosition).unwrap();
+
+            pause(continuous_mode);
+        } else {
+            break;
         }
     }
 
     println!();
-
     render_result(results.finalize());
 }
 
@@ -244,7 +292,7 @@ struct BattleResults {
 
 type ResultKey = (AiName, AiName);
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 struct Results {
     battle_results: HashMap<ResultKey, BattleResults>,
     move_times: HashMap<AiName, Vec<Vec<u128>>>,
@@ -671,5 +719,12 @@ impl PartialOrd for TotalOrd {
 impl Ord for TotalOrd {
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
         self.0.total_cmp(&other.0)
+    }
+}
+
+// to not cause 100% cpu usage
+fn pause(on: bool) {
+    if on {
+        std::thread::sleep(std::time::Duration::from_millis(100));
     }
 }
