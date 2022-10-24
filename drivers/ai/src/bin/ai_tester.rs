@@ -640,11 +640,11 @@ fn render_result(results: FinalizedResults) {
 
     println!();
 
-    // render tables of each AIs results in order of strength
+    // render w/l/d table of each AIs results in order of win percentage
     let mut sorted: Vec<_> = results.ai_results.into_iter().collect();
     sorted.sort_by_key(|(_, res)| TotalOrd(-res.win_percentage()));
 
-    // total wins, losses, draws, games
+    // total wins, losses, draws
     let mut table = Table::new(results.ai_names.len() + 1, 5);
     table.set(0, 1, "Wins".into());
     table.set(0, 2, "Losses".into());
