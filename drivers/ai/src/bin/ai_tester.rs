@@ -1,3 +1,4 @@
+use anyhow::Context;
 use clap::Parser;
 use rand::{Rng, SeedableRng};
 use std::collections::HashMap;
@@ -38,9 +39,16 @@ struct Args {
     battle_system: BattleSystemArg,
 
     /// Which AIs to test, specify nothing to test all available AIs
+    ///
     /// At least 2 AIs must by specified
-    #[arg(conflicts_with = "list")]
+    #[arg(conflicts_with_all = ["list", "pairs"], long, name = "AI", num_args = 2..)]
     ais: Vec<String>,
+
+    /// Which AI pairings to test
+    ///
+    /// Each pairing be two AIs separated by a colon (:)
+    #[arg(conflicts_with_all = ["list", "pairs"], long, name = "AI:AI", num_args = 1..)]
+    pairs: Vec<String>,
 }
 
 #[derive(Debug, Clone, clap::ValueEnum)]
@@ -113,40 +121,75 @@ fn main() -> anyhow::Result<()> {
     let mut args = Args::parse();
     if args.list {
         list_ais(all_ais.keys().copied());
-    } else {
-        let ais = if args.ais.is_empty() {
-            all_ais.into_iter().collect()
-        } else {
-            // remove duplicates
-            args.ais.sort_unstable();
-            args.ais.dedup();
-
-            if args.ais.len() < 2 {
-                anyhow::bail!("At least 2 AIs must be specified");
-            }
-
-            for name in &args.ais {
-                if !all_ais.contains_key(name.as_str()) {
-                    anyhow::bail!("The name {name} is not a recognized AI");
-                }
-            }
-
-            args.ais
-                .into_iter()
-                .map(|name| all_ais.remove_entry(name.as_str()).unwrap())
-                .collect()
-        };
-
-        test_ais(
-            ais,
-            args.battle_system.into(),
-            args.seed,
-            args.time,
-            args.continuous,
-        );
+        return Ok(());
     }
 
+    let pairs = if !args.ais.is_empty() {
+        // remove duplicates
+        args.ais.sort_unstable();
+        args.ais.dedup();
+
+        if args.ais.len() < 2 {
+            anyhow::bail!("At least 2 AIs must be specified");
+        }
+
+        for name in &args.ais {
+            if !all_ais.contains_key(name.as_str()) {
+                anyhow::bail!("The name {name} is not a recognized AI");
+            }
+        }
+
+        vec_to_pairs(&all_ais, args.ais)
+    } else if !args.pairs.is_empty() {
+        args.pairs
+            .into_iter()
+            .map(|pair| -> anyhow::Result<_> {
+                let mut iter = pair.split(':');
+                let mut next = || {
+                    let name = iter
+                        .next()
+                        .with_context(|| format!("Invalid pair {pair:?}"))?;
+                    name_to_key(&all_ais, name)
+                };
+                Ok((next()?, next()?))
+            })
+            .collect()
+    } else {
+        vec_to_pairs(&all_ais, all_ais.keys().map(|s| s.to_string()).collect())
+    };
+
+    test_ais(
+        all_ais,
+        pairs?,
+        args.battle_system.into(),
+        args.seed,
+        args.time,
+        args.continuous,
+    );
+
     Ok(())
+}
+
+fn name_to_key(all_ais: &HashMap<AiName, Initializer>, s: &str) -> anyhow::Result<AiName> {
+    all_ais
+        .get_key_value(s)
+        .map(|(k, _)| *k)
+        .with_context(|| format!("The name {s} is not a recognized AI"))
+}
+
+fn vec_to_pairs(
+    all_ais: &HashMap<AiName, Initializer>,
+    ais: Vec<String>,
+) -> anyhow::Result<Vec<(AiName, AiName)>> {
+    let mut pairs = Vec::with_capacity(num_pairings(ais.len()));
+    for (i, ai1) in ais.iter().enumerate() {
+        let ai1 = name_to_key(all_ais, ai1)?;
+        for ai2 in &ais[i + 1..] {
+            let ai2 = name_to_key(all_ais, ai2)?;
+            pairs.push((ai1, ai2));
+        }
+    }
+    Ok(pairs)
 }
 
 fn list_ais(ais: impl Iterator<Item = AiName>) {
@@ -157,7 +200,8 @@ fn list_ais(ais: impl Iterator<Item = AiName>) {
 }
 
 fn test_ais(
-    ais: Vec<(AiName, Initializer)>,
+    all_ais: HashMap<AiName, Initializer>,
+    pairs: Vec<(AiName, AiName)>,
     battle_system: core::BattleSystem,
     global_seed: Option<core::Seed>,
     time_per_pair: u64,
@@ -171,15 +215,14 @@ fn test_ais(
     };
 
     let global_seed = global_seed.unwrap_or_else(|| rand::thread_rng().gen());
+    let num_pairings = pairs.len();
 
     let mut results = Results::new();
-
-    let num_pairings = num_pairings(ais.len());
 
     if continuous_mode {
         print!("Continuously ");
     }
-    print!("Testing {} AIs", ais.len());
+    print!("Testing");
     print!(" | total-pairings: {num_pairings}");
     print!(" | time-per-pair: {time_per_pair}s");
     if !continuous_mode {
@@ -194,59 +237,60 @@ fn test_ais(
 
     loop {
         let mut total_expected_time = time_per_pair * num_pairings as u64;
-        let mut pairing_count = 0;
-        for (i, (ai1_name, ai1)) in ais.iter().enumerate() {
-            for (ai2_name, ai2) in &ais[i + 1..] {
-                pairing_count += 1;
+        for (pairing_count, (ai1_name, ai2_name)) in pairs.iter().enumerate() {
+            let now = std::time::Instant::now();
 
-                let now = std::time::Instant::now();
+            let mut elapsed = now.elapsed().as_secs();
+            let mut game_count = 0;
+            let mut game_seed = 0;
 
-                let mut elapsed = now.elapsed().as_secs();
-                let mut game_count = 0;
-                let mut game_seed = 0;
+            let mut print_progress = |game_count, game_seed, elapsed| {
+                let time_left = time_per_pair.saturating_sub(elapsed);
+                let total_time_left = total_expected_time.saturating_sub(elapsed);
+                execute!(
+                    stdout,
+                    MoveToPreviousLine(0),
+                    Clear(ClearType::CurrentLine),
+                    Print(format!("{ai1_name} v {ai2_name}")),
+                    Print(format!(
+                        " | pairing: {} of {num_pairings}",
+                        pairing_count + 1
+                    )),
+                    Print(format!(" | game {game_count}")),
+                    Print(format!(" | time-left: {time_left}s ({total_time_left}s)")),
+                    Print(format!(" | seed: {game_seed}")),
+                    Print("\n"),
+                )
+                .unwrap()
+            };
 
-                let mut print_progress = |game_count, game_seed, elapsed| {
-                    let time_left = time_per_pair.saturating_sub(elapsed);
-                    let total_time_left = total_expected_time.saturating_sub(elapsed);
-                    execute!(
-                        stdout,
-                        MoveToPreviousLine(0),
-                        Clear(ClearType::CurrentLine),
-                        Print(format!("{ai1_name} v {ai2_name}")),
-                        Print(format!(" | pairing: {pairing_count} of {num_pairings}")),
-                        Print(format!(" | game {game_count}")),
-                        Print(format!(" | time-left: {time_left}s ({total_time_left}s)")),
-                        Print(format!(" | seed: {game_seed}")),
-                        Print("\n"),
-                    )
-                    .unwrap()
-                };
+            let ai1 = &all_ais[ai1_name];
+            let ai2 = &all_ais[ai2_name];
 
-                let mut global_rng = rand_pcg::Pcg32::seed_from_u64(global_seed);
-                while elapsed < time_per_pair {
-                    game_seed = global_rng.gen();
+            let mut global_rng = rand_pcg::Pcg32::seed_from_u64(global_seed);
+            while elapsed < time_per_pair {
+                game_seed = global_rng.gen();
 
-                    game_count += 1;
-                    print_progress(game_count, game_seed, elapsed);
-                    let res = run_battle(battle_system, game_seed, ai1, ai2);
-                    results.record(ai1_name, ai2_name, res);
-
-                    elapsed = now.elapsed().as_secs();
-                    pause(continuous_mode);
-
-                    game_count += 1;
-                    print_progress(game_count, game_seed, elapsed);
-                    let res = run_battle(battle_system, game_seed, ai2, ai1);
-                    results.record(ai2_name, ai1_name, res);
-
-                    elapsed = now.elapsed().as_secs();
-                    pause(continuous_mode);
-                }
-
+                game_count += 1;
                 print_progress(game_count, game_seed, elapsed);
+                let res = run_battle(battle_system, game_seed, ai1, ai2);
+                results.record(ai1_name, ai2_name, res);
 
-                total_expected_time -= time_per_pair;
+                elapsed = now.elapsed().as_secs();
+                pause(continuous_mode);
+
+                game_count += 1;
+                print_progress(game_count, game_seed, elapsed);
+                let res = run_battle(battle_system, game_seed, ai2, ai1);
+                results.record(ai2_name, ai1_name, res);
+
+                elapsed = now.elapsed().as_secs();
+                pause(continuous_mode);
             }
+
+            print_progress(game_count, game_seed, elapsed);
+
+            total_expected_time -= time_per_pair;
         }
 
         if continuous_mode {
@@ -427,17 +471,17 @@ struct FinalizedResults {
 }
 
 impl FinalizedResults {
-    fn get_pair(&self, ai1: AiName, ai2: AiName) -> BattleResults {
+    fn get_pair(&self, ai1: AiName, ai2: AiName) -> Option<BattleResults> {
         if ai2 < ai1 {
-            let r = self.get_pair(ai2, ai1);
-            return BattleResults {
+            self.get_pair(ai2, ai1).map(|r| BattleResults {
                 wins: r.losses,
                 losses: r.wins,
                 draws: r.draws,
-            };
+            })
+        } else {
+            let key = (ai1, ai2);
+            self.battle_results.get(&key).copied()
         }
-        let key = (ai1, ai2);
-        self.battle_results.get(&key).copied().unwrap_or_default()
     }
 }
 
@@ -627,11 +671,10 @@ fn render_result(results: FinalizedResults) {
     }
     for (i, ai1) in results.ai_names.iter().enumerate() {
         for (j, ai2) in results.ai_names.iter().enumerate() {
-            let value = if ai1 == ai2 {
-                "───".into()
-            } else {
-                let res = results.get_pair(ai1, ai2);
+            let value = if let Some(res) = results.get_pair(ai1, ai2) {
                 format!("{} / {} / {}", res.wins, res.losses, res.draws)
+            } else {
+                "───".into()
             };
             table.set_center(1 + i, 1 + j, value);
         }
