@@ -171,7 +171,6 @@ fn test_ais(
     };
 
     let global_seed = global_seed.unwrap_or_else(|| rand::thread_rng().gen());
-    let mut global_rng = rand_pcg::Pcg32::seed_from_u64(global_seed);
 
     let mut results = Results::new();
 
@@ -223,6 +222,7 @@ fn test_ais(
                     .unwrap()
                 };
 
+                let mut global_rng = rand_pcg::Pcg32::seed_from_u64(global_seed);
                 while elapsed < time_per_pair {
                     game_seed = global_rng.gen();
 
