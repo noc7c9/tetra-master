@@ -734,6 +734,6 @@ impl_total_ord!(f64);
 // to not cause 100% cpu usage
 fn pause(on: bool) {
     if on {
-        std::thread::sleep(std::time::Duration::from_millis(100));
+        std::thread::sleep(std::time::Duration::from_millis(25));
     }
 }
