@@ -664,6 +664,9 @@ fn render_result(results: FinalizedResults) {
 
     println!();
 
+    // render move times table of each AIs results in order of move time
+    sorted.sort_by_cached_key(|(_, res)| TotalOrd(res.get_move_times().0));
+
     // move times
     let mut table = Table::new(results.ai_names.len() + 1, 4);
     table.set(0, 1, "Avg. Move Time".into());
@@ -703,24 +706,30 @@ fn format_time(nanos: u128) -> String {
 }
 
 #[derive(Debug)]
-struct TotalOrd(f32);
+struct TotalOrd<T>(T);
 
-impl PartialEq for TotalOrd {
-    fn eq(&self, other: &Self) -> bool {
-        self.0.total_cmp(&other.0).is_eq()
-    }
+macro_rules! impl_total_ord {
+    ($ty:ty) => {
+        impl PartialEq for TotalOrd<$ty> {
+            fn eq(&self, other: &Self) -> bool {
+                self.0.total_cmp(&other.0).is_eq()
+            }
+        }
+        impl Eq for TotalOrd<$ty> {}
+        impl PartialOrd for TotalOrd<$ty> {
+            fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+                Some(self.0.total_cmp(&other.0))
+            }
+        }
+        impl Ord for TotalOrd<$ty> {
+            fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+                self.0.total_cmp(&other.0)
+            }
+        }
+    };
 }
-impl Eq for TotalOrd {}
-impl PartialOrd for TotalOrd {
-    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
-        Some(self.0.total_cmp(&other.0))
-    }
-}
-impl Ord for TotalOrd {
-    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
-        self.0.total_cmp(&other.0)
-    }
-}
+impl_total_ord!(f32);
+impl_total_ord!(f64);
 
 // to not cause 100% cpu usage
 fn pause(on: bool) {
