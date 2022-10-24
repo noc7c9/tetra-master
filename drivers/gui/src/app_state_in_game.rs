@@ -102,7 +102,7 @@ struct ActiveCard(Option<Entity>);
 #[derive(Debug)]
 struct HoveredCell(Option<usize>);
 
-struct AI(ai::naive_minimax::Ai);
+struct AI(ai::expectiminimax_6_reduce_cloned_data::Ai);
 
 #[derive(Component)]
 struct Cleanup;
@@ -271,8 +271,9 @@ fn on_enter(
         .insert(Cleanup);
 
     // Setup the AI
-    let ai = ai::naive_minimax::init(
-        3,
+    let ai = ai::expectiminimax_6_reduce_cloned_data::init(
+        4,
+        0.0,
         core::Player::Red,
         &core::Setup {
             blocked_cells: blocked_cells.0,
