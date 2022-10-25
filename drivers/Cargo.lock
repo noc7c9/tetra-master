@@ -3024,7 +3024,6 @@ dependencies = [
  "crossterm",
  "rand",
  "rand_pcg",
- "test-case",
  "tetra-master-core",
 ]
 
