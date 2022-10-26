@@ -41,14 +41,18 @@ struct Args {
     /// Which AIs to test, specify nothing to test all available AIs
     ///
     /// At least 2 AIs must by specified
-    #[arg(conflicts_with_all = ["list", "pairs"], long, name = "AI", num_args = 2..)]
+    #[arg(long, name = "AI")]
     ais: Vec<String>,
 
     /// Which AI pairings to test
     ///
     /// Each pairing be two AIs separated by a colon (:)
-    #[arg(conflicts_with_all = ["list", "pairs"], long, name = "AI:AI", num_args = 1..)]
+    #[arg(long, name = "AI:AI")]
     pairs: Vec<String>,
+
+    /// Run benchmark for an AI (intended to be used with hyperfine)
+    #[arg(long, name = "AI_NAME")]
+    bench: Option<String>,
 }
 
 #[derive(Debug, Clone, clap::ValueEnum)]
@@ -119,8 +123,17 @@ fn main() -> anyhow::Result<()> {
     assert!(all_ais.len() >= 2);
 
     let mut args = Args::parse();
+
     if args.list {
         list_ais(all_ais.keys().copied());
+        return Ok(());
+    }
+
+    if let Some(name) = args.bench {
+        let ai = all_ais
+            .remove(name.as_str())
+            .with_context(|| format!("The name {name} is not a recognized AI"))?;
+        bench_ai(ai, args.battle_system.into());
         return Ok(());
     }
 
@@ -307,6 +320,65 @@ fn test_ais(
 
     println!();
     render_result(results.finalize());
+}
+
+fn bench_ai(ai: Initializer, battle_system: core::BattleSystem) {
+    for game_seed in BENCH_SEEDS {
+        let mut driver = core::Driver::reference().seed(game_seed).build();
+        let setup = driver.random_setup(battle_system);
+
+        let mut ais = [
+            ai(core::Player::Blue, &setup),
+            ai(core::Player::Red, &setup),
+        ];
+
+        let mut active_ai = match setup.starting_player {
+            core::Player::Blue => 0,
+            core::Player::Red => 1,
+        };
+
+        driver.send(setup).unwrap();
+
+        let mut res: Option<core::PlayOk> = None;
+        'game_loop: loop {
+            // battle to resolve
+            res = if let Some(resolve) = res.and_then(|r| r.resolve_battle) {
+                let cmd = driver.resolve_battle(resolve);
+                ais[0].apply_resolve_battle(&cmd);
+                ais[1].apply_resolve_battle(&cmd);
+                Some(driver.send(cmd).unwrap())
+            }
+            // ai to move
+            else {
+                let action = ais[active_ai].get_action();
+
+                match action {
+                    ai::Action::PlaceCard(cmd) => {
+                        ais[0].apply_place_card(cmd);
+                        ais[1].apply_place_card(cmd);
+                        Some(driver.send(cmd).unwrap())
+                    }
+                    ai::Action::PickBattle(cmd) => {
+                        ais[0].apply_pick_battle(cmd);
+                        ais[1].apply_pick_battle(cmd);
+                        Some(driver.send(cmd).unwrap())
+                    }
+                }
+            };
+
+            for event in res.as_ref().unwrap().events.iter() {
+                match *event {
+                    core::Event::NextTurn { .. } => {
+                        active_ai = 1 - active_ai;
+                    }
+                    core::Event::GameOver { .. } => {
+                        break 'game_loop;
+                    }
+                    _ => {}
+                }
+            }
+        }
+    }
 }
 
 fn num_pairings(num_ais: usize) -> usize {
@@ -780,3 +852,32 @@ fn pause(on: bool) {
         std::thread::sleep(std::time::Duration::from_millis(25));
     }
 }
+
+#[rustfmt::skip]
+const BENCH_SEEDS: [u64; 100] = [
+    11237964071758638171, 14604420560562181961, 5404026930181620362, 11239310865536683934,
+    11613753253682439726, 17461004733143158712, 5382151945609755983, 12223005711769424545,
+    10511511735657263628, 7133886241277332863, 16840239892977144497, 1868532151622808815,
+    601641249066538596, 8692785486826122202, 879005004903252020, 13257656461494135461,
+    11936225365819582394, 5910448451734108460, 13724172681360396692, 13105757887795783516,
+    12312846333252190967, 11325926712178112478, 9121080381909389253, 12952208248307444221,
+    2950514481149656766, 11481247783824138639, 5309763886348120423, 6565896643137122827,
+    12560121165133649433, 18414799777767149812, 10031606891315905473, 17829601053014167645,
+    12492648913849300189, 9018225183456626191, 2941514867464391855, 6254243520152957506,
+    8345548279794395324, 13179644561284886487, 11943260968013478948, 7467256843407848261,
+    1481847756242280773, 15416473644444798286, 3364253082404192431, 2623223668009724367,
+    8222297372093602280, 1496422028403568921, 7831929455751909229, 13271522587283544449,
+    12057208552738819333, 9216869832754932863, 18172858114629603918, 17359701683082578572,
+    4337715985592429691, 10149628465367123300, 2486711169409487238, 13297455962083299019,
+    9155624564131303794, 13522871407084675527, 7055479839596932349, 15614372519717050400,
+    17922567460118658183, 9768146720929163911, 8249175893501984582, 700987244282374101,
+    10303941539322283793, 12424049477838460996, 18277102225025442090, 17120321292810647061,
+    12905330311821525170, 6876870550176122846, 1330651174828509092, 8223650138873597855,
+    3985842547279403975, 2283385337849777190, 1665561571056760395, 10531944070906800044,
+    7866188309730040797, 3560919557122866529, 16079766490062709474, 8276561950233412025,
+    4904077127177119755, 17646836902169005754, 18214352840682655929, 10219235482359131777,
+    580462043047437188, 15441096647834815167, 16887147353660406876, 8530679894225750738,
+    13059502190126145621, 545097440320855239, 5340531399604065364, 17247353136763069816,
+    10892061904153560143, 762982626116429898, 2303735831188737966, 458127180843107965,
+    2892445317939889834, 9000537163403936934, 5783323800882792127, 16383831984430146209,
+];
