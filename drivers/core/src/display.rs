@@ -1,5 +1,5 @@
 /// Display impls for all the responses and commands
-use crate::{command, response, Battler, Card, CardType, Event, Hand, Player};
+use crate::{command, response, Arrows, Battler, Card, CardType, Event, Hand, Player};
 use std::fmt::Display;
 
 pub(crate) struct DisplayHex<T>(pub T);
@@ -50,6 +50,36 @@ impl<'a> Display for DisplayHand<'a> {
     }
 }
 
+fn write_arrows(f: &mut std::fmt::Formatter<'_>, arrows: Arrows) -> std::fmt::Result {
+    let mut iter = [
+        ("U", Arrows::UP),
+        ("UR", Arrows::UP_RIGHT),
+        ("R", Arrows::RIGHT),
+        ("DR", Arrows::DOWN_RIGHT),
+        ("D", Arrows::DOWN),
+        ("DL", Arrows::DOWN_LEFT),
+        ("L", Arrows::LEFT),
+        ("UL", Arrows::UP_LEFT),
+    ]
+    .into_iter()
+    .filter(|(_, n)| arrows.has_any(*n));
+    if let Some((s, _)) = iter.next() {
+        write!(f, "{s}")?;
+    }
+    for (s, _) in iter {
+        write!(f, "|{s}")?;
+    }
+    Ok(())
+}
+
+impl Display for Arrows {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "Arrows(")?;
+        write_arrows(f, *self)?;
+        write!(f, ")")
+    }
+}
+
 impl Display for Card {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let att = self.attack;
@@ -61,7 +91,8 @@ impl Display for Card {
             CardType::Exploit => 'X',
             CardType::Assault => 'A',
         };
-        write!(f, "{att:X}{ctype}{phy:X}{mag:X}_{:X}", self.arrows.0)
+        write!(f, "{att:X}{ctype}{phy:X}{mag:X}_")?;
+        write_arrows(f, self.arrows)
     }
 }
 
