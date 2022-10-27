@@ -1,5 +1,5 @@
-use crate::battle_system_probabilities::lookup;
 use crate::metrics::Metrics;
+use crate::win_probabilities::lookup;
 use std::num::NonZeroU8;
 use tetra_master_core as core;
 

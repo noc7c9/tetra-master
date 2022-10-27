@@ -1,6 +1,6 @@
 use tetra_master_core as core;
 
-mod battle_system_probabilities;
+mod win_probabilities;
 
 #[cfg(feature = "logging")]
 #[macro_use]
@@ -22,6 +22,7 @@ pub mod expectiminimax_3_negamax;
 pub mod expectiminimax_4_prob_cutoff;
 pub mod expectiminimax_5_no_alloc_get_resolutions;
 pub mod expectiminimax_6_reduce_cloned_data;
+pub mod expectiminimax_7_refactor;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Action {
@@ -526,4 +527,5 @@ mod tests {
     test!(expectiminimax_4_prob_cutoff, 3, 0.0);
     test!(expectiminimax_5_no_alloc_get_resolutions, 3, 0.0);
     test!(expectiminimax_6_reduce_cloned_data, 3, 0.0);
+    test!(expectiminimax_7_refactor, 3, 0.0);
 }

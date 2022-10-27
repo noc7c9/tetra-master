@@ -4,7 +4,7 @@ _list:
     @just --list
 
 gen-code: gen-probs
-    time ./generate-code.py | rustfmt > ../ai/src/battle_system_probabilities.rs
+    time ./generate-win-probabilities.py | rustfmt > ../ai/src/win_probabilities.rs
 
 gen-probs: gen-deterministic-probs gen-original-probs gen-dice-probs
 

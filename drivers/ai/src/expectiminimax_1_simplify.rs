@@ -1,4 +1,4 @@
-use crate::battle_system_probabilities::lookup;
+use crate::win_probabilities::lookup;
 use tetra_master_core as core;
 
 use super::Action;

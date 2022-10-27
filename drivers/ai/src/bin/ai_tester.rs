@@ -119,6 +119,7 @@ fn main() -> anyhow::Result<()> {
     register!(all_ais, expectiminimax_4_prob_cutoff as "v4", 3, 0.0);
     register!(all_ais, expectiminimax_5_no_alloc_get_resolutions as "v5", 3, 0.0);
     register!(all_ais, expectiminimax_6_reduce_cloned_data as "v6", 3, 0.0);
+    register!(all_ais, expectiminimax_7_refactor as "v7", 3, 0.0);
 
     assert!(all_ais.len() >= 2);
 

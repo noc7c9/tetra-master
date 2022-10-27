@@ -4,12 +4,14 @@ import json
 
 def print_lookup_table(name, table):
     print()
-    print(f"const {name}: [f32; 256] = [")
+    print(f"const {name}: [[f32; 16]; 16] = [")
     for at in range(0, 0xF + 1):
         print(f"// Attack: {at:X}")
+        print("[")
         for de in range(0, 0xF + 1):
             prob = float(table[str(at)][str(de)])
             print(f"{prob:f}, // {at:X} v {de:X}")
+        print('],')
     print("];")
 
 
@@ -24,21 +26,19 @@ prob_dice_12 = json.load(open("./data/dice-12.json"))
 print("""use tetra_master_core as core;
 
 pub(crate) fn lookup(battle_system: core::BattleSystem, att: u8, def: u8) -> f32 {
-    let key = att << 4 | def;
+    let att = att as usize;
+    let def = def as usize;
     let table = match battle_system {
         core::BattleSystem::Deterministic => PROBS_DETERMINISTIC,
         core::BattleSystem::Original => PROBS_ORIGINAL,
-        core::BattleSystem::Dice { sides } => match sides {
-            4 => PROBS_DICE_4,
-            6 => PROBS_DICE_6,
-            8 => PROBS_DICE_8,
-            10 => PROBS_DICE_10,
-            12 => PROBS_DICE_12,
-            _ => panic!("unsupported"),
-        },
-        core::BattleSystem::Test => panic!("unsupported"),
+        core::BattleSystem::Dice { sides } if sides == 4 => PROBS_DICE_4,
+        core::BattleSystem::Dice { sides } if sides == 6 => PROBS_DICE_6,
+        core::BattleSystem::Dice { sides } if sides == 8 => PROBS_DICE_8,
+        core::BattleSystem::Dice { sides } if sides == 10 => PROBS_DICE_10,
+        core::BattleSystem::Dice { sides } if sides == 12 => PROBS_DICE_12,
+        _ => panic!("unsupported"),
     };
-    table[key as usize]
+    table[att][def]
 }
 """)
 
