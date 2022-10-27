@@ -24,3 +24,6 @@ build +ARGS='':
 
 test +ARGS='':
     cargo test {{ARGS}}
+
+bench-iai:
+    cargo bench --bench iai | ./improve-iai-output.py
