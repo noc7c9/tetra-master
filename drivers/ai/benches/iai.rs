@@ -74,10 +74,12 @@ macro_rules! benchmark {
     }
 }
 
-benchmark!(expectiminimax_6_reduce_cloned_data, 4, 0.0);
+// benchmark!(expectiminimax_6_reduce_cloned_data, 4, 0.0);
 benchmark!(expectiminimax_7_refactor, 4, 0.0);
+benchmark!(expectiminimax_8_logic_optimization, 4, 0.0);
 
 iai::main!(
-    expectiminimax_6_reduce_cloned_data,
-    expectiminimax_7_refactor
+    // expectiminimax_6_reduce_cloned_data,
+    expectiminimax_7_refactor,
+    expectiminimax_8_logic_optimization,
 );
