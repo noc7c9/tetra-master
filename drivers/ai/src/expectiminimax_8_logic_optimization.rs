@@ -3,21 +3,32 @@ use crate::win_probabilities;
 use tetra_master_core as core;
 
 pub struct Ai {
+    prealloc: Vec<Vec<Action>>,
     con: ConstantState,
     var: VariableState,
 }
 
 pub fn init(max_depth: usize, prob_cutoff: f32, player: core::Player, setup: &core::Setup) -> Ai {
     Ai {
-        con: ConstantState::new(max_depth, prob_cutoff, player, setup),
+        prealloc: prealloc(max_depth, setup),
+        con: ConstantState::new(max_depth as u8, prob_cutoff, player, setup),
         var: VariableState::new(setup),
+    }
+}
+
+impl Ai {
+    pub fn reinit(&mut self, player: core::Player, setup: &core::Setup) {
+        let max_depth = self.con.max_depth;
+        let prob_cutoff = self.con.prob_cutoff;
+        self.con = ConstantState::new(max_depth, prob_cutoff, player, setup);
+        self.var = VariableState::new(setup);
     }
 }
 
 impl super::Ai for Ai {
     fn get_action(&mut self) -> crate::Action {
         let player = self.con.player;
-        match expectiminimax_search(&mut self.con, self.var.clone()) {
+        match expectiminimax_search(&mut self.prealloc, &mut self.con, self.var.clone()) {
             Action::PlaceCard { cell, card } => {
                 crate::Action::PlaceCard(core::PlaceCard { player, cell, card })
             }
@@ -68,7 +79,11 @@ struct Resolution {
 //**************************************************************************************************
 // expectiminimax logic
 
-fn expectiminimax_search(con: &mut ConstantState, var: VariableState) -> Action {
+fn expectiminimax_search(
+    prealloc: &mut [Vec<Action>],
+    con: &mut ConstantState,
+    var: VariableState,
+) -> Action {
     reset!();
     indent!(module_path!());
 
@@ -77,19 +92,34 @@ fn expectiminimax_search(con: &mut ConstantState, var: VariableState) -> Action 
     // same logic as max_value but also tracks which move has the highest value
     let (mut alpha, beta) = (f32::NEG_INFINITY, f32::INFINITY);
     let mut curr_value = f32::NEG_INFINITY;
-    let mut selected_action = None;
-    for action in var.get_actions() {
-        indent!("{action}");
-        let new_state_value = state_value(con, var.apply_action(con, action), alpha, beta);
-        dedent!("{action} | {new_state_value}");
 
-        if new_state_value > curr_value {
-            curr_value = new_state_value;
-            alpha = curr_value.max(alpha);
-            selected_action = Some(action);
-        }
+    macro_rules! select_action {
+        ($prealloc:expr, $actions_iter:expr) => {{
+            let mut selected_action = None;
+            for action in $actions_iter {
+                indent!("{action}");
+                let new_state_value =
+                    state_value($prealloc, con, var.apply_action(con, action), alpha, beta);
+                dedent!("{action} | {new_state_value}");
+
+                if new_state_value > curr_value {
+                    curr_value = new_state_value;
+                    alpha = curr_value.max(alpha);
+                    selected_action = Some(action);
+                }
+            }
+            selected_action.unwrap()
+        }};
     }
-    let selected_action = selected_action.unwrap();
+
+    let selected_action = match &var.status {
+        Status::WaitingPlaceCard => {
+            let (head, rest) = prealloc.split_at_mut(1);
+            select_action!(rest, var.get_place_card_actions(&mut head[0]))
+        }
+        Status::WaitingPickBattle { .. } => select_action!(prealloc, var.get_pick_battle_actions()),
+        _ => unreachable!(),
+    };
 
     log!("SELECTED {selected_action} | {curr_value}");
     dedent!();
@@ -100,13 +130,19 @@ fn expectiminimax_search(con: &mut ConstantState, var: VariableState) -> Action 
 }
 
 #[inline(always)]
-fn state_value(con: &mut ConstantState, var: VariableState, alpha: f32, beta: f32) -> f32 {
+fn state_value(
+    prealloc: &mut [Vec<Action>],
+    con: &mut ConstantState,
+    var: VariableState,
+    alpha: f32,
+    beta: f32,
+) -> f32 {
     con.metrics.inc_expanded_nodes();
 
     match &var.status {
-        Status::WaitingResolveBattle(_) => chance_value(con, var, alpha, beta),
-        Status::WaitingPlaceCard { .. } => -negamax_value(con, var, -beta, -alpha),
-        Status::WaitingPickBattle { .. } => negamax_value(con, var, alpha, beta),
+        Status::WaitingResolveBattle(_) => chance_value(prealloc, con, var, alpha, beta),
+        Status::WaitingPlaceCard { .. } => -negamax_value(prealloc, con, var, -beta, -alpha),
+        Status::WaitingPickBattle { .. } => negamax_value(prealloc, con, var, alpha, beta),
         Status::GameOver => {
             con.metrics.inc_terminal_leafs();
 
@@ -117,7 +153,13 @@ fn state_value(con: &mut ConstantState, var: VariableState, alpha: f32, beta: f3
     }
 }
 
-fn negamax_value(con: &mut ConstantState, var: VariableState, mut alpha: f32, beta: f32) -> f32 {
+fn negamax_value(
+    prealloc: &mut [Vec<Action>],
+    con: &mut ConstantState,
+    var: VariableState,
+    mut alpha: f32,
+    beta: f32,
+) -> f32 {
     if var.depth >= con.max_depth || var.status.is_game_over() {
         con.metrics.inc_depth_limit_leafs();
 
@@ -126,29 +168,49 @@ fn negamax_value(con: &mut ConstantState, var: VariableState, mut alpha: f32, be
         return value;
     }
 
-    indent!("NEGAMAX alpha({alpha}) beta({beta})");
-    let mut curr_value = f32::NEG_INFINITY;
-    for action in var.get_actions() {
-        indent!("{action}");
-        let new_state_value = state_value(con, var.apply_action(con, action), alpha, beta);
-        dedent!("{action} | {new_state_value}");
+    macro_rules! negamax_value {
+        ($prealloc:expr, $actions_iter:expr) => {{
+            indent!("NEGAMAX alpha({alpha}) beta({beta})");
+            let mut curr_value = f32::NEG_INFINITY;
+            for action in $actions_iter {
+                indent!("{action}");
+                let new_state_value =
+                    state_value($prealloc, con, var.apply_action(con, action), alpha, beta);
+                dedent!("{action} | {new_state_value}");
 
-        if new_state_value > curr_value {
-            curr_value = new_state_value;
-            alpha = curr_value.max(alpha);
-        }
-        if alpha >= beta {
-            con.metrics.inc_pruned_nodes(var.depth as usize);
+                if new_state_value > curr_value {
+                    curr_value = new_state_value;
+                    alpha = curr_value.max(alpha);
+                }
+                if alpha >= beta {
+                    con.metrics.inc_pruned_nodes(var.depth as usize);
 
-            log!("PRUNE | alpha({alpha}) >= beta({beta})");
-            break;
-        }
+                    log!("PRUNE | alpha({alpha}) >= beta({beta})");
+                    break;
+                }
+            }
+            dedent!("NEGAMAX | {curr_value}");
+            curr_value
+        }};
     }
-    dedent!("NEGAMAX | {curr_value}");
-    curr_value
+
+    match &var.status {
+        Status::WaitingPlaceCard => {
+            let (head, rest) = prealloc.split_at_mut(1);
+            negamax_value!(rest, var.get_place_card_actions(&mut head[0]))
+        }
+        Status::WaitingPickBattle { .. } => negamax_value!(prealloc, var.get_pick_battle_actions()),
+        _ => unreachable!(),
+    }
 }
 
-fn chance_value(con: &mut ConstantState, var: VariableState, mut alpha: f32, mut beta: f32) -> f32 {
+fn chance_value(
+    prealloc: &mut [Vec<Action>],
+    con: &mut ConstantState,
+    var: VariableState,
+    mut alpha: f32,
+    mut beta: f32,
+) -> f32 {
     let resolutions = var.get_resolutions(con);
 
     // Reset the alpha-beta values if we hit a chance node with multiple children to avoid
@@ -167,7 +229,8 @@ fn chance_value(con: &mut ConstantState, var: VariableState, mut alpha: f32, mut
     let mut sum_value = 0.0;
     for resolution in resolutions {
         indent!("{resolution:?}");
-        let raw_value = state_value(con, var.apply_resolution(con, resolution), alpha, beta);
+        let new_var = var.apply_resolution(con, resolution);
+        let raw_value = state_value(prealloc, con, new_var, alpha, beta);
         let probability = resolution.probability;
         let value = probability * raw_value;
         dedent!("{resolution:?} | probability({probability}) * value({raw_value}) = {value}");
@@ -188,6 +251,7 @@ const NUM_CARDS: usize = core::HAND_SIZE * 2;
 struct ConstantState {
     metrics: Metrics,
     max_depth: u8,
+    prob_cutoff: f32,
     player: core::Player,
     battle_system: core::BattleSystem,
     // all the cards in this game
@@ -207,8 +271,20 @@ struct VariableState {
     hand_red: Hand,
 }
 
+fn prealloc(max_depth: usize, cmd: &core::Setup) -> Vec<Vec<Action>> {
+    let hand_size = core::HAND_SIZE;
+    let board_size = core::BOARD_SIZE - cmd.blocked_cells.len();
+    let max_moves = hand_size * board_size;
+
+    let mut vecs = Vec::with_capacity(max_depth);
+    for _ in 0..max_depth {
+        vecs.push(Vec::with_capacity(max_moves));
+    }
+    vecs
+}
+
 impl ConstantState {
-    fn new(max_depth: usize, prob_cutoff: f32, player: core::Player, cmd: &core::Setup) -> Self {
+    fn new(max_depth: u8, prob_cutoff: f32, player: core::Player, cmd: &core::Setup) -> Self {
         let cards = [
             cmd.hand_blue[0],
             cmd.hand_blue[1],
@@ -239,7 +315,8 @@ impl ConstantState {
 
         Self {
             metrics: Metrics::new(module_path!()),
-            max_depth: max_depth as u8,
+            max_depth,
+            prob_cutoff,
             player,
             battle_system: cmd.battle_system,
             cards,
@@ -535,38 +612,41 @@ impl VariableState {
         count
     }
 
-    fn get_actions(&self) -> Vec<Action> {
-        let mut actions = Vec::new();
-        match self.status {
-            Status::WaitingPlaceCard => {
-                let hand = match self.turn {
-                    core::Player::Blue => self.hand_blue,
-                    core::Player::Red => self.hand_red,
-                };
+    fn get_place_card_actions<'c>(
+        &self,
+        actions: &'c mut Vec<Action>,
+    ) -> impl Iterator<Item = Action> + 'c {
+        actions.clear();
 
-                let empty_cells = self
-                    .board
-                    .iter()
-                    .enumerate()
-                    .filter(|(_, cell)| cell.is_empty())
-                    .map(|(idx, _)| idx as u8);
+        let hand = match self.turn {
+            core::Player::Blue => &self.hand_blue,
+            core::Player::Red => &self.hand_red,
+        };
 
-                for cell in empty_cells {
-                    for card in 0..5 {
-                        if hand.is_set(card) {
-                            actions.push(Action::PlaceCard { card, cell });
-                        }
-                    }
+        let empty_cells = self
+            .board
+            .iter()
+            .enumerate()
+            .filter(|(_, cell)| cell.is_empty())
+            .map(|(idx, _)| idx as u8);
+
+        for cell in empty_cells {
+            for card in 0..5 {
+                if hand.is_set(card) {
+                    actions.push(Action::PlaceCard { card, cell });
                 }
             }
-            Status::WaitingPickBattle { choices, .. } => {
-                for cell in choices {
-                    actions.push(Action::PickBattle { cell });
-                }
-            }
-            _ => unreachable!(),
         }
-        actions
+
+        actions.iter().copied()
+    }
+
+    fn get_pick_battle_actions(&self) -> impl Iterator<Item = Action> {
+        if let Status::WaitingPickBattle { choices, .. } = &self.status {
+            choices.into_iter().map(|cell| Action::PickBattle { cell })
+        } else {
+            unreachable!()
+        }
     }
 
     fn get_resolutions(&self, con: &ConstantState) -> arrayvec::ArrayVec<Resolution, 2> {
