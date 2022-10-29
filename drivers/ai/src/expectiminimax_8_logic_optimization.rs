@@ -242,6 +242,41 @@ fn chance_value(
     sum_value
 }
 
+// src: https://lemire.me/blog/2018/02/21/iterating-over-set-bits-quickly/
+// using an Iterator failed to optimize :(
+macro_rules! iter_set_bits {
+    ($bits:expr, |$item:ident| $body:expr) => {{
+        let mut bits = $bits;
+        while bits != 0 {
+            let $item = bits.trailing_zeros();
+            bits &= bits - 1; // clear least significant bit
+            $body
+        }
+    }};
+}
+
+macro_rules! iter_unset_bits {
+    ($bits:expr, |$item:ident| $body:expr) => {
+        iter_set_bits!(!$bits, |$item| $body)
+    };
+}
+
+struct IterSetBits(u16);
+
+impl Iterator for IterSetBits {
+    type Item = u8;
+
+    fn next(&mut self) -> Option<u8> {
+        if self.0 == 0 {
+            None
+        } else {
+            let item = self.0.trailing_zeros();
+            self.0 &= self.0 - 1; // clear least significant bit
+            Some(item as u8)
+        }
+    }
+}
+
 //**************************************************************************************************
 // state
 
@@ -456,12 +491,6 @@ impl Hand {
     }
 
     #[inline(always)]
-    fn is_set(&self, idx: u8) -> bool {
-        debug_assert!(idx < 5);
-        self.0 & (1 << idx) != 0
-    }
-
-    #[inline(always)]
     fn unset(&mut self, idx: u8) {
         debug_assert!(idx < 5);
         self.0 ^= 1 << idx;
@@ -477,10 +506,7 @@ impl Hand {
 enum Status {
     WaitingPlaceCard,
     WaitingResolveBattle(WaitingResolveBattle),
-    WaitingPickBattle {
-        attacker_cell: u8,
-        choices: core::BoardCells,
-    },
+    WaitingPickBattle { attacker_cell: u8, choices: u16 },
     GameOver,
 }
 
@@ -518,29 +544,27 @@ impl VariableState {
         actions.clear();
 
         let hand = match self.turn {
-            core::Player::Blue => &self.hand_blue,
-            core::Player::Red => &self.hand_red,
+            core::Player::Blue => self.hand_blue,
+            core::Player::Red => self.hand_red,
         };
 
         // unset bits are empty cells
         let empty_cells = con.cells_blocked.0 | self.cells_blue | self.cells_red;
 
-        for cell in 0..16 {
-            if (empty_cells & 1 << cell) == 0 {
-                for card in 0..5 {
-                    if hand.is_set(card) {
-                        actions.push(Action::PlaceCard { card, cell });
-                    }
-                }
-            }
-        }
+        iter_unset_bits!(empty_cells, |cell| {
+            let cell = cell as u8;
+            iter_set_bits!(hand.0, |card| {
+                let card = card as u8;
+                actions.push(Action::PlaceCard { card, cell });
+            });
+        });
 
         actions.iter().copied()
     }
 
     fn get_pick_battle_actions(&self) -> impl Iterator<Item = Action> {
         if let Status::WaitingPickBattle { choices, .. } = &self.status {
-            choices.into_iter().map(|cell| Action::PickBattle { cell })
+            IterSetBits(*choices).map(|cell| Action::PickBattle { cell })
         } else {
             unreachable!()
         }
@@ -692,11 +716,9 @@ impl VariableState {
             let interactions = losing_player_cells & maybe_interactions;
 
             // combo flip those cells
-            for cell in 0..16 {
-                if (interactions & 1 << cell) != 0 {
-                    self.flip(cell);
-                }
-            }
+            iter_set_bits!(interactions, |cell| {
+                self.flip(cell as u8);
+            });
 
             // if the attacker won
             // resolve further interactions
@@ -732,27 +754,25 @@ impl VariableState {
 
         let mut defenders = core::BoardCells::NONE;
         let mut non_defenders = core::BoardCells::NONE;
-        for cell in 0..16 {
-            if (interactions & 1 << cell) != 0 {
-                let maybe_defender = self.board[cell as usize];
+        iter_set_bits!(interactions, |cell| {
+            let maybe_defender = self.board[cell as usize];
 
-                // set of cells pointed to be the (possible) defender
-                let maybe_interactions = con.get_interactions(maybe_defender, cell);
-                // if the attacker is part of that set, it's a defender
-                if (maybe_interactions & 1 << attacker_cell) != 0 {
-                    defenders.set(cell);
-                } else {
-                    non_defenders.set(cell);
-                }
+            // set of cells pointed to be the (possible) defender
+            let maybe_interactions = con.get_interactions(maybe_defender, cell as u8);
+            // if the attacker is part of that set, it's a defender
+            if (maybe_interactions & 1 << attacker_cell) != 0 {
+                defenders.set(cell as u8);
+            } else {
+                non_defenders.set(cell as u8);
             }
-        }
+        });
 
-        match defenders.len() {
+        match defenders.0.count_ones() {
             0 => {
                 // no battles, flip non-defenders
-                for cell in non_defenders {
-                    self.flip(cell);
-                }
+                iter_set_bits!(non_defenders.0, |cell| {
+                    self.flip(cell as u8);
+                });
 
                 // no more interactions found, next turn
                 if !self.check_for_game_over() {
@@ -761,14 +781,14 @@ impl VariableState {
             }
             1 => {
                 // handle battle
-                let defender_cell = defenders.into_iter().next().unwrap();
+                let defender_cell = defenders.0.trailing_zeros() as u8;
                 self.resolve_battle(attacker_cell, defender_cell);
             }
             _ => {
                 // handle multiple possible battles
                 self.status = Status::WaitingPickBattle {
                     attacker_cell,
-                    choices: defenders,
+                    choices: defenders.0,
                 };
             }
         }
