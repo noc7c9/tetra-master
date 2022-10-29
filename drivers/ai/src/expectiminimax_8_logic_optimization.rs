@@ -1,3 +1,4 @@
+use crate::interactions;
 use crate::metrics::Metrics;
 use crate::win_probabilities;
 use tetra_master_core as core;
@@ -115,7 +116,7 @@ fn expectiminimax_search(
     let selected_action = match &var.status {
         Status::WaitingPlaceCard => {
             let (head, rest) = prealloc.split_at_mut(1);
-            select_action!(rest, var.get_place_card_actions(&mut head[0]))
+            select_action!(rest, var.get_place_card_actions(con, &mut head[0]))
         }
         Status::WaitingPickBattle { .. } => select_action!(prealloc, var.get_pick_battle_actions()),
         _ => unreachable!(),
@@ -197,7 +198,7 @@ fn negamax_value(
     match &var.status {
         Status::WaitingPlaceCard => {
             let (head, rest) = prealloc.split_at_mut(1);
-            negamax_value!(rest, var.get_place_card_actions(&mut head[0]))
+            negamax_value!(rest, var.get_place_card_actions(con, &mut head[0]))
         }
         Status::WaitingPickBattle { .. } => negamax_value!(prealloc, var.get_pick_battle_actions()),
         _ => unreachable!(),
@@ -254,8 +255,9 @@ struct ConstantState {
     prob_cutoff: f32,
     player: core::Player,
     battle_system: core::BattleSystem,
-    // all the cards in this game
-    cards: [core::Card; NUM_CARDS],
+    cells_blocked: core::BoardCells,
+    // all interactions for each card in the game
+    interactions: [[u16; core::BOARD_SIZE]; NUM_CARDS],
     // all the matchups between each pair of cards in the game
     matchups: [[Matchup; NUM_CARDS]; NUM_CARDS],
 }
@@ -267,6 +269,8 @@ struct VariableState {
     status: Status,
     turn: core::Player,
     board: Board,
+    cells_blue: u16,
+    cells_red: u16,
     hand_blue: Hand,
     hand_red: Hand,
 }
@@ -285,6 +289,7 @@ fn prealloc(max_depth: usize, cmd: &core::Setup) -> Vec<Vec<Action>> {
 
 impl ConstantState {
     fn new(max_depth: u8, prob_cutoff: f32, player: core::Player, cmd: &core::Setup) -> Self {
+        // this is the order of card indexes, blue cards then red cards
         let cards = [
             cmd.hand_blue[0],
             cmd.hand_blue[1],
@@ -297,6 +302,16 @@ impl ConstantState {
             cmd.hand_red[3],
             cmd.hand_red[4],
         ];
+
+        let mut interactions = Vec::with_capacity(NUM_CARDS);
+        for card in cards {
+            let mut card_interactions = Vec::with_capacity(core::BOARD_SIZE);
+            for cell in 0..core::BOARD_SIZE {
+                card_interactions.push(interactions::lookup(card.arrows, cell as u8));
+            }
+            interactions.push(card_interactions.try_into().unwrap());
+        }
+        let interactions = interactions.try_into().unwrap();
 
         let mut matchups = Vec::with_capacity(NUM_CARDS);
         for attacker in cards {
@@ -319,13 +334,14 @@ impl ConstantState {
             prob_cutoff,
             player,
             battle_system: cmd.battle_system,
-            cards,
+            cells_blocked: cmd.blocked_cells,
+            interactions,
             matchups,
         }
     }
 
-    fn get_card(&self, card_idx: u8) -> core::Card {
-        self.cards[card_idx as usize]
+    fn get_interactions(&self, card_idx: u8, cell: u8) -> u16 {
+        self.interactions[card_idx as usize][cell as usize]
     }
 
     fn get_matchup(&self, attacker_idx: u8, defender_idx: u8) -> Matchup {
@@ -335,16 +351,15 @@ impl ConstantState {
 
 impl VariableState {
     fn new(cmd: &core::Setup) -> Self {
-        let mut board: Board = Default::default();
-        for cell in cmd.blocked_cells {
-            board[cell as usize] = Cell::blocked();
-        }
-
         Self {
             depth: 0,
             status: Status::WaitingPlaceCard,
             turn: cmd.starting_player,
-            board,
+            // initialize with an invalid card idx so that errors will panic due to out of bounds
+            // instead of proceeding incorrectly
+            board: [u8::MAX; core::BOARD_SIZE],
+            cells_blue: 0,
+            cells_red: 0,
             hand_blue: Hand::new(),
             hand_red: Hand::new(),
         }
@@ -354,7 +369,7 @@ impl VariableState {
 //**************************************************************************************************
 // game logic
 
-type Board = [Cell; core::BOARD_SIZE];
+type Board = [u8; core::BOARD_SIZE];
 
 #[derive(Debug, Clone, Copy)]
 struct Matchup {
@@ -458,119 +473,6 @@ impl Hand {
     }
 }
 
-// A bit packed enum that represents Cell::Empty, Cell::Blocked, or Cell::Card(owner, card_idx)
-// the high 4 bits is the card_idx (index into the ConstantState.cards array)
-// the low 4 bits are
-//     0b0001 => Card(Blue, _)
-//     0b0010 => Card(Red, _)
-//     0b0100 => Blocked
-//     0b1000 => Empty
-#[derive(Clone, Copy, PartialEq)]
-struct Cell(u8);
-
-impl std::fmt::Debug for Cell {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "Cell({:04b}_{:04b})", self.0 >> 4, self.0 & 0b1111)
-    }
-}
-
-impl Default for Cell {
-    fn default() -> Self {
-        Cell::empty()
-    }
-}
-
-impl Cell {
-    const BLUE: u8 = 0b0001;
-    const RED: u8 = 0b0010;
-    const BLOCKED: u8 = 0b0100;
-    const EMPTY: u8 = 0b1000;
-
-    fn empty() -> Self {
-        Self(Self::EMPTY)
-    }
-
-    fn blocked() -> Self {
-        Self(Self::BLOCKED)
-    }
-
-    fn card(owner: core::Player, card_idx: u8) -> Self {
-        let high = card_idx << 4;
-        let low = match owner {
-            core::Player::Blue => Self::BLUE,
-            core::Player::Red => Self::RED,
-        };
-        Self(high | low)
-    }
-
-    #[inline(always)]
-    fn is_empty(self) -> bool {
-        self.0 & Self::EMPTY != 0
-    }
-
-    #[inline(always)]
-    fn is_card(self) -> bool {
-        self.0 & (Self::BLUE | Self::RED) != 0
-    }
-
-    #[inline(always)]
-    fn flip_card(&mut self) {
-        debug_assert!(self.is_card());
-        self.0 ^= Self::BLUE | Self::RED;
-    }
-
-    #[inline(always)]
-    fn to_card_owner(self) -> core::Player {
-        debug_assert!(self.is_card());
-        match self.0 & 0b1111 {
-            Self::BLUE => core::Player::Blue,
-            Self::RED => core::Player::Red,
-            _ => unreachable!(),
-        }
-    }
-
-    #[inline(always)]
-    fn to_card_idx(self) -> u8 {
-        debug_assert!(self.is_card());
-        self.0 >> 4
-    }
-
-    fn to_card(self) -> OwnedCard {
-        debug_assert!(self.is_card());
-        match self.0 & 0b1111 {
-            Self::BLUE => OwnedCard {
-                owner: core::Player::Blue,
-                card: self.0 >> 4,
-            },
-            Self::RED => OwnedCard {
-                owner: core::Player::Red,
-                card: self.0 >> 4,
-            },
-            _ => unreachable!(),
-        }
-    }
-
-    fn try_to_card(self) -> Option<OwnedCard> {
-        match self.0 & 0b1111 {
-            Self::BLUE => Some(OwnedCard {
-                owner: core::Player::Blue,
-                card: self.0 >> 4,
-            }),
-            Self::RED => Some(OwnedCard {
-                owner: core::Player::Red,
-                card: self.0 >> 4,
-            }),
-            _ => None,
-        }
-    }
-}
-
-#[derive(Debug, Clone, Copy)]
-struct OwnedCard {
-    owner: core::Player,
-    card: u8,
-}
-
 #[derive(Debug, Clone)]
 enum Status {
     WaitingPlaceCard,
@@ -599,21 +501,18 @@ struct WaitingResolveBattle {
 
 impl VariableState {
     fn evaluate(&self) -> f32 {
-        let mut count = 0.0;
-        for cell in self.board {
-            if cell.is_card() {
-                if cell.to_card_owner() == self.turn {
-                    count += 1.0;
-                } else {
-                    count -= 1.0;
-                }
-            }
+        let blue = self.cells_blue.count_ones() as f32;
+        let red = self.cells_red.count_ones() as f32;
+        match self.turn {
+            core::Player::Blue => blue - red,
+            core::Player::Red => red - blue,
         }
-        count
     }
 
     fn get_place_card_actions<'c>(
         &self,
+        con: &ConstantState,
+        // preallocated actions vector
         actions: &'c mut Vec<Action>,
     ) -> impl Iterator<Item = Action> + 'c {
         actions.clear();
@@ -623,17 +522,15 @@ impl VariableState {
             core::Player::Red => &self.hand_red,
         };
 
-        let empty_cells = self
-            .board
-            .iter()
-            .enumerate()
-            .filter(|(_, cell)| cell.is_empty())
-            .map(|(idx, _)| idx as u8);
+        // unset bits are empty cells
+        let empty_cells = con.cells_blocked.0 | self.cells_blue | self.cells_red;
 
-        for cell in empty_cells {
-            for card in 0..5 {
-                if hand.is_set(card) {
-                    actions.push(Action::PlaceCard { card, cell });
+        for cell in 0..16 {
+            if (empty_cells & 1 << cell) == 0 {
+                for card in 0..5 {
+                    if hand.is_set(card) {
+                        actions.push(Action::PlaceCard { card, cell });
+                    }
                 }
             }
         }
@@ -698,16 +595,19 @@ impl VariableState {
 
     fn handle_place_card(&mut self, con: &ConstantState, cell: u8, card: u8) {
         if let Status::WaitingPlaceCard = self.status {
-            let (hand, card_idx) = match self.turn {
-                core::Player::Blue => (&mut self.hand_blue, card),
-                core::Player::Red => (&mut self.hand_red, card + 5),
+            let (hand, cells, card_idx) = match self.turn {
+                core::Player::Blue => (&mut self.hand_blue, &mut self.cells_blue, card),
+                core::Player::Red => (&mut self.hand_red, &mut self.cells_red, card + 5),
             };
 
             // remove the card from the hand
             hand.unset(card);
 
+            // mark cell
+            *cells ^= 1 << cell as u16;
+
             // place card onto the board
-            self.board[cell as usize] = Cell::card(self.turn, card_idx);
+            self.board[cell as usize] = card_idx;
 
             self.resolve_interactions(con, cell);
         }
@@ -767,30 +667,35 @@ impl VariableState {
             let defender_cell = status.defender_cell;
 
             // flip losing card
-            let loser_cell = match winner {
+            let (loser_cell, winning_player) = match winner {
                 core::BattleWinner::Defender | core::BattleWinner::None => {
                     self.flip(attacker_cell);
-                    attacker_cell
+                    (attacker_cell, self.turn.opposite())
                 }
                 core::BattleWinner::Attacker => {
                     self.flip(defender_cell);
-                    defender_cell
+                    (defender_cell, self.turn)
                 }
             };
 
             // combo flip any cards the losing card points at
-            let loser = self.board[loser_cell as usize].to_card();
-            for &(comboed_cell, arrow) in get_possible_neighbours(loser_cell) {
-                let comboed = match self.board[comboed_cell as usize].try_to_card() {
-                    Some(card) => card,
-                    _ => continue,
-                };
+            let loser = self.board[loser_cell as usize];
 
-                if !does_interact(con, loser, comboed, arrow) {
-                    continue;
+            // set of cells pointed to by the losing card
+            let maybe_interactions = con.get_interactions(loser, loser_cell);
+            // set of cells belonging to the losing player
+            let losing_player_cells = match winning_player {
+                core::Player::Blue => self.cells_red,
+                core::Player::Red => self.cells_blue,
+            };
+            // intersect(&) sets together to get all cells that should be combo flipped
+            let interactions = losing_player_cells & maybe_interactions;
+
+            // combo flip those cells
+            for cell in 0..16 {
+                if (interactions & 1 << cell) != 0 {
+                    self.flip(cell);
                 }
-
-                self.flip(comboed_cell);
             }
 
             // if the attacker won
@@ -813,24 +718,32 @@ impl VariableState {
     }
 
     fn resolve_interactions(&mut self, con: &ConstantState, attacker_cell: u8) {
-        let attacker = self.board[attacker_cell as usize].to_card();
+        let attacker = self.board[attacker_cell as usize];
+
+        // cells pointed to by the attacker
+        let maybe_interactions = con.get_interactions(attacker, attacker_cell);
+        // cells belonging to the opponent
+        let opponent_cells = match self.turn {
+            core::Player::Blue => self.cells_red,
+            core::Player::Red => self.cells_blue,
+        };
+        // intersect(&) together to get all opponent cards interacted with
+        let interactions = opponent_cells & maybe_interactions;
 
         let mut defenders = core::BoardCells::NONE;
         let mut non_defenders = core::BoardCells::NONE;
-        for &(defender_cell, arrow) in get_possible_neighbours(attacker_cell) {
-            let defender = match self.board[defender_cell as usize].try_to_card() {
-                Some(card) => card,
-                _ => continue,
-            };
+        for cell in 0..16 {
+            if (interactions & 1 << cell) != 0 {
+                let maybe_defender = self.board[cell as usize];
 
-            if !does_interact(con, attacker, defender, arrow) {
-                continue;
-            }
-
-            if con.get_card(defender.card).arrows.has_any(arrow.reverse()) {
-                defenders.set(defender_cell);
-            } else {
-                non_defenders.set(defender_cell);
+                // set of cells pointed to be the (possible) defender
+                let maybe_interactions = con.get_interactions(maybe_defender, cell);
+                // if the attacker is part of that set, it's a defender
+                if (maybe_interactions & 1 << attacker_cell) != 0 {
+                    defenders.set(cell);
+                } else {
+                    non_defenders.set(cell);
+                }
             }
         }
 
@@ -862,7 +775,8 @@ impl VariableState {
     }
 
     fn flip(&mut self, cell: u8) {
-        self.board[cell as usize].flip_card();
+        self.cells_blue ^= 1 << cell as u16;
+        self.cells_red ^= 1 << cell as u16;
     }
 
     fn resolve_battle(&mut self, attacker_cell: u8, defender_cell: u8) {
@@ -870,8 +784,8 @@ impl VariableState {
             attacker_cell,
             defender_cell,
 
-            attacker_idx: self.board[attacker_cell as usize].to_card_idx(),
-            defender_idx: self.board[defender_cell as usize].to_card_idx(),
+            attacker_idx: self.board[attacker_cell as usize],
+            defender_idx: self.board[defender_cell as usize],
         });
     }
 
@@ -884,54 +798,6 @@ impl VariableState {
             false
         }
     }
-}
-
-fn does_interact(
-    con: &ConstantState,
-    attacker: OwnedCard,
-    defender: OwnedCard,
-    arrow_to_defender: core::Arrows,
-) -> bool {
-    // they don't interact if both cards belong to the same player
-    if defender.owner == attacker.owner {
-        return false;
-    }
-
-    // they interact if the attacking card has an arrow in the direction of the defender
-    let attacker = con.get_card(attacker.card);
-    attacker.arrows.has_any(arrow_to_defender)
-}
-
-// returns neighbouring cells along with the arrow that points at them
-fn get_possible_neighbours(cell: u8) -> &'static [(u8, core::Arrows)] {
-    const U: core::Arrows = core::Arrows::UP;
-    const UR: core::Arrows = core::Arrows::UP_RIGHT;
-    const R: core::Arrows = core::Arrows::RIGHT;
-    const DR: core::Arrows = core::Arrows::DOWN_RIGHT;
-    const D: core::Arrows = core::Arrows::DOWN;
-    const DL: core::Arrows = core::Arrows::DOWN_LEFT;
-    const L: core::Arrows = core::Arrows::LEFT;
-    const UL: core::Arrows = core::Arrows::UP_LEFT;
-    #[rustfmt::skip]
-    const LOOKUP: [&[(u8, core::Arrows)]; 16] = [
-        &[(0x1, R), (0x4, D), (0x5, DR)],
-        &[(0x0, L), (0x2, R), (0x4, DL), (0x5, D), (0x6, DR)],
-        &[(0x1, L), (0x3, R), (0x5, DL), (0x6, D), (0x7, DR)],
-        &[(0x2, L), (0x6, DL), (0x7, D)],
-        &[(0x0, U), (0x1, UR), (0x5, R), (0x8, D), (0x9, DR)],
-        &[(0x0, UL), (0x1, U), (0x2, UR), (0x4, L), (0x6, R), (0x8, DL), (0x9, D), (0xA, DR)],
-        &[(0x1, UL), (0x2, U), (0x3, UR), (0x5, L), (0x7, R), (0x9, DL), (0xA, D), (0xB, DR)],
-        &[(0x3, U), (0xB, D), (0xA, DL), (0x6, L), (0x2, UL)],
-        &[(0x4, U), (0x5, UR), (0x9, R), (0xD, DR), (0xC, D)],
-        &[(0x5, U), (0x6, UR), (0xA, R), (0xE, DR), (0xD, D), (0xC, DL), (0x8, L), (0x4, UL)],
-        &[(0x6, U), (0x7, UR), (0xB, R), (0xF, DR), (0xE, D), (0xD, DL), (0x9, L), (0x5, UL)],
-        &[(0x6, UL), (0x7, U), (0xA, L), (0xE, DL), (0xF, D)],
-        &[(0x8, U), (0x9, UR), (0xD, R)],
-        &[(0x8, UL), (0x9, U), (0xA, UR), (0xC, L), (0xE, R)],
-        &[(0x9, UL), (0xA, U), (0xB, UR), (0xD, L), (0xF, R)],
-        &[(0xA, UL), (0xB, U), (0xE, L)],
-    ];
-    LOOKUP[cell as usize]
 }
 
 fn map_number_to_range(num: u8, range: impl std::ops::RangeBounds<u8>) -> u8 {

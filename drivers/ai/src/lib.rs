@@ -1,5 +1,6 @@
 use tetra_master_core as core;
 
+mod interactions;
 mod win_probabilities;
 
 #[cfg(feature = "logging")]

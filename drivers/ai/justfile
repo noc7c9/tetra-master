@@ -27,3 +27,6 @@ test +ARGS='':
 
 bench-iai:
     cargo bench --bench iai | ./improve-iai-output.py
+
+gen-code:
+    ./generate-interactions.py | rustfmt > ./src/interactions.rs
