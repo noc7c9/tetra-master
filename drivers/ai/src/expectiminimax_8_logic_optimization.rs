@@ -230,6 +230,13 @@ fn chance_value(
     // over-pruning.
     if resolutions.len() > 1 {
         (alpha, beta) = (f32::NEG_INFINITY, f32::INFINITY);
+    } else {
+        // if there is only one node, short-circuit
+        indent!("CHANCE alpha({alpha}) beta({beta}) | short-circuit");
+        let new_var = var.apply_resolution(con, resolutions[0]);
+        let value = state_value(prealloc, con, new_var, alpha, beta);
+        dedent!("CHANCE | {value}");
+        return value;
     }
 
     indent!("CHANCE alpha({alpha}) beta({beta})");
