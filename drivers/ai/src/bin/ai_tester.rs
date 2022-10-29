@@ -112,15 +112,15 @@ fn main() -> anyhow::Result<()> {
     // register!(all_ais, naive_minimax, 3);
     // register!(all_ais, naive_minimax, 4);
 
-    register!(all_ais, expectiminimax_0_naive as "v0", 3);
-    register!(all_ais, expectiminimax_1_simplify as "v1", 3);
-    register!(all_ais, expectiminimax_2_ab_pruning as "v2", 3);
-    register!(all_ais, expectiminimax_3_negamax as "v3", 3);
-    register!(all_ais, expectiminimax_4_prob_cutoff as "v4", 3, 0.0);
-    register!(all_ais, expectiminimax_5_no_alloc_get_resolutions as "v5", 3, 0.0);
-    register!(all_ais, expectiminimax_6_reduce_cloned_data as "v6", 3, 0.0);
-    register!(all_ais, expectiminimax_7_refactor as "v7", 3, 0.0);
-    register!(all_ais, expectiminimax_8_logic_optimization as "v8", 3, 0.0);
+    register!(all_ais, expectiminimax_0_naive as "v0", 4);
+    register!(all_ais, expectiminimax_1_simplify as "v1", 4);
+    register!(all_ais, expectiminimax_2_ab_pruning as "v2", 4);
+    register!(all_ais, expectiminimax_3_negamax as "v3", 4);
+    register!(all_ais, expectiminimax_4_prob_cutoff as "v4", 4, 0.0);
+    register!(all_ais, expectiminimax_5_no_alloc_get_resolutions as "v5", 4, 0.0);
+    register!(all_ais, expectiminimax_6_reduce_cloned_data as "v6", 4, 0.0);
+    register!(all_ais, expectiminimax_7_refactor as "v7", 4, 0.0);
+    register!(all_ais, expectiminimax_8_logic_optimization as "v8", 4, 0.0);
 
     assert!(all_ais.len() >= 2);
 
