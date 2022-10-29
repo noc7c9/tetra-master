@@ -31,20 +31,26 @@ impl super::Ai for Ai {
         let player = self.con.player;
         match expectiminimax_search(&mut self.prealloc, &mut self.con, self.var.clone()) {
             Action::PlaceCard { cell, card } => {
+                let cell = cell.0;
+                let card = card.0;
                 crate::Action::PlaceCard(core::PlaceCard { player, cell, card })
             }
             Action::PickBattle { cell } => {
+                let cell = cell.0;
                 crate::Action::PickBattle(core::PickBattle { player, cell })
             }
         }
     }
 
     fn apply_place_card(&mut self, cmd: core::PlaceCard) {
-        self.var.handle_place_card(&self.con, cmd.cell, cmd.card);
+        let cell = CellIdx::new(cmd.cell);
+        let card = CardHandIdx::new(cmd.card);
+        self.var.handle_place_card(&self.con, cell, card);
     }
 
     fn apply_pick_battle(&mut self, cmd: core::PickBattle) {
-        self.var.handle_pick_battle(cmd.cell);
+        let cell = CellIdx::new(cmd.cell);
+        self.var.handle_pick_battle(cell);
     }
 
     fn apply_resolve_battle(&mut self, cmd: &core::ResolveBattle) {
@@ -54,18 +60,18 @@ impl super::Ai for Ai {
 
 #[derive(Debug, Clone, Copy)]
 enum Action {
-    PlaceCard { cell: u8, card: u8 },
-    PickBattle { cell: u8 },
+    PlaceCard { cell: CellIdx, card: CardHandIdx },
+    PickBattle { cell: CellIdx },
 }
 
 impl std::fmt::Display for Action {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Action::PlaceCard { card, cell, .. } => {
-                write!(f, "Place({card:X}, {cell:X})")
+                write!(f, "Place({:X}, {:X})", card.0, cell.0)
             }
             Action::PickBattle { cell, .. } => {
-                write!(f, "Pick({cell:X})    ")
+                write!(f, "Pick({:X})    ", cell.0)
             }
         }
     }
@@ -248,7 +254,7 @@ macro_rules! iter_set_bits {
     ($bits:expr, |$item:ident| $body:expr) => {{
         let mut bits = $bits;
         while bits != 0 {
-            let $item = bits.trailing_zeros();
+            let $item = bits.trailing_zeros(); // get index of least significant set bit
             bits &= bits - 1; // clear least significant bit
             $body
         }
@@ -259,22 +265,6 @@ macro_rules! iter_unset_bits {
     ($bits:expr, |$item:ident| $body:expr) => {
         iter_set_bits!(!$bits, |$item| $body)
     };
-}
-
-struct IterSetBits(u16);
-
-impl Iterator for IterSetBits {
-    type Item = u8;
-
-    fn next(&mut self) -> Option<u8> {
-        if self.0 == 0 {
-            None
-        } else {
-            let item = self.0.trailing_zeros();
-            self.0 &= self.0 - 1; // clear least significant bit
-            Some(item as u8)
-        }
-    }
 }
 
 //**************************************************************************************************
@@ -290,9 +280,9 @@ struct ConstantState {
     prob_cutoff: f32,
     player: core::Player,
     battle_system: core::BattleSystem,
-    cells_blocked: core::BoardCells,
+    cells_blocked: CellSet,
     // all interactions for each card in the game
-    interactions: [[u16; core::BOARD_SIZE]; NUM_CARDS],
+    interactions: [[CellSet; core::BOARD_SIZE]; NUM_CARDS],
     // all the matchups between each pair of cards in the game
     matchups: [[Matchup; NUM_CARDS]; NUM_CARDS],
 }
@@ -304,8 +294,8 @@ struct VariableState {
     status: Status,
     turn: core::Player,
     board: Board,
-    cells_blue: u16,
-    cells_red: u16,
+    cells_blue: CellSet,
+    cells_red: CellSet,
     hand_blue: Hand,
     hand_red: Hand,
 }
@@ -338,30 +328,35 @@ impl ConstantState {
             cmd.hand_red[4],
         ];
 
-        let mut interactions = Vec::with_capacity(NUM_CARDS);
-        for card in cards {
-            let mut card_interactions = Vec::with_capacity(core::BOARD_SIZE);
-            for cell in 0..core::BOARD_SIZE {
-                card_interactions.push(interactions::lookup(card.arrows, cell as u8));
+        let interactions = {
+            let mut interactions = Vec::with_capacity(NUM_CARDS);
+            for card in cards {
+                let mut card_interactions = Vec::with_capacity(core::BOARD_SIZE);
+                for cell in 0..core::BOARD_SIZE {
+                    let interactions = interactions::lookup(card.arrows, cell as u8);
+                    card_interactions.push(CellSet::new(interactions));
+                }
+                interactions.push(card_interactions.try_into().unwrap());
             }
-            interactions.push(card_interactions.try_into().unwrap());
-        }
-        let interactions = interactions.try_into().unwrap();
+            interactions.try_into().unwrap()
+        };
 
-        let mut matchups = Vec::with_capacity(NUM_CARDS);
-        for attacker in cards {
-            let mut attacker_matchups = Vec::with_capacity(NUM_CARDS);
-            for defender in cards {
-                attacker_matchups.push(Matchup::new(
-                    cmd.battle_system,
-                    prob_cutoff,
-                    attacker,
-                    defender,
-                ));
+        let matchups = {
+            let mut matchups = Vec::with_capacity(NUM_CARDS);
+            for attacker in cards {
+                let mut attacker_matchups = Vec::with_capacity(NUM_CARDS);
+                for defender in cards {
+                    attacker_matchups.push(Matchup::new(
+                        cmd.battle_system,
+                        prob_cutoff,
+                        attacker,
+                        defender,
+                    ));
+                }
+                matchups.push(attacker_matchups.try_into().unwrap());
             }
-            matchups.push(attacker_matchups.try_into().unwrap());
-        }
-        let matchups = matchups.try_into().unwrap();
+            matchups.try_into().unwrap()
+        };
 
         Self {
             metrics: Metrics::new(module_path!()),
@@ -369,18 +364,18 @@ impl ConstantState {
             prob_cutoff,
             player,
             battle_system: cmd.battle_system,
-            cells_blocked: cmd.blocked_cells,
+            cells_blocked: CellSet::new(cmd.blocked_cells.0),
             interactions,
             matchups,
         }
     }
 
-    fn get_interactions(&self, card_idx: u8, cell: u8) -> u16 {
-        self.interactions[card_idx as usize][cell as usize]
+    fn get_interactions(&self, card: CardLookupIdx, cell: CellIdx) -> CellSet {
+        self.interactions[card.0 as usize][cell.0 as usize]
     }
 
-    fn get_matchup(&self, attacker_idx: u8, defender_idx: u8) -> Matchup {
-        self.matchups[attacker_idx as usize][defender_idx as usize]
+    fn get_matchup(&self, attacker: CardLookupIdx, defender: CardLookupIdx) -> Matchup {
+        self.matchups[attacker.0 as usize][defender.0 as usize]
     }
 }
 
@@ -390,11 +385,9 @@ impl VariableState {
             depth: 0,
             status: Status::WaitingPlaceCard,
             turn: cmd.starting_player,
-            // initialize with an invalid card idx so that errors will panic due to out of bounds
-            // instead of proceeding incorrectly
-            board: [u8::MAX; core::BOARD_SIZE],
-            cells_blue: 0,
-            cells_red: 0,
+            board: Board::new(),
+            cells_blue: CellSet::EMPTY,
+            cells_red: CellSet::EMPTY,
             hand_blue: Hand::new(),
             hand_red: Hand::new(),
         }
@@ -403,8 +396,6 @@ impl VariableState {
 
 //**************************************************************************************************
 // game logic
-
-type Board = [u8; core::BOARD_SIZE];
 
 #[derive(Debug, Clone, Copy)]
 struct Matchup {
@@ -481,19 +472,156 @@ impl Matchup {
     }
 }
 
+#[derive(Debug, Clone, Copy)]
+struct CellIdx(u8);
+
+impl CellIdx {
+    #[inline(always)]
+    fn new(idx: u8) -> Self {
+        debug_assert!(idx < core::BOARD_SIZE as u8);
+        Self(idx)
+    }
+}
+
+// Index into the interactions and matchups lookup tables
+#[derive(Debug, Clone, Copy)]
+struct CardLookupIdx(u8);
+
+impl CardLookupIdx {
+    const INVALID: Self = Self(u8::MAX);
+}
+
+// Index into the hand arrays (ie. the regular index used outside the AI)
+#[derive(Debug, Clone, Copy)]
+struct CardHandIdx(u8);
+
+impl CardHandIdx {
+    #[inline(always)]
+    fn new(idx: u8) -> Self {
+        debug_assert!(idx < core::HAND_SIZE as u8);
+        Self(idx)
+    }
+
+    #[inline(always)]
+    fn to_lookup_idx(self, owner: core::Player) -> CardLookupIdx {
+        match owner {
+            core::Player::Blue => CardLookupIdx(self.0),
+            core::Player::Red => CardLookupIdx(self.0 + core::HAND_SIZE as u8),
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+struct Board([CardLookupIdx; core::BOARD_SIZE]);
+
+impl Board {
+    fn new() -> Self {
+        // initialize with an invalid card idx so that incorrect usage will panic due to out of
+        // bounds instead of proceeding silently
+        Self([CardLookupIdx::INVALID; core::BOARD_SIZE])
+    }
+
+    #[inline(always)]
+    fn get(&self, cell: CellIdx) -> CardLookupIdx {
+        self.0[cell.0 as usize]
+    }
+
+    #[inline(always)]
+    fn set(&mut self, cell: CellIdx, card: CardLookupIdx) {
+        self.0[cell.0 as usize] = card;
+    }
+}
+
+// Bitset representing a set of board cells
+#[derive(Debug, Clone, Copy)]
+struct CellSet(u16);
+
+impl CellSet {
+    const EMPTY: Self = Self(0);
+
+    #[inline(always)]
+    fn new(cells: u16) -> Self {
+        Self(cells)
+    }
+
+    #[inline(always)]
+    fn set(&mut self, idx: CellIdx) {
+        self.0 |= 1 << idx.0;
+    }
+
+    #[inline(always)]
+    fn flip(&mut self, idx: CellIdx) {
+        self.0 ^= 1 << idx.0;
+    }
+
+    #[inline(always)]
+    fn is_set(self, idx: CellIdx) -> bool {
+        (self.0 & 1 << idx.0) != 0
+    }
+
+    #[inline(always)]
+    fn len(self) -> u32 {
+        self.0.count_ones()
+    }
+
+    fn iter(self) -> CellSetIter {
+        CellSetIter(self.0)
+    }
+}
+
+impl std::ops::BitAnd for CellSet {
+    type Output = Self;
+
+    fn bitand(self, other: Self) -> Self {
+        Self(self.0 & other.0)
+    }
+}
+
+impl std::ops::BitOr for CellSet {
+    type Output = Self;
+
+    fn bitor(self, other: Self) -> Self {
+        Self(self.0 | other.0)
+    }
+}
+
+impl std::ops::Not for CellSet {
+    type Output = Self;
+
+    fn not(self) -> Self {
+        Self(!self.0)
+    }
+}
+
+struct CellSetIter(u16);
+
+impl Iterator for CellSetIter {
+    type Item = CellIdx;
+
+    fn next(&mut self) -> Option<CellIdx> {
+        if self.0 == 0 {
+            None
+        } else {
+            let item = self.0.trailing_zeros(); // get index of least significant set bit
+            self.0 &= self.0 - 1; // clear least significant set bit
+            Some(CellIdx(item as u8))
+        }
+    }
+}
+
 // Bitset where set bits indicate the card has not been placed
 #[derive(Debug, Clone, Copy)]
 struct Hand(u8);
 
 impl Hand {
     fn new() -> Self {
+        // 5 cards in hand at start
         Self(0b0001_1111)
     }
 
     #[inline(always)]
-    fn unset(&mut self, idx: u8) {
-        debug_assert!(idx < 5);
-        self.0 ^= 1 << idx;
+    fn unset(&mut self, idx: CardHandIdx) {
+        self.0 &= !(1 << idx.0);
     }
 
     #[inline(always)]
@@ -506,7 +634,10 @@ impl Hand {
 enum Status {
     WaitingPlaceCard,
     WaitingResolveBattle(WaitingResolveBattle),
-    WaitingPickBattle { attacker_cell: u8, choices: u16 },
+    WaitingPickBattle {
+        attacker_cell: CellIdx,
+        choices: CellSet,
+    },
     GameOver,
 }
 
@@ -518,17 +649,17 @@ impl Status {
 
 #[derive(Debug, Clone)]
 struct WaitingResolveBattle {
-    attacker_cell: u8,
-    defender_cell: u8,
+    attacker_cell: CellIdx,
+    defender_cell: CellIdx,
 
-    attacker_idx: u8,
-    defender_idx: u8,
+    attacker_idx: CardLookupIdx,
+    defender_idx: CardLookupIdx,
 }
 
 impl VariableState {
     fn evaluate(&self) -> f32 {
-        let blue = self.cells_blue.count_ones() as f32;
-        let red = self.cells_red.count_ones() as f32;
+        let blue = self.cells_blue.len() as f32;
+        let red = self.cells_red.len() as f32;
         match self.turn {
             core::Player::Blue => blue - red,
             core::Player::Red => red - blue,
@@ -549,12 +680,12 @@ impl VariableState {
         };
 
         // unset bits are empty cells
-        let empty_cells = con.cells_blocked.0 | self.cells_blue | self.cells_red;
+        let empty_cells = con.cells_blocked | self.cells_blue | self.cells_red;
 
-        iter_unset_bits!(empty_cells, |cell| {
-            let cell = cell as u8;
+        iter_unset_bits!(empty_cells.0, |cell| {
+            let cell = CellIdx::new(cell as u8);
             iter_set_bits!(hand.0, |card| {
-                let card = card as u8;
+                let card = CardHandIdx::new(card as u8);
                 actions.push(Action::PlaceCard { card, cell });
             });
         });
@@ -564,7 +695,7 @@ impl VariableState {
 
     fn get_pick_battle_actions(&self) -> impl Iterator<Item = Action> {
         if let Status::WaitingPickBattle { choices, .. } = &self.status {
-            IterSetBits(*choices).map(|cell| Action::PickBattle { cell })
+            choices.iter().map(|cell| Action::PickBattle { cell })
         } else {
             unreachable!()
         }
@@ -617,21 +748,23 @@ impl VariableState {
         clone
     }
 
-    fn handle_place_card(&mut self, con: &ConstantState, cell: u8, card: u8) {
+    fn handle_place_card(&mut self, con: &ConstantState, cell: CellIdx, card: CardHandIdx) {
         if let Status::WaitingPlaceCard = self.status {
-            let (hand, cells, card_idx) = match self.turn {
-                core::Player::Blue => (&mut self.hand_blue, &mut self.cells_blue, card),
-                core::Player::Red => (&mut self.hand_red, &mut self.cells_red, card + 5),
+            let card_idx = match self.turn {
+                core::Player::Blue => {
+                    self.hand_blue.unset(card);
+                    self.cells_blue.set(cell);
+                    card.to_lookup_idx(core::Player::Blue)
+                }
+                core::Player::Red => {
+                    self.hand_red.unset(card);
+                    self.cells_red.set(cell);
+                    card.to_lookup_idx(core::Player::Red)
+                }
             };
 
-            // remove the card from the hand
-            hand.unset(card);
-
-            // mark cell
-            *cells ^= 1 << cell as u16;
-
             // place card onto the board
-            self.board[cell as usize] = card_idx;
+            self.board.set(cell, card_idx);
 
             self.resolve_interactions(con, cell);
         }
@@ -703,7 +836,7 @@ impl VariableState {
             };
 
             // combo flip any cards the losing card points at
-            let loser = self.board[loser_cell as usize];
+            let loser = self.board.get(loser_cell);
 
             // set of cells pointed to by the losing card
             let maybe_interactions = con.get_interactions(loser, loser_cell);
@@ -716,8 +849,8 @@ impl VariableState {
             let interactions = losing_player_cells & maybe_interactions;
 
             // combo flip those cells
-            iter_set_bits!(interactions, |cell| {
-                self.flip(cell as u8);
+            iter_set_bits!(interactions.0, |cell| {
+                self.flip(CellIdx::new(cell as u8));
             });
 
             // if the attacker won
@@ -733,14 +866,14 @@ impl VariableState {
         }
     }
 
-    fn handle_pick_battle(&mut self, defender_cell: u8) {
+    fn handle_pick_battle(&mut self, defender_cell: CellIdx) {
         if let Status::WaitingPickBattle { attacker_cell, .. } = self.status {
             self.resolve_battle(attacker_cell, defender_cell);
         }
     }
 
-    fn resolve_interactions(&mut self, con: &ConstantState, attacker_cell: u8) {
-        let attacker = self.board[attacker_cell as usize];
+    fn resolve_interactions(&mut self, con: &ConstantState, attacker_cell: CellIdx) {
+        let attacker = self.board.get(attacker_cell);
 
         // cells pointed to by the attacker
         let maybe_interactions = con.get_interactions(attacker, attacker_cell);
@@ -752,15 +885,17 @@ impl VariableState {
         // intersect(&) together to get all opponent cards interacted with
         let interactions = opponent_cells & maybe_interactions;
 
+        // Note: replacing these with CellSets results in a slow down for some reason
         let mut defenders = core::BoardCells::NONE;
         let mut non_defenders = core::BoardCells::NONE;
-        iter_set_bits!(interactions, |cell| {
-            let maybe_defender = self.board[cell as usize];
+        iter_set_bits!(interactions.0, |cell| {
+            let cell_idx = CellIdx::new(cell as u8);
+            let maybe_defender = self.board.get(cell_idx);
 
             // set of cells pointed to be the (possible) defender
-            let maybe_interactions = con.get_interactions(maybe_defender, cell as u8);
+            let maybe_interactions = con.get_interactions(maybe_defender, cell_idx);
             // if the attacker is part of that set, it's a defender
-            if (maybe_interactions & 1 << attacker_cell) != 0 {
+            if maybe_interactions.is_set(attacker_cell) {
                 defenders.set(cell as u8);
             } else {
                 non_defenders.set(cell as u8);
@@ -771,7 +906,7 @@ impl VariableState {
             0 => {
                 // no battles, flip non-defenders
                 iter_set_bits!(non_defenders.0, |cell| {
-                    self.flip(cell as u8);
+                    self.flip(CellIdx::new(cell as u8));
                 });
 
                 // no more interactions found, next turn
@@ -781,31 +916,32 @@ impl VariableState {
             }
             1 => {
                 // handle battle
-                let defender_cell = defenders.0.trailing_zeros() as u8;
+                // get index of least significant set bit
+                let defender_cell = CellIdx::new(defenders.0.trailing_zeros() as u8);
                 self.resolve_battle(attacker_cell, defender_cell);
             }
             _ => {
                 // handle multiple possible battles
                 self.status = Status::WaitingPickBattle {
                     attacker_cell,
-                    choices: defenders.0,
+                    choices: CellSet(defenders.0),
                 };
             }
         }
     }
 
-    fn flip(&mut self, cell: u8) {
-        self.cells_blue ^= 1 << cell as u16;
-        self.cells_red ^= 1 << cell as u16;
+    fn flip(&mut self, cell: CellIdx) {
+        self.cells_blue.flip(cell);
+        self.cells_red.flip(cell);
     }
 
-    fn resolve_battle(&mut self, attacker_cell: u8, defender_cell: u8) {
+    fn resolve_battle(&mut self, attacker_cell: CellIdx, defender_cell: CellIdx) {
         self.status = Status::WaitingResolveBattle(WaitingResolveBattle {
             attacker_cell,
             defender_cell,
 
-            attacker_idx: self.board[attacker_cell as usize],
-            defender_idx: self.board[defender_cell as usize],
+            attacker_idx: self.board.get(attacker_cell),
+            defender_idx: self.board.get(defender_cell),
         });
     }
 
