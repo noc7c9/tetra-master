@@ -1793,7 +1793,7 @@ function initSync(module) {
 
 async function init(input) {
     if (typeof input === 'undefined') {
-        input = new URL('tetra-master-gui-e81a415b1a452205_bg.wasm', import.meta.url);
+        input = new URL('tetra-master-gui-3755550a215d9c28_bg.wasm', import.meta.url);
     }
     const imports = getImports();
 
