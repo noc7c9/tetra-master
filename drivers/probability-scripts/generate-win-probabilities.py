@@ -23,7 +23,10 @@ prob_dice_8 = json.load(open("./data/dice-8.json"))
 prob_dice_10 = json.load(open("./data/dice-10.json"))
 prob_dice_12 = json.load(open("./data/dice-12.json"))
 
-print("""use tetra_master_core as core;
+print("""// DO NOT MODIFY
+// Generated using ./drivers/probability-scripts/generate-win-probabilities.py
+
+use tetra_master_core as core;
 
 pub(crate) fn lookup(battle_system: core::BattleSystem, att: u8, def: u8) -> f32 {
     let att = att as usize;

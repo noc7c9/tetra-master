@@ -1,3 +1,6 @@
+// DO NOT MODIFY
+// Generated using ./drivers/probability-scripts/generate-win-probabilities.py
+
 use tetra_master_core as core;
 
 pub(crate) fn lookup(battle_system: core::BattleSystem, att: u8, def: u8) -> f32 {

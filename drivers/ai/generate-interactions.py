@@ -29,7 +29,10 @@ NEIGHBOURS = [
     [(0xA, UL), (0xB, U), (0xE, L)],
 ]
 
-print("""use tetra_master_core as core;
+print("""// DO NOT MODIFY
+// Generated using ./drivers/ai/generate-interactions.py
+
+use tetra_master_core as core;
 
 pub(crate) fn lookup(arrows: core::Arrows, cell: u8) -> u16 {
     INTERACTIONS[arrows.0 as usize][cell as usize]

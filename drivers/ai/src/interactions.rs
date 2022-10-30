@@ -1,3 +1,6 @@
+// DO NOT MODIFY
+// Generated using ./drivers/ai/generate-interactions.py
+
 use tetra_master_core as core;
 
 pub(crate) fn lookup(arrows: core::Arrows, cell: u8) -> u16 {
