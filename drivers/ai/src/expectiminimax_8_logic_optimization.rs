@@ -255,25 +255,6 @@ fn chance_value(
     sum_value
 }
 
-// src: https://lemire.me/blog/2018/02/21/iterating-over-set-bits-quickly/
-// using an Iterator failed to optimize :(
-macro_rules! iter_set_bits {
-    ($bits:expr, |$item:ident| $body:expr) => {{
-        let mut bits = $bits;
-        while bits != 0 {
-            let $item = bits.trailing_zeros(); // get index of least significant set bit
-            bits &= bits - 1; // clear least significant bit
-            $body
-        }
-    }};
-}
-
-macro_rules! iter_unset_bits {
-    ($bits:expr, |$item:ident| $body:expr) => {
-        iter_set_bits!(!$bits, |$item| $body)
-    };
-}
-
 //**************************************************************************************************
 // state
 
@@ -403,6 +384,25 @@ impl VariableState {
 
 //**************************************************************************************************
 // game logic
+
+// src: https://lemire.me/blog/2018/02/21/iterating-over-set-bits-quickly/
+// using an Iterator failed to optimize :(
+macro_rules! iter_set_bits {
+    ($bits:expr, |$item:ident| $body:expr) => {{
+        let mut bits = $bits;
+        while bits != 0 {
+            let $item = bits.trailing_zeros(); // get index of least significant set bit
+            bits &= bits - 1; // clear least significant bit
+            $body
+        }
+    }};
+}
+
+macro_rules! iter_unset_bits {
+    ($bits:expr, |$item:ident| $body:expr) => {
+        iter_set_bits!(!$bits, |$item| $body)
+    };
+}
 
 #[derive(Debug, Clone, Copy)]
 struct Matchup {
