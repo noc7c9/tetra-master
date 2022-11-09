@@ -123,6 +123,7 @@ fn main() -> anyhow::Result<()> {
     register!(all_ais, expectiminimax_8_logic_optimization as "em8", 4, 0.0);
 
     register!(all_ais, monte_carlo_tree_search_0_naive as "mc0", 5, 2f32.sqrt(), 0.0);
+    register!(all_ais, monte_carlo_tree_search_1_optimization as "mc1", 5, 2f32.sqrt(), 0.0);
 
     assert!(all_ais.len() >= 2);
 
