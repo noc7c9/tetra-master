@@ -26,6 +26,8 @@ pub mod expectiminimax_6_reduce_cloned_data;
 pub mod expectiminimax_7_refactor;
 pub mod expectiminimax_8_logic_optimization;
 
+pub mod monte_carlo_tree_search_0_naive;
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Action {
     PlaceCard(core::PlaceCard),
@@ -531,4 +533,6 @@ mod tests {
     test!(expectiminimax_6_reduce_cloned_data, 3, 0.0);
     test!(expectiminimax_7_refactor, 3, 0.0);
     test!(expectiminimax_8_logic_optimization, 3, 0.0);
+
+    test!(monte_carlo_tree_search_0_naive, 250, 2f32.sqrt(), 0.0);
 }
