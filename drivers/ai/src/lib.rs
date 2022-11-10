@@ -29,6 +29,8 @@ pub mod expectiminimax_8_logic_optimization;
 pub mod monte_carlo_tree_search_0_naive;
 pub mod monte_carlo_tree_search_1_optimization;
 
+pub mod hybrid_0_initial;
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Action {
     PlaceCard(core::PlaceCard),
@@ -542,4 +544,6 @@ mod tests {
         2f32.sqrt(),
         0.0
     );
+
+    test!(hybrid_0_initial, 3, 250, 2f32.sqrt(), 6, 0.0);
 }

@@ -112,18 +112,20 @@ fn main() -> anyhow::Result<()> {
     // register!(all_ais, naive_minimax, 3);
     // register!(all_ais, naive_minimax, 4);
 
-    register!(all_ais, expectiminimax_0_naive as "em0", 4);
-    register!(all_ais, expectiminimax_1_simplify as "em1", 4);
-    register!(all_ais, expectiminimax_2_ab_pruning as "em2", 4);
-    register!(all_ais, expectiminimax_3_negamax as "em3", 4);
-    register!(all_ais, expectiminimax_4_prob_cutoff as "em4", 4, 0.0);
-    register!(all_ais, expectiminimax_5_no_alloc_get_resolutions as "em5", 4, 0.0);
-    register!(all_ais, expectiminimax_6_reduce_cloned_data as "em6", 4, 0.0);
-    register!(all_ais, expectiminimax_7_refactor as "em7", 4, 0.0);
-    register!(all_ais, expectiminimax_8_logic_optimization as "em8", 4, 0.0);
+    // register!(all_ais, expectiminimax_0_naive as "em0", 4);
+    // register!(all_ais, expectiminimax_1_simplify as "em1", 4);
+    // register!(all_ais, expectiminimax_2_ab_pruning as "em2", 4);
+    // register!(all_ais, expectiminimax_3_negamax as "em3", 4);
+    // register!(all_ais, expectiminimax_4_prob_cutoff as "em4", 4, 0.0);
+    // register!(all_ais, expectiminimax_5_no_alloc_get_resolutions as "em5", 4, 0.0);
+    // register!(all_ais, expectiminimax_6_reduce_cloned_data as "em6", 4, 0.0);
+    // register!(all_ais, expectiminimax_7_refactor as "em7", 4, 0.0);
+    register!(all_ais, expectiminimax_8_logic_optimization as "em8", 5, 0.0);
 
-    register!(all_ais, monte_carlo_tree_search_0_naive as "mc0", 5, 2f32.sqrt(), 0.0);
-    register!(all_ais, monte_carlo_tree_search_1_optimization as "mc1", 5, 2f32.sqrt(), 0.0);
+    // register!(all_ais, monte_carlo_tree_search_0_naive as "mc0", 5, 2f32.sqrt(), 0.0);
+    register!(all_ais, monte_carlo_tree_search_1_optimization as "mc1", 250, 2f32.sqrt(), 0.0);
+
+    register!(all_ais, hybrid_0_initial as "h0", 5, 250, 2f32.sqrt(), 6, 0.0);
 
     assert!(all_ais.len() >= 2);
 
