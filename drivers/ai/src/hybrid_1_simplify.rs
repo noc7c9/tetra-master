@@ -41,6 +41,10 @@ pub fn init(player: core::Player, setup: &core::Setup) -> Ai {
 }
 
 impl Ai {
+    pub fn init(player: core::Player, setup: &core::Setup) -> Self {
+        init(player, setup)
+    }
+
     pub fn reinit(&mut self, player: core::Player, setup: &core::Setup) {
         self.con = ConstantState::new(player, setup);
         self.var = VariableState::new(setup);

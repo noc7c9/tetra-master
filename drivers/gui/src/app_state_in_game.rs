@@ -8,7 +8,7 @@ use crate::{
 };
 use bevy::{prelude::*, sprite::Anchor};
 use rand::prelude::*;
-use tetra_master_ai::{self as ai, Ai as _};
+use tetra_master_ai::{self as ai, hybrid_1_simplify::Ai, Ai as _};
 use tetra_master_core as core;
 
 const CARD_COUNTER_PADDING: Vec2 = Vec2::new(10., 5.);
@@ -102,7 +102,7 @@ struct ActiveCard(Option<Entity>);
 #[derive(Debug)]
 struct HoveredCell(Option<usize>);
 
-struct AI(ai::expectiminimax_6_reduce_cloned_data::Ai);
+struct AI(Ai);
 
 #[derive(Component)]
 struct Cleanup;
@@ -271,9 +271,7 @@ fn on_enter(
         .insert(Cleanup);
 
     // Setup the AI
-    let ai = ai::expectiminimax_6_reduce_cloned_data::init(
-        4,
-        0.0,
+    let ai = Ai::init(
         core::Player::Red,
         &core::Setup {
             blocked_cells: blocked_cells.0,
@@ -863,9 +861,7 @@ fn ai_turn(
         return;
     }
 
-    println!("AI's Turn!");
-
-    println!("Calculating AI Move");
+    print!("AI Move");
 
     #[cfg(not(target_arch = "wasm32"))]
     let now = std::time::Instant::now();
@@ -873,12 +869,9 @@ fn ai_turn(
     let ai_cmd = ai.0.get_action();
 
     #[cfg(not(target_arch = "wasm32"))]
-    println!(
-        "Time Taken: {} seconds",
-        now.elapsed().as_millis() as f64 / 1000.
-    );
+    print!(" | {} ms", now.elapsed().as_millis() as f64 / 1000.);
 
-    println!("AI Move = {ai_cmd:?}");
+    println!(" | {ai_cmd:?}");
 
     // remove any battlers stats on the screen
     for entity in &battler_stat_displays {
