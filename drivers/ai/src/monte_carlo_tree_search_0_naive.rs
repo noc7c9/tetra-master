@@ -256,6 +256,45 @@ impl Node {
             (score / visits) + c_value * (parent_visits.ln() / visits).sqrt()
         }
     }
+
+    #[allow(dead_code)]
+    fn print(&self, con: &ConstantState) {
+        self.print_depth_limited(con, usize::MAX)
+    }
+
+    #[allow(dead_code)]
+    fn print_depth_limited(&self, con: &ConstantState, max_depth: usize) {
+        const INDENT_WIDTH: usize = 8;
+
+        fn print_node(
+            max_depth: usize,
+            depth: usize,
+            c_value: f32,
+            node: &Node,
+            parent_visits: usize,
+        ) {
+            if depth >= max_depth {
+                return;
+            }
+
+            print!("{}", " ".repeat(depth * INDENT_WIDTH));
+            match node.id {
+                NodeId::Root => print!("Node(Root)"),
+                NodeId::Action(action) => print!("Node({:?} | {action})", node.owner.unwrap()),
+                NodeId::Resolution(winner) => print!("Node({:?})", winner),
+            }
+            println!(
+                " | visits: {} | score: {} | uct: {}",
+                node.visits,
+                node.score,
+                node.uct_value(c_value, parent_visits),
+            );
+            for child in &node.children {
+                print_node(max_depth, depth + 1, c_value, child, node.visits)
+            }
+        }
+        print_node(max_depth, 0, con.c_value, self, 0);
+    }
 }
 
 fn monte_carlo_tree_search(
