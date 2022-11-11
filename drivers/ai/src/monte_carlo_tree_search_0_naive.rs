@@ -14,7 +14,7 @@ pub struct Ai {
 }
 
 pub fn init(
-    max_time_ms: u128,
+    max_time_ms: u64,
     c_value: f32,
     prob_cutoff: f32,
     player: core::Player,
@@ -397,8 +397,8 @@ fn monte_carlo_tree_search(
         }
     }
 
-    let now = std::time::Instant::now();
-    while now.elapsed().as_millis() < con.max_time_ms {
+    let now = crate::time::Instant::now();
+    while now.elapsed() < con.max_time_ms {
         recur(prealloc, rng, con, root, false);
     }
 
@@ -416,7 +416,7 @@ const NUM_CARDS: usize = core::HAND_SIZE * 2;
 // Game state which remains constant
 #[derive(Debug)]
 struct ConstantState {
-    max_time_ms: u128,
+    max_time_ms: u64,
     c_value: f32,
     prob_cutoff: f32,
     player: core::Player,
@@ -451,7 +451,7 @@ fn prealloc(cmd: &core::Setup) -> Vec<Action> {
 
 impl ConstantState {
     fn new(
-        max_time_ms: u128,
+        max_time_ms: u64,
         c_value: f32,
         prob_cutoff: f32,
         player: core::Player,

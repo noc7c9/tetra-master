@@ -11,7 +11,7 @@ const SWITCH_POINT: u8 = 5;
 
 // MCTS
 const C: f32 = std::f32::consts::SQRT_2; // exploration factor
-const MAX_TIME: u128 = 250; // time limit for MCTS (in milliseconds)
+const MAX_TIME: u64 = 250; // time limit for MCTS (in milliseconds)
 
 // Expectiminimax
 // max tree depth (only counting place-card nodes)
@@ -410,8 +410,8 @@ fn monte_carlo_tree_search(
         }
     }
 
-    let now = std::time::Instant::now();
-    while now.elapsed().as_millis() < MAX_TIME {
+    let now = crate::time::Instant::now();
+    while now.elapsed() < MAX_TIME {
         recur(prealloc, rng, con, &mut var.clone(), root, false);
     }
 

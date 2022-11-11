@@ -13,6 +13,8 @@ mod logging_noop;
 
 mod metrics;
 
+mod time;
+
 pub mod naive_minimax;
 pub mod random;
 

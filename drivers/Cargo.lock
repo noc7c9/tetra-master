@@ -3032,6 +3032,7 @@ dependencies = [
  "rand",
  "rand_pcg",
  "tetra-master-core",
+ "wasm-bindgen",
 ]
 
 [[package]]
