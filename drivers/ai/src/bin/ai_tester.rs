@@ -126,6 +126,7 @@ fn main() -> anyhow::Result<()> {
     register!(all_ais, monte_carlo_tree_search_1_optimization as "mc1", 250, 2f32.sqrt(), 0.0);
 
     register!(all_ais, hybrid_0_initial as "h0", 5, 250, 2f32.sqrt(), 6, 0.0);
+    register!(all_ais, hybrid_1_simplify as "h1");
 
     assert!(all_ais.len() >= 2);
 

@@ -30,6 +30,7 @@ pub mod monte_carlo_tree_search_0_naive;
 pub mod monte_carlo_tree_search_1_optimization;
 
 pub mod hybrid_0_initial;
+pub mod hybrid_1_simplify;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Action {
@@ -523,7 +524,7 @@ mod tests {
     macro_rules! test {
         ($name:ident, $($arg:expr),* $(,)?) => {
             // Note: this redirection is necessary as nested macro_rules! breaks rustfmt
-            generate_tests!($name, |player, cmd| crate::$name::init($($arg),*, player, cmd));
+            generate_tests!($name, |player, cmd| crate::$name::init($($arg,)* player, cmd));
         };
     }
 
@@ -546,4 +547,5 @@ mod tests {
     );
 
     test!(hybrid_0_initial, 3, 250, 2f32.sqrt(), 6, 0.0);
+    test!(hybrid_1_simplify,);
 }
