@@ -1,8 +1,9 @@
 use crate::{
     common::{
         calc_board_card_screen_pos, calc_board_cell_screen_pos, calc_hand_card_active_screen_pos,
-        calc_hand_card_hovered_screen_pos, calc_hand_card_screen_pos, start_new_game, z_index,
-        BlockedCells, Card, Driver, HandBlue, HandIdx, HandRed, Owner, Turn, CELL_SIZE,
+        calc_hand_card_hovered_screen_pos, calc_hand_card_screen_pos, hand_to_core_hand,
+        start_new_game, z_index, BlockedCells, Card, Driver, HandBlue, HandIdx, HandRed, Owner,
+        Turn, CELL_SIZE,
     },
     hover, AppAssets, AppState, CARD_SIZE, COIN_SIZE, RENDER_HSIZE,
 };
@@ -275,8 +276,8 @@ fn on_enter(
         core::Player::Red,
         &core::Setup {
             blocked_cells: blocked_cells.0,
-            hand_blue: hand_blue.0,
-            hand_red: hand_red.0,
+            hand_blue: hand_to_core_hand(&hand_blue.0),
+            hand_red: hand_to_core_hand(&hand_red.0),
             battle_system: core::BattleSystem::Deterministic,
             starting_player: turn.0,
         },

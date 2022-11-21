@@ -2,8 +2,6 @@ use crate::{AppAssets, AppState, CARD_SIZE, RENDER_HSIZE};
 use bevy::{prelude::*, sprite::Anchor};
 use tetra_master_core as core;
 
-const TOTAL_CARD_IMAGES: usize = 100;
-
 const PLAYER_HAND_VOFFSET: f32 = 27.;
 const PLAYER_HAND_PADDING: f32 = 4.;
 
@@ -58,17 +56,33 @@ pub struct Turn(pub core::Player);
 // #[derive(Debug)]
 // pub struct Candidates(pub [core::Hand; 3]);
 
-#[derive(Debug)]
-pub struct HandRed(pub core::Hand);
+pub type Hand = [Card; core::HAND_SIZE];
+
+pub fn hand_to_core_hand(hand: &Hand) -> core::Hand {
+    [
+        hand[0].stats,
+        hand[1].stats,
+        hand[2].stats,
+        hand[3].stats,
+        hand[4].stats,
+    ]
+}
 
 #[derive(Debug)]
-pub struct HandBlue(pub core::Hand);
+pub struct HandRed(pub Hand);
+
+#[derive(Debug)]
+pub struct HandBlue(pub Hand);
 
 #[derive(Debug)]
 pub struct BlockedCells(pub core::BoardCells);
 
-#[derive(Debug, Component, Clone)]
-pub struct Card(pub core::Card);
+#[derive(Debug, Component, Clone, Copy)]
+pub struct Card {
+    pub image_index: usize,
+    pub name: &'static str,
+    pub stats: core::Card,
+}
 
 #[derive(Debug, Component, Clone)]
 pub struct Owner(pub core::Player);
@@ -92,16 +106,29 @@ pub(crate) fn start_new_game(
         Some(implementation) => core::Driver::external(implementation),
         None => core::Driver::reference(),
     }
+    // .seed(15256155310125961462)
     .log()
     .build();
+
+    let mut rng = driver.get_rng();
+    let starting_player = crate::random_setup_generator::random_starting_player(&mut rng);
+    let blocked_cells = crate::random_setup_generator::random_blocked_cells(&mut rng);
+    let hand_blue = crate::random_setup_generator::random_hand(&mut rng);
+    let hand_red = crate::random_setup_generator::random_hand(&mut rng);
+    let setup = core::Setup {
+        battle_system: core::BattleSystem::Dice { sides: 12 },
+        starting_player,
+        blocked_cells,
+        hand_blue: crate::common::hand_to_core_hand(&hand_blue),
+        hand_red: crate::common::hand_to_core_hand(&hand_red),
+    };
+
     // TODO: handle the error
-    let response = driver
-        .send_random_setup(core::BattleSystem::Dice { sides: 12 })
-        .unwrap();
+    let response = driver.send(setup).unwrap();
 
     // commands.insert_resource(Candidates(response.hand_candidates));
-    commands.insert_resource(HandBlue(response.hand_blue));
-    commands.insert_resource(HandRed(response.hand_red));
+    commands.insert_resource(HandBlue(hand_blue));
+    commands.insert_resource(HandRed(hand_red));
     commands.insert_resource(BlockedCells(response.blocked_cells));
     commands.insert_resource(Turn(response.starting_player));
 
@@ -115,10 +142,9 @@ pub(crate) fn spawn_card<'w, 's, 'a>(
     commands: &'a mut Commands<'w, 's>,
     app_assets: &AppAssets,
     translation: Vec3,
-    card: core::Card,
+    card: Card,
     owner: Option<core::Player>,
 ) -> bevy::ecs::system::EntityCommands<'w, 's, 'a> {
-    let image_index = card_to_image_index(card);
     let mut entity_commands = commands.spawn_bundle(SpriteBundle {
         sprite: Sprite {
             anchor: Anchor::BottomLeft,
@@ -132,10 +158,10 @@ pub(crate) fn spawn_card<'w, 's, 'a>(
         transform: Transform::from_translation(translation),
         ..default()
     });
-    entity_commands.insert(Card(card)).with_children(|p| {
+    entity_commands.insert(card).with_children(|p| {
         p.spawn_bundle(SpriteSheetBundle {
             sprite: TextureAtlasSprite {
-                index: image_index,
+                index: card.image_index,
                 anchor: Anchor::BottomLeft,
                 ..default()
             },
@@ -148,7 +174,7 @@ pub(crate) fn spawn_card<'w, 's, 'a>(
         let y = 6.0;
         p.spawn_bundle(SpriteSheetBundle {
             sprite: TextureAtlasSprite {
-                index: card.attack as usize,
+                index: card.stats.attack as usize,
                 anchor: Anchor::BottomLeft,
                 ..default()
             },
@@ -158,7 +184,7 @@ pub(crate) fn spawn_card<'w, 's, 'a>(
         });
         p.spawn_bundle(SpriteSheetBundle {
             sprite: TextureAtlasSprite {
-                index: match card.card_type {
+                index: match card.stats.card_type {
                     core::CardType::Physical => 16,
                     core::CardType::Magical => 17,
                     core::CardType::Exploit => 18,
@@ -173,7 +199,7 @@ pub(crate) fn spawn_card<'w, 's, 'a>(
         });
         p.spawn_bundle(SpriteSheetBundle {
             sprite: TextureAtlasSprite {
-                index: card.physical_defense as usize,
+                index: card.stats.physical_defense as usize,
                 anchor: Anchor::BottomLeft,
                 ..default()
             },
@@ -183,7 +209,7 @@ pub(crate) fn spawn_card<'w, 's, 'a>(
         });
         p.spawn_bundle(SpriteSheetBundle {
             sprite: TextureAtlasSprite {
-                index: card.magical_defense as usize,
+                index: card.stats.magical_defense as usize,
                 anchor: Anchor::BottomLeft,
                 ..default()
             },
@@ -211,7 +237,7 @@ pub(crate) fn spawn_card<'w, 's, 'a>(
             (core::Arrows::LEFT, app_assets.card_arrow_left.clone()),
             (core::Arrows::UP_LEFT, app_assets.card_arrow_up_left.clone()),
         ] {
-            if card.arrows.has_any(*arrow) {
+            if card.stats.arrows.has_any(*arrow) {
                 p.spawn_bundle(SpriteBundle {
                     sprite: Sprite {
                         anchor: Anchor::BottomLeft,
@@ -225,19 +251,6 @@ pub(crate) fn spawn_card<'w, 's, 'a>(
         }
     });
     entity_commands
-}
-
-fn card_to_image_index(card: core::Card) -> usize {
-    let mut hash = match card.card_type {
-        core::CardType::Physical => 1,
-        core::CardType::Magical => 2,
-        core::CardType::Exploit => 3,
-        core::CardType::Assault => 4,
-    };
-    hash += 3 * card.attack as usize;
-    hash += 5 * card.physical_defense as usize;
-    hash += 7 * card.magical_defense as usize;
-    hash % TOTAL_CARD_IMAGES
 }
 
 pub fn calc_candidate_card_screen_pos(candidate_idx: usize, hand_idx: usize) -> Vec3 {

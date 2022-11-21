@@ -33,6 +33,10 @@ impl Driver {
         DriverBuilder::new(inner)
     }
 
+    pub fn get_rng(&mut self) -> &mut Rng {
+        &mut self.rng
+    }
+
     pub fn random_setup(&mut self, battle_system: BattleSystem) -> command::Setup {
         let blocked_cells = random_setup::random_blocked_cells(&mut self.rng);
         let [hand_blue, hand_red] = random_setup::random_hands(&mut self.rng);

@@ -5,6 +5,7 @@ mod debug;
 
 mod common;
 mod hover;
+mod random_setup_generator;
 
 mod app_state_in_game;
 mod app_state_picking_hands;
