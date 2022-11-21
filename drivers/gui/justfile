@@ -20,3 +20,16 @@ check +ARGS='':
 
 build +ARGS='':
     cargo build {{ARGS}}
+
+[linux]
+build-wasm:
+    trunk build --release --public-url "SED_REPLACE_MARKER"
+    sed --in-place 's/\/SED_REPLACE_MARKER/./g' ./dist/index.html
+
+[macos]
+build-wasm:
+    trunk build --release --public-url "SED_REPLACE_MARKER"
+    sed -i  '' 's/\/SED_REPLACE_MARKER/./g' ./dist/index.html
+
+serve-wasm: build-wasm
+    cd ./dist && python3 -m http.server
