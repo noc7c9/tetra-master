@@ -709,7 +709,7 @@ fn handle_game_over_event(
                         )
                         .with_text_alignment(TextAlignment::CENTER)
                         .with_style(Style {
-                            align_self: AlignSelf::FlexStart,
+                            align_self: AlignSelf::FlexEnd,
                             position_type: PositionType::Relative,
                             position: UiRect {
                                 bottom: Val::Percent(25.0),
