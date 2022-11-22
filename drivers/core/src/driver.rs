@@ -87,7 +87,7 @@ impl Driver {
 
         if self.log {
             let prefix = " TX ".black().on_bright_purple();
-            eprintln!("{} {}", prefix, cmd.bright_purple());
+            log::info!("{} {}", prefix, cmd.bright_purple());
         }
 
         let res = match &mut self.inner {
@@ -98,8 +98,8 @@ impl Driver {
         if self.log {
             let prefix = " RX ".black().on_bright_blue();
             match &res {
-                Ok(ok) => eprintln!("{} {}", prefix, ok.bright_blue()),
-                Err(err) => eprintln!("{} Err {}", prefix, err.bright_blue()),
+                Ok(ok) => log::info!("{} {}", prefix, ok.bright_blue()),
+                Err(err) => log::info!("{} Err {}", prefix, err.bright_blue()),
             }
         }
 
@@ -117,14 +117,9 @@ impl DriverBuilder {
     fn new(inner: Inner) -> Self {
         Self {
             inner,
-            log: false,
+            log: true,
             seed: None,
         }
-    }
-
-    pub fn log(mut self) -> Self {
-        self.log = true;
-        self
     }
 
     pub fn no_log(mut self) -> Self {
@@ -141,21 +136,22 @@ impl DriverBuilder {
         let initial_seed = self.seed.unwrap_or_else(|| thread_rng().gen());
 
         if self.log {
-            use owo_colors::OwoColorize;
+            if log::log_enabled!(log::Level::Info) {
+                use owo_colors::OwoColorize;
+                use std::fmt::Write;
 
-            eprint!("{} Initializing ", "INIT".black().on_green());
-            match &self.inner {
-                Inner::External(inner) => {
-                    eprint!(
-                        "{} ({})",
-                        "External Driver".green(),
-                        inner.implementation.green()
-                    )
-                }
-                Inner::Reference(_) => eprint!("{}", "Reference Driver".green()),
+                let mut s = String::new();
+                let _ = write!(s, "{} Initializing ", "INIT".black().on_green());
+                let _ = match &self.inner {
+                    Inner::External(inner) => {
+                        let implementation = inner.implementation.green();
+                        write!(s, "{} ({implementation})", "External Driver".green(),)
+                    }
+                    Inner::Reference(_) => write!(s, "{}", "Reference Driver".green()),
+                };
+                let _ = write!(s, " | Seed: {}", initial_seed.green());
+                log::info!("{s}");
             }
-            eprint!(" | Seed: {}", initial_seed.green());
-            eprintln!();
 
             // turn on logging for the internal logger,
             // this logs the raw protocol
@@ -263,7 +259,7 @@ impl ExternalDriver {
         cmd.serialize(&mut self.buffer)?;
 
         if self.log {
-            eprint!("{} {}", " TX ".black().on_purple(), self.buffer.purple());
+            log::info!("{} {}", " TX ".black().on_purple(), self.buffer.purple());
         }
 
         self.transmitter.write_all(self.buffer.as_bytes())?;
@@ -280,7 +276,7 @@ impl ExternalDriver {
         self.receiver.read_line(&mut self.buffer)?;
 
         if self.log {
-            eprint!("{} {}", " RX ".black().on_blue(), self.buffer.blue());
+            log::info!("{} {}", " RX ".black().on_blue(), self.buffer.blue());
         }
 
         if let Ok(error_response) = ErrorResponse::deserialize(&self.buffer) {

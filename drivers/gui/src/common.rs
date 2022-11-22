@@ -107,7 +107,6 @@ pub(crate) fn start_new_game(
         None => core::Driver::reference(),
     }
     // .seed(15256155310125961462)
-    .log()
     .build();
 
     let mut rng = driver.get_rng();
