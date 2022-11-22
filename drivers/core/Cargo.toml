@@ -4,11 +4,11 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-nom = { workspace = true }
-owo-colors = { workspace = true }
-rand = { workspace = true }
-rand_pcg = { workspace = true }
+nom.workspace = true
+owo-colors.workspace = true
+rand.workspace = true
+rand_pcg.workspace = true
 
 [dev-dependencies]
-pretty_assertions = { workspace = true }
-test-case = { workspace = true }
+pretty_assertions.workspace = true
+test-case.workspace = true

@@ -7,8 +7,8 @@ edition = "2021"
 tetra-master-core = { path = "../core" }
 tetra-master-ai = { path = "../ai" }
 
-anyhow = { workspace = true }
-bevy = { workspace = true }
-bevy_prototype_lyon = { workspace = true }
-clap = { workspace = true }
-rand = { workspace = true }
+anyhow.workspace = true
+bevy.workspace = true
+bevy_prototype_lyon.workspace = true
+clap.workspace = true
+rand.workspace = true

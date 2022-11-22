@@ -6,7 +6,7 @@ edition = "2021"
 [dependencies]
 tetra-master-core = { path = "../core" }
 
-anyhow = { workspace = true }
-clap = { workspace = true }
-owo-colors = { workspace = true }
-pretty_assertions = { workspace = true }
+anyhow.workspace = true
+clap.workspace = true
+owo-colors.workspace = true
+pretty_assertions.workspace = true
