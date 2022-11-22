@@ -107,6 +107,8 @@ fn setup(
     mut texture_atlases: ResMut<Assets<TextureAtlas>>,
     asset_server: Res<AssetServer>,
 ) {
+    option_env!("GIT_SHA").map(|sha| log::info!("Build: {sha}"));
+
     // load assets
     app_assets.font = asset_server.load("alexandria.ttf");
 

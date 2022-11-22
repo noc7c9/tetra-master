@@ -11,4 +11,5 @@ anyhow.workspace = true
 bevy.workspace = true
 bevy_prototype_lyon.workspace = true
 clap.workspace = true
+log.workspace = true
 rand.workspace = true

@@ -26,6 +26,8 @@ jobs:
                   version: 'latest'
 
             - name: Build
+              env:
+                  GIT_SHA: ${{github.sha}}
               run: |
                   cd ./drivers/gui
                   trunk build --release --public-url "SED_REPLACE_MARKER"
