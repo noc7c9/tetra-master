@@ -271,7 +271,7 @@ pub fn calc_hand_card_screen_pos(owner: core::Player, hand_idx: usize) -> Vec3 {
             core::Player::Red => -RENDER_HSIZE.x + PLAYER_HAND_PADDING,
         },
         RENDER_HSIZE.y - CARD_SIZE.y - PLAYER_HAND_PADDING - PLAYER_HAND_VOFFSET * hand_idx,
-        z_index::HAND_CARD + hand_idx,
+        z_index::HAND_CARD + core::HAND_SIZE as f32 - hand_idx,
     )
 }
 
