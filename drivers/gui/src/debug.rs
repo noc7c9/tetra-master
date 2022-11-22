@@ -83,7 +83,7 @@ mod debug_only {
                 .entity(entity)
                 .remove::<RectInit>()
                 .with_children(|p| {
-                    p.spawn_bundle(GeometryBuilder::build_as(
+                    p.spawn(GeometryBuilder::build_as(
                         &shape,
                         DrawMode::Fill(FillMode::color(fill)),
                         Transform::from_xyz(0., 0., z_index::DEBUG),

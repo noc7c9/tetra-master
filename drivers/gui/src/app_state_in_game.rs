@@ -87,22 +87,23 @@ impl bevy::app::Plugin for Plugin {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Resource)]
 enum Status {
     Normal,
     PickingBattle { choices: core::BoardCells },
     GameOver,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Resource)]
 struct HoveredCard(Option<Entity>);
 
-#[derive(Debug)]
+#[derive(Debug, Resource)]
 struct ActiveCard(Option<Entity>);
 
-#[derive(Debug)]
+#[derive(Debug, Resource)]
 struct HoveredCell(Option<usize>);
 
+#[derive(Resource)]
 struct AI(Ai);
 
 #[derive(Component)]
@@ -151,7 +152,7 @@ fn on_enter(
 
     // board background
     commands
-        .spawn_bundle(SpriteBundle {
+        .spawn(SpriteBundle {
             texture: app_assets.board.clone(),
             transform: Transform::from_xyz(0., 0., z_index::BG + 0.1),
             ..default()
@@ -166,7 +167,7 @@ fn on_enter(
             calc_board_cell_screen_pos(cell as usize).extend(z_index::BOARD_BLOCKED_CELL),
         );
         commands
-            .spawn_bundle(SpriteBundle {
+            .spawn(SpriteBundle {
                 sprite: Sprite {
                     anchor: Anchor::BottomLeft,
                     ..default()
@@ -186,13 +187,13 @@ fn on_enter(
 
         let position = calc_board_cell_screen_pos(cell).extend(z_index::BOARD_CELL_HOVER_AREA);
         let transform = Transform::from_translation(position);
-        commands
-            .spawn()
-            .insert(Cleanup)
-            .insert_bundle(TransformBundle::from_transform(transform))
-            .insert(hover::Area::new(CELL_SIZE))
-            // .insert(crate::debug::rect(CELL_SIZE))
-            .insert(BoardCell(cell));
+        commands.spawn((
+            Cleanup,
+            TransformBundle::from_transform(transform),
+            hover::Area::new(CELL_SIZE),
+            // crate::debug::rect(CELL_SIZE),
+            BoardCell(cell),
+        ));
     }
 
     // player hands (already exists, created in the previous state)
@@ -205,20 +206,20 @@ fn on_enter(
             // .insert(crate::debug::rect(CARD_SIZE))
             .insert(HandCardHoverArea(entity));
         // create a sibling hover area to prevent repeated hover start/end events
-        commands
-            .spawn()
-            .insert_bundle(TransformBundle::from_transform(*transform))
-            .insert(owner.clone())
-            .insert(hover::Area::new(CARD_SIZE))
-            // .insert(crate::debug::rect(CARD_SIZE))
-            .insert(HandCardHoverArea(entity));
+        commands.spawn((
+            TransformBundle::from_transform(*transform),
+            owner.clone(),
+            hover::Area::new(CARD_SIZE),
+            // crate::debug::rect(CARD_SIZE),
+            HandCardHoverArea(entity),
+        ));
     }
 
     // card counter
     let x = -RENDER_HSIZE.x + CARD_COUNTER_PADDING.x;
     let y = -RENDER_HSIZE.y + CARD_COUNTER_PADDING.y;
     commands
-        .spawn_bundle(SpriteBundle {
+        .spawn(SpriteBundle {
             sprite: Sprite {
                 anchor: Anchor::BottomLeft,
                 ..default()
@@ -229,7 +230,7 @@ fn on_enter(
         })
         .insert(Cleanup);
     commands
-        .spawn_bundle(SpriteBundle {
+        .spawn(SpriteBundle {
             sprite: Sprite {
                 anchor: Anchor::BottomLeft,
                 ..default()
@@ -241,7 +242,7 @@ fn on_enter(
         .insert(RedCardCounter(0))
         .insert(Cleanup);
     commands
-        .spawn_bundle(SpriteBundle {
+        .spawn(SpriteBundle {
             sprite: Sprite {
                 anchor: Anchor::BottomLeft,
                 ..default()
@@ -257,7 +258,7 @@ fn on_enter(
     let x = RENDER_HSIZE.x - COIN_SIZE.x - COIN_PADDING.x;
     let y = -RENDER_HSIZE.y + COIN_PADDING.y;
     commands
-        .spawn_bundle(SpriteSheetBundle {
+        .spawn(SpriteSheetBundle {
             sprite: TextureAtlasSprite {
                 index: 0,
                 anchor: Anchor::BottomLeft,
@@ -268,7 +269,10 @@ fn on_enter(
             ..default()
         })
         .insert(Coin)
-        .insert(AnimationTimer(Timer::from_seconds(0.05, true)))
+        .insert(AnimationTimer(Timer::from_seconds(
+            0.05,
+            TimerMode::Repeating,
+        )))
         .insert(Cleanup);
 
     // Setup the AI
@@ -498,7 +502,7 @@ fn handle_play_ok(
         let mut translation = calc_board_card_screen_pos(cell);
         translation.z = z_index::BOARD_CARD_SELECT_INDICATOR;
         commands
-            .spawn_bundle(SpriteBundle {
+            .spawn(SpriteBundle {
                 sprite: Sprite {
                     anchor: Anchor::BottomLeft,
                     ..default()
@@ -684,18 +688,17 @@ fn handle_game_over_event(
                 Some(core::Player::Red) => "Red won! Left Click to Start a New Game!",
             };
             commands
-                .spawn_bundle(NodeBundle {
+                .spawn(NodeBundle {
                     style: Style {
                         size: Size::new(Val::Percent(100.0), Val::Percent(100.0)),
                         justify_content: JustifyContent::Center,
                         ..default()
                     },
-                    color: Color::NONE.into(),
                     ..default()
                 })
                 .insert(Cleanup)
                 .with_children(|parent| {
-                    parent.spawn_bundle(
+                    parent.spawn(
                         TextBundle::from_section(
                             text,
                             TextStyle {
@@ -775,12 +778,13 @@ fn spawn_battler_stats(commands: &mut Commands, app_assets: &AppAssets, battler:
     position.z = z_index::BOARD_CARD_STARTS;
     let transform = Transform::from_translation(position);
     commands
-        .spawn()
-        .insert(BattlerStatDisplay)
-        .insert_bundle(TransformBundle::from_transform(transform))
-        .insert(Visibility::default())
-        .insert(ComputedVisibility::default())
-        .insert(Cleanup)
+        .spawn((
+            BattlerStatDisplay,
+            TransformBundle::from_transform(transform),
+            Visibility::default(),
+            ComputedVisibility::default(),
+            Cleanup,
+        ))
         .with_children(|p| {
             fn spawn_digit(
                 app_assets: &AppAssets,
@@ -788,7 +792,7 @@ fn spawn_battler_stats(commands: &mut Commands, app_assets: &AppAssets, battler:
                 index: u8,
                 position: Vec2,
             ) {
-                p.spawn_bundle(SpriteSheetBundle {
+                p.spawn(SpriteSheetBundle {
                     sprite: TextureAtlasSprite {
                         index: index as usize,
                         anchor: Anchor::BottomLeft,
@@ -823,7 +827,7 @@ fn spawn_battler_stats(commands: &mut Commands, app_assets: &AppAssets, battler:
                 core::Digit::MagicalDefense => 27.,
             };
             let y = 6.;
-            p.spawn_bundle(SpriteSheetBundle {
+            p.spawn(SpriteSheetBundle {
                 sprite: TextureAtlasSprite {
                     color: Color::GREEN,
                     index: battler.value as usize,

@@ -18,18 +18,17 @@ struct Cleanup;
 
 fn setup(mut commands: Commands, app_assets: Res<AppAssets>) {
     commands
-        .spawn_bundle(NodeBundle {
+        .spawn(NodeBundle {
             style: Style {
                 size: Size::new(Val::Percent(100.0), Val::Percent(100.0)),
                 justify_content: JustifyContent::Center,
                 ..default()
             },
-            color: Color::NONE.into(),
             ..default()
         })
         .insert(Cleanup)
         .with_children(|parent| {
-            parent.spawn_bundle(
+            parent.spawn(
                 TextBundle::from_section(
                     "Left Click to Start a New Game!",
                     TextStyle {

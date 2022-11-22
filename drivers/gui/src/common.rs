@@ -48,9 +48,10 @@ pub mod z_index {
     pub const DEBUG: f32 = 666.;
 }
 
+#[derive(Resource)]
 pub struct Driver(pub core::Driver);
 
-#[derive(Debug)]
+#[derive(Debug, Resource)]
 pub struct Turn(pub core::Player);
 
 // #[derive(Debug)]
@@ -68,13 +69,13 @@ pub fn hand_to_core_hand(hand: &Hand) -> core::Hand {
     ]
 }
 
-#[derive(Debug)]
+#[derive(Debug, Resource)]
 pub struct HandRed(pub Hand);
 
-#[derive(Debug)]
+#[derive(Debug, Resource)]
 pub struct HandBlue(pub Hand);
 
-#[derive(Debug)]
+#[derive(Debug, Resource)]
 pub struct BlockedCells(pub core::BoardCells);
 
 #[derive(Debug, Component, Clone, Copy)]
@@ -144,7 +145,7 @@ pub(crate) fn spawn_card<'w, 's, 'a>(
     card: Card,
     owner: Option<core::Player>,
 ) -> bevy::ecs::system::EntityCommands<'w, 's, 'a> {
-    let mut entity_commands = commands.spawn_bundle(SpriteBundle {
+    let mut entity_commands = commands.spawn(SpriteBundle {
         sprite: Sprite {
             anchor: Anchor::BottomLeft,
             ..default()
@@ -158,7 +159,7 @@ pub(crate) fn spawn_card<'w, 's, 'a>(
         ..default()
     });
     entity_commands.insert(card).with_children(|p| {
-        p.spawn_bundle(SpriteSheetBundle {
+        p.spawn(SpriteSheetBundle {
             sprite: TextureAtlasSprite {
                 index: card.image_index,
                 anchor: Anchor::BottomLeft,
@@ -171,7 +172,7 @@ pub(crate) fn spawn_card<'w, 's, 'a>(
 
         let x = 9.0;
         let y = 6.0;
-        p.spawn_bundle(SpriteSheetBundle {
+        p.spawn(SpriteSheetBundle {
             sprite: TextureAtlasSprite {
                 index: card.stats.attack as usize,
                 anchor: Anchor::BottomLeft,
@@ -181,7 +182,7 @@ pub(crate) fn spawn_card<'w, 's, 'a>(
             transform: Transform::from_xyz(x, y, 0.2),
             ..default()
         });
-        p.spawn_bundle(SpriteSheetBundle {
+        p.spawn(SpriteSheetBundle {
             sprite: TextureAtlasSprite {
                 index: match card.stats.card_type {
                     core::CardType::Physical => 16,
@@ -196,7 +197,7 @@ pub(crate) fn spawn_card<'w, 's, 'a>(
             transform: Transform::from_xyz(x + 6., y, 0.2),
             ..default()
         });
-        p.spawn_bundle(SpriteSheetBundle {
+        p.spawn(SpriteSheetBundle {
             sprite: TextureAtlasSprite {
                 index: card.stats.physical_defense as usize,
                 anchor: Anchor::BottomLeft,
@@ -206,7 +207,7 @@ pub(crate) fn spawn_card<'w, 's, 'a>(
             transform: Transform::from_xyz(x + 12., y, 0.2),
             ..default()
         });
-        p.spawn_bundle(SpriteSheetBundle {
+        p.spawn(SpriteSheetBundle {
             sprite: TextureAtlasSprite {
                 index: card.stats.magical_defense as usize,
                 anchor: Anchor::BottomLeft,
@@ -237,7 +238,7 @@ pub(crate) fn spawn_card<'w, 's, 'a>(
             (core::Arrows::UP_LEFT, app_assets.card_arrow_up_left.clone()),
         ] {
             if card.stats.arrows.has_any(*arrow) {
-                p.spawn_bundle(SpriteBundle {
+                p.spawn(SpriteBundle {
                     sprite: Sprite {
                         anchor: Anchor::BottomLeft,
                         ..default()

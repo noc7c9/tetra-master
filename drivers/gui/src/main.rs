@@ -30,7 +30,7 @@ enum AppState {
     InGame,
 }
 
-#[derive(Debug, Parser)]
+#[derive(Debug, Parser, Resource)]
 struct Args {
     #[clap(value_name = "PATH")]
     /// Path to the external implementation to use, if omitted the reference implementation will be
@@ -40,22 +40,27 @@ struct Args {
 
 fn main() {
     App::new()
-        .insert_resource(bevy::render::texture::ImageSettings::default_nearest())
-        .insert_resource(WindowDescriptor {
-            title: "Tetra Master".to_string(),
-            width: SCREEN_SIZE.x,
-            height: SCREEN_SIZE.y,
-            resize_constraints: bevy::window::WindowResizeConstraints {
-                min_width: RENDER_SIZE.x,
-                min_height: RENDER_SIZE.y,
-                ..default()
-            },
-            fit_canvas_to_parent: true,
-            ..default()
-        })
         .insert_resource(Args::parse())
         .insert_resource(AppAssets::default())
-        .add_plugins(DefaultPlugins)
+        .add_plugins(
+            DefaultPlugins
+                .set(ImagePlugin::default_nearest())
+                .set(WindowPlugin {
+                    window: WindowDescriptor {
+                        title: "Tetra Master".to_string(),
+                        width: SCREEN_SIZE.x,
+                        height: SCREEN_SIZE.y,
+                        resize_constraints: bevy::window::WindowResizeConstraints {
+                            min_width: RENDER_SIZE.x,
+                            min_height: RENDER_SIZE.y,
+                            ..default()
+                        },
+                        fit_canvas_to_parent: true,
+                        ..default()
+                    },
+                    ..default()
+                }),
+        )
         .add_plugin(debug::Plugin)
         .add_plugin(common::Plugin)
         .add_plugin(hover::Plugin)
@@ -73,7 +78,7 @@ fn cleanup<T: Component>(mut commands: Commands, entities: Query<Entity, With<T>
     }
 }
 
-#[derive(Default)]
+#[derive(Default, Resource)]
 struct AppAssets {
     font: Handle<Font>,
     background: Handle<Image>,
@@ -117,7 +122,7 @@ fn setup(
 
     app_assets.battle_digits = {
         let handle = asset_server.load("battle-digits.png");
-        let atlas = TextureAtlas::from_grid(handle, DIGIT_SIZE, 10, 1);
+        let atlas = TextureAtlas::from_grid(handle, DIGIT_SIZE, 10, 1, None, None);
         texture_atlases.add(atlas)
     };
 
@@ -128,7 +133,7 @@ fn setup(
 
     app_assets.coin_flip = {
         let handle = asset_server.load("coin-flip.png");
-        let atlas = TextureAtlas::from_grid(handle, COIN_SIZE, 8, 1);
+        let atlas = TextureAtlas::from_grid(handle, COIN_SIZE, 8, 1, None, None);
         texture_atlases.add(atlas)
     };
 
@@ -147,13 +152,13 @@ fn setup(
 
     app_assets.card_faces = {
         let handle = asset_server.load("card-faces.png");
-        let atlas = TextureAtlas::from_grid(handle, CARD_SIZE, 10, 10);
+        let atlas = TextureAtlas::from_grid(handle, CARD_SIZE, 10, 10, None, None);
         texture_atlases.add(atlas)
     };
 
     app_assets.card_stat_font = {
         let handle = asset_server.load("card-stat-font.png");
-        let atlas = TextureAtlas::from_grid(handle, (7., 7.).into(), 19, 1);
+        let atlas = TextureAtlas::from_grid(handle, (7., 7.).into(), 19, 1, None, None);
         texture_atlases.add(atlas)
     };
 
@@ -189,7 +194,7 @@ fn setup(
 
     // change projection so that when the window is resized, the game will scale with it while
     // keeping the aspect ratio
-    commands.spawn_bundle(Camera2dBundle {
+    commands.spawn(Camera2dBundle {
         projection: OrthographicProjection {
             scale: RENDER_SIZE.y,
             scaling_mode: bevy::render::camera::ScalingMode::FixedVertical(1.),
@@ -200,7 +205,7 @@ fn setup(
 
     // global background for all app states
     commands.insert_resource(ClearColor(CLEAR_COLOR));
-    commands.spawn_bundle(SpriteBundle {
+    commands.spawn(SpriteBundle {
         texture: app_assets.background.clone(),
         transform: Transform::from_xyz(0., 0., common::z_index::BG),
         ..default()
