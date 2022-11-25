@@ -3,6 +3,7 @@ use clap::Parser;
 
 mod debug;
 
+mod camera;
 mod common;
 mod hover;
 mod random_setup_generator;
@@ -61,6 +62,7 @@ fn main() {
                     ..default()
                 }),
         )
+        .add_plugin(camera::Plugin)
         .add_plugin(debug::Plugin)
         .add_plugin(common::Plugin)
         .add_plugin(hover::Plugin)
@@ -192,16 +194,7 @@ fn setup(
 
     app_assets.card_select_indicator = asset_server.load("card-select-indicator.png");
 
-    // change projection so that when the window is resized, the game will scale with it while
-    // keeping the aspect ratio
-    commands.spawn(Camera2dBundle {
-        projection: OrthographicProjection {
-            scale: RENDER_SIZE.y,
-            scaling_mode: bevy::render::camera::ScalingMode::FixedVertical(1.),
-            ..default()
-        },
-        ..default()
-    });
+    commands.spawn(camera::Camera::new(RENDER_SIZE));
 
     // global background for all app states
     commands.insert_resource(ClearColor(CLEAR_COLOR));
