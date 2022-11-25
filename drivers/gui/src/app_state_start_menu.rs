@@ -17,38 +17,20 @@ impl bevy::app::Plugin for Plugin {
 struct Cleanup;
 
 fn setup(mut commands: Commands, app_assets: Res<AppAssets>) {
-    commands
-        .spawn(NodeBundle {
-            style: Style {
-                size: Size::new(Val::Percent(100.0), Val::Percent(100.0)),
-                justify_content: JustifyContent::Center,
-                ..default()
-            },
+    let style = TextStyle {
+        font: app_assets.font.clone(),
+        font_size: 10.0,
+        color: Color::WHITE,
+    };
+    commands.spawn((
+        Text2dBundle {
+            text: Text::from_section("Left Click to Start a New Game!", style)
+                .with_alignment(TextAlignment::CENTER),
+            transform: Transform::from_xyz(0., -80., 10.0),
             ..default()
-        })
-        .insert(Cleanup)
-        .with_children(|parent| {
-            parent.spawn(
-                TextBundle::from_section(
-                    "Left Click to Start a New Game!",
-                    TextStyle {
-                        font: app_assets.font.clone(),
-                        font_size: 40.0,
-                        color: Color::WHITE,
-                    },
-                )
-                .with_text_alignment(TextAlignment::CENTER)
-                .with_style(Style {
-                    align_self: AlignSelf::FlexEnd,
-                    position_type: PositionType::Relative,
-                    position: UiRect {
-                        bottom: Val::Percent(25.0),
-                        ..default()
-                    },
-                    ..default()
-                }),
-            );
-        });
+        },
+        Cleanup,
+    ));
 }
 
 fn mouse_input(

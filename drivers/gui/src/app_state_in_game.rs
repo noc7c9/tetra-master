@@ -687,38 +687,21 @@ fn handle_game_over_event(
                 Some(core::Player::Blue) => "Blue won! Left Click to Start a New Game!",
                 Some(core::Player::Red) => "Red won! Left Click to Start a New Game!",
             };
-            commands
-                .spawn(NodeBundle {
-                    style: Style {
-                        size: Size::new(Val::Percent(100.0), Val::Percent(100.0)),
-                        justify_content: JustifyContent::Center,
-                        ..default()
-                    },
+
+            let style = TextStyle {
+                font: app_assets.font.clone(),
+                font_size: 10.0,
+                color: Color::WHITE,
+            };
+
+            commands.spawn((
+                Text2dBundle {
+                    text: Text::from_section(text, style).with_alignment(TextAlignment::CENTER),
+                    transform: Transform::from_xyz(0., -106.5, 10.0),
                     ..default()
-                })
-                .insert(Cleanup)
-                .with_children(|parent| {
-                    parent.spawn(
-                        TextBundle::from_section(
-                            text,
-                            TextStyle {
-                                font: app_assets.font.clone(),
-                                font_size: 40.0,
-                                color: Color::WHITE,
-                            },
-                        )
-                        .with_text_alignment(TextAlignment::CENTER)
-                        .with_style(Style {
-                            align_self: AlignSelf::FlexEnd,
-                            position_type: PositionType::Relative,
-                            position: UiRect {
-                                bottom: Val::Percent(25.0),
-                                ..default()
-                            },
-                            ..default()
-                        }),
-                    );
-                });
+                },
+                Cleanup,
+            ));
 
             *status = Status::GameOver;
         }
