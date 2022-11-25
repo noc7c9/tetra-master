@@ -2,7 +2,7 @@ _list:
     @just --list
 
 start:
-    just watch run
+    RUST_BACKTRACE=1 just watch run
 
 watch CMD='check' +ARGS='':
     watchexec \
