@@ -3,7 +3,8 @@ name: GitHub Pages
 on: [push]
 
 jobs:
-    build-and-deploy:
+    build-and-deploy-gh-pages:
+        name: Build and Deploy to Github Pages
         runs-on: ubuntu-latest
         permissions:
             contents: write
@@ -14,22 +15,26 @@ jobs:
               uses: actions/checkout@v3
 
             - name: Install Rust (nightly, wasm32-unknown-unknown)
-              uses: actions-rs/toolchain@v1
+              uses: dtolnay/rust-toolchain@master
               with:
-                  profile: minimal
                   toolchain: nightly
-                  target: wasm32-unknown-unknown
+                  targets: wasm32-unknown-unknown
 
             - name: Install Trunk
-              uses: jetli/trunk-action@v0.1.0
+              uses: jetli/trunk-action@v0.2.0
               with:
-                  version: 'latest'
+                  version: latest
+
+            - name: Setup Caching
+              uses: Swatinem/rust-cache@v2
+              with:
+                  workspaces: ./drivers
 
             - name: Build
               env:
                   GIT_SHA: ${{github.sha}}
+              working-directory: ./drivers/gui
               run: |
-                  cd ./drivers/gui
                   trunk build --release --public-url "SED_REPLACE_MARKER"
                   # trunk doesn't support relative paths,
                   # so change url after building
