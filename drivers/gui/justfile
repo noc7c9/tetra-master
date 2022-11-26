@@ -2,7 +2,13 @@ _list:
     @just --list
 
 start:
-    RUST_BACKTRACE=1 just watch run
+    RUST_BACKTRACE=1 just watch _start-actual
+
+@_start-actual: build
+    echo
+    read -p "Build Successful, press enter to run!"
+    echo
+    just run
 
 watch CMD='check' +ARGS='':
     watchexec \
@@ -19,7 +25,7 @@ check +ARGS='':
     cargo clippy {{ARGS}}
 
 build +ARGS='':
-    cargo build {{ARGS}}
+    cargo build --features bevy/dynamic {{ARGS}}
 
 [linux]
 build-wasm:
