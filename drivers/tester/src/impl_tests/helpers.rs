@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+
 use tetra_master_core::{
     Arrows, BattleSystem, BattleWinner, Battler, BoardCells, Card, Error, ErrorResponse, Event,
     Hand, PickBattle, PlaceCard, Player, ResolveBattle, Setup,

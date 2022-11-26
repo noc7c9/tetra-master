@@ -139,6 +139,7 @@ struct BattlerStatDisplay;
 #[derive(Component)]
 struct SelectIndicator;
 
+#[allow(clippy::too_many_arguments)]
 fn on_enter(
     mut commands: Commands,
     app_assets: Res<AppAssets>,
