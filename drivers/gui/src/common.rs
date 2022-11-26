@@ -34,6 +34,9 @@ pub struct Driver(pub core::Driver);
 #[derive(Debug, Resource)]
 pub struct Turn(pub core::Player);
 
+#[derive(Debug, Resource)]
+pub struct BattleSystem(pub core::BattleSystem);
+
 // #[derive(Debug)]
 // pub struct Candidates(pub [core::Hand; 3]);
 
@@ -107,6 +110,7 @@ pub(crate) fn start_new_game(
     let response = driver.send(setup).unwrap();
 
     // commands.insert_resource(Candidates(response.hand_candidates));
+    commands.insert_resource(BattleSystem(response.battle_system));
     commands.insert_resource(HandBlue(hand_blue));
     commands.insert_resource(HandRed(hand_red));
     commands.insert_resource(BlockedCells(response.blocked_cells));
