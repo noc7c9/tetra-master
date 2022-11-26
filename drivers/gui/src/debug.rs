@@ -14,7 +14,7 @@ impl bevy::app::Plugin for Plugin {
 #[cfg(debug_assertions)]
 mod debug_only {
     use super::*;
-    use crate::common::z_index;
+    use crate::layout::Z;
     use bevy::app::AppExit;
     use bevy_prototype_lyon::prelude::*;
 
@@ -86,7 +86,7 @@ mod debug_only {
                     p.spawn(GeometryBuilder::build_as(
                         &shape,
                         DrawMode::Fill(FillMode::color(fill)),
-                        Transform::from_xyz(0., 0., z_index::DEBUG),
+                        Transform::from_xyz(0., 0., Z::DEBUG),
                     ));
                 });
         }

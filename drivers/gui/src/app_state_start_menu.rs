@@ -1,4 +1,8 @@
-use super::{common::start_new_game, AppAssets, AppState};
+use super::{
+    common::start_new_game,
+    layout::{self, TransformExt as _, Z},
+    AppAssets, AppState,
+};
 use bevy::prelude::*;
 
 pub struct Plugin;
@@ -19,14 +23,14 @@ struct Cleanup;
 fn setup(mut commands: Commands, app_assets: Res<AppAssets>) {
     let style = TextStyle {
         font: app_assets.font.clone(),
-        font_size: 10.0,
+        font_size: 40.0,
         color: Color::WHITE,
     };
     commands.spawn((
         Text2dBundle {
             text: Text::from_section("Left Click to Start a New Game!", style)
                 .with_alignment(TextAlignment::CENTER),
-            transform: Transform::from_xyz(0., -80., 10.0),
+            transform: layout::bottom().z(Z::UI_TEXT).scale(1.).offset_y(160.),
             ..default()
         },
         Cleanup,

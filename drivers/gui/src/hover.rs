@@ -40,8 +40,9 @@ impl Area {
     }
 
     fn contains(&self, transform: &GlobalTransform, point: Vec2) -> bool {
+        let scale = transform.compute_transform().scale.truncate();
         let a = transform.translation().truncate();
-        let b = a + self.size;
+        let b = a + self.size * scale;
         (a.x..b.x).contains(&point.x) && (a.y..b.y).contains(&point.y)
     }
 }
@@ -67,7 +68,7 @@ fn system(
     };
 
     let screen_pos = evt.position;
-    let screen_size = Vec2::new(window.width() as f32, window.height() as f32);
+    let screen_size = Vec2::new(window.width(), window.height());
 
     // convert screen position [0..resolution] to ndc [-1..1] (gpu coordinates)
     let ndc = (screen_pos / screen_size) * 2.0 - Vec2::ONE;

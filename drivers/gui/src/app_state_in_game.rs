@@ -1,19 +1,22 @@
 use crate::{
     common::{
-        calc_board_card_screen_pos, calc_board_cell_screen_pos, calc_hand_card_active_screen_pos,
+        calc_blocked_cell_screen_pos, calc_board_card_screen_pos,
+        calc_board_cell_hover_area_screen_pos, calc_hand_card_active_screen_pos,
         calc_hand_card_hovered_screen_pos, calc_hand_card_screen_pos, hand_to_core_hand,
-        start_new_game, z_index, BlockedCells, Card, Driver, HandBlue, HandIdx, HandRed, Owner,
-        Turn, CELL_SIZE,
+        start_new_game, BlockedCells, Card, Driver, HandBlue, HandIdx, HandRed, Owner, Turn,
+        CELL_SIZE,
     },
-    hover, AppAssets, AppState, CARD_SIZE, COIN_SIZE, RENDER_HSIZE,
+    hover,
+    layout::{self, TransformExt as _, Z},
+    AppAssets, AppState, CARD_ASSET_SIZE, COIN_SIZE,
 };
 use bevy::{prelude::*, sprite::Anchor};
 use rand::prelude::*;
 use tetra_master_ai::{self as ai, hybrid_1_simplify::Ai, Ai as _};
 use tetra_master_core as core;
 
-const CARD_COUNTER_PADDING: Vec2 = Vec2::new(10., 5.);
-const COIN_PADDING: Vec2 = Vec2::new(20., 20.);
+const CARD_COUNTER_PADDING: Vec2 = Vec2::new(40., 20.);
+const COIN_PADDING: Vec2 = Vec2::new(80., 80.);
 
 pub struct Plugin;
 
@@ -154,7 +157,7 @@ fn on_enter(
     commands
         .spawn(SpriteBundle {
             texture: app_assets.board.clone(),
-            transform: Transform::from_xyz(0., 0., z_index::BG + 0.1),
+            transform: layout::center().z(Z::BG + 0.1),
             ..default()
         })
         .insert(Cleanup);
@@ -163,9 +166,6 @@ fn on_enter(
     let mut rng = rand::thread_rng();
     for cell in blocked_cells.0 {
         let texture_idx = rng.gen_range(0..app_assets.blocked_cell.len());
-        let transform = Transform::from_translation(
-            calc_board_cell_screen_pos(cell as usize).extend(z_index::BOARD_BLOCKED_CELL),
-        );
         commands
             .spawn(SpriteBundle {
                 sprite: Sprite {
@@ -173,7 +173,7 @@ fn on_enter(
                     ..default()
                 },
                 texture: app_assets.blocked_cell[texture_idx].clone(),
-                transform,
+                transform: calc_blocked_cell_screen_pos(cell as usize),
                 ..default()
             })
             .insert(Cleanup);
@@ -185,13 +185,16 @@ fn on_enter(
             continue;
         }
 
-        let position = calc_board_cell_screen_pos(cell).extend(z_index::BOARD_CELL_HOVER_AREA);
-        let transform = Transform::from_translation(position);
+        let transform = calc_board_cell_hover_area_screen_pos(cell);
         commands.spawn((
             Cleanup,
             TransformBundle::from_transform(transform),
             hover::Area::new(CELL_SIZE),
-            // crate::debug::rect(CELL_SIZE),
+            // crate::debug::rect(CELL_SIZE).fill(match cell % 3 {
+            //     0 => Color::PINK,
+            //     1 => Color::YELLOW,
+            //     _ => Color::CYAN,
+            // }),
             BoardCell(cell),
         ));
     }
@@ -199,81 +202,86 @@ fn on_enter(
     // player hands (already exists, created in the previous state)
     // make each card hoverable
     for (entity, owner, transform) in &player_hands {
-        commands
-            .entity(entity)
-            .insert(Cleanup)
-            .insert(hover::Area::new(CARD_SIZE))
-            // .insert(crate::debug::rect(CARD_SIZE))
-            .insert(HandCardHoverArea(entity));
+        commands.entity(entity).insert((
+            Cleanup,
+            hover::Area::new(CARD_ASSET_SIZE),
+            // crate::debug::rect(CARD_ASSET_SIZE),
+            HandCardHoverArea(entity),
+        ));
+
         // create a sibling hover area to prevent repeated hover start/end events
         commands.spawn((
             TransformBundle::from_transform(*transform),
             owner.clone(),
-            hover::Area::new(CARD_SIZE),
-            // crate::debug::rect(CARD_SIZE),
+            hover::Area::new(CARD_ASSET_SIZE),
+            // crate::debug::rect(CARD_ASSET_SIZE),
             HandCardHoverArea(entity),
         ));
     }
 
     // card counter
-    let x = -RENDER_HSIZE.x + CARD_COUNTER_PADDING.x;
-    let y = -RENDER_HSIZE.y + CARD_COUNTER_PADDING.y;
-    commands
-        .spawn(SpriteBundle {
+    let transform = layout::bottom_left()
+        .z(Z::CARD_COUNTER)
+        .offset(CARD_COUNTER_PADDING);
+    commands.spawn((
+        SpriteBundle {
             sprite: Sprite {
                 anchor: Anchor::BottomLeft,
                 ..default()
             },
             texture: app_assets.card_counter_center.clone(),
-            transform: Transform::from_xyz(x, y, z_index::CARD_COUNTER),
+            transform,
             ..default()
-        })
-        .insert(Cleanup);
-    commands
-        .spawn(SpriteBundle {
+        },
+        Cleanup,
+    ));
+    commands.spawn((
+        SpriteBundle {
             sprite: Sprite {
                 anchor: Anchor::BottomLeft,
                 ..default()
             },
             texture: app_assets.card_counter_red[0].clone(),
-            transform: Transform::from_xyz(x, y, z_index::CARD_COUNTER),
+            transform,
             ..default()
-        })
-        .insert(RedCardCounter(0))
-        .insert(Cleanup);
-    commands
-        .spawn(SpriteBundle {
+        },
+        RedCardCounter(0),
+        Cleanup,
+    ));
+    commands.spawn((
+        SpriteBundle {
             sprite: Sprite {
                 anchor: Anchor::BottomLeft,
                 ..default()
             },
             texture: app_assets.card_counter_blue[0].clone(),
-            transform: Transform::from_xyz(x, y, z_index::CARD_COUNTER),
+            transform,
             ..default()
-        })
-        .insert(BlueCardCounter(0))
-        .insert(Cleanup);
+        },
+        BlueCardCounter(0),
+        Cleanup,
+    ));
 
     // turn indicator coin
-    let x = RENDER_HSIZE.x - COIN_SIZE.x - COIN_PADDING.x;
-    let y = -RENDER_HSIZE.y + COIN_PADDING.y;
-    commands
-        .spawn(SpriteSheetBundle {
+    let transform = layout::bottom_right()
+        .z(Z::TURN_INDICATOR_COIN)
+        .offset_x(-COIN_SIZE.x - COIN_PADDING.x)
+        .offset_y(COIN_PADDING.y);
+    commands.spawn((
+        SpriteSheetBundle {
             sprite: TextureAtlasSprite {
                 index: 0,
                 anchor: Anchor::BottomLeft,
                 ..default()
             },
             texture_atlas: app_assets.coin_flip.clone(),
-            transform: Transform::from_xyz(x, y, z_index::TURN_INDICATOR_COIN),
+            transform,
             ..default()
-        })
-        .insert(Coin)
-        .insert(AnimationTimer(Timer::from_seconds(
-            0.05,
-            TimerMode::Repeating,
-        )))
-        .insert(Cleanup);
+        },
+        Coin,
+        AnimationTimer(Timer::from_seconds(0.05, TimerMode::Repeating)),
+        Cleanup,
+    ));
 
     // Setup the AI
     let ai = Ai::init(
@@ -454,7 +462,7 @@ fn place_card_common(
     commands.entity(card_entity).insert(PlacedCard(cell));
 
     // reposition the card
-    transforms.get_mut(card_entity).unwrap().translation = calc_board_card_screen_pos(cell);
+    *transforms.get_mut(card_entity).unwrap() = calc_board_card_screen_pos(cell);
 
     // remove the hand hover areas
     commands.entity(card_entity).remove::<HandCardHoverArea>();
@@ -499,8 +507,6 @@ fn handle_play_ok(
 
     for cell in play_ok.pick_battle {
         let cell = cell as usize;
-        let mut translation = calc_board_card_screen_pos(cell);
-        translation.z = z_index::BOARD_CARD_SELECT_INDICATOR;
         commands
             .spawn(SpriteBundle {
                 sprite: Sprite {
@@ -508,7 +514,7 @@ fn handle_play_ok(
                     ..default()
                 },
                 texture: app_assets.card_select_indicator.clone(),
-                transform: Transform::from_translation(translation),
+                transform: calc_board_card_screen_pos(cell).z(Z::BOARD_CARD_SELECT_INDICATOR),
                 ..default()
             })
             .insert(hover::Area::new(CELL_SIZE))
@@ -598,17 +604,17 @@ fn update_card_positions(
             let is_hovered = hovered_card.0 == Some(entity);
             let is_active = active_card.0 == Some(entity);
             let is_over_cell = hovered_cell.0.is_some();
-            if let Some(&PlacedCard(cell)) = placed {
-                transform.translation = calc_board_card_screen_pos(cell);
+            *transform = if let Some(&PlacedCard(cell)) = placed {
+                calc_board_card_screen_pos(cell)
             } else if is_hovered {
-                transform.translation = calc_hand_card_hovered_screen_pos(owner.0, hand_idx.0);
+                calc_hand_card_hovered_screen_pos(owner.0, hand_idx.0)
             } else if is_active && !is_over_cell {
-                transform.translation = calc_hand_card_active_screen_pos(owner.0, hand_idx.0);
+                calc_hand_card_active_screen_pos(owner.0, hand_idx.0)
             } else if is_over_cell && is_active {
-                transform.translation = calc_board_card_screen_pos(hovered_cell.0.unwrap());
+                calc_board_card_screen_pos(hovered_cell.0.unwrap())
             } else {
-                transform.translation = calc_hand_card_screen_pos(owner.0, hand_idx.0);
-            }
+                calc_hand_card_screen_pos(owner.0, hand_idx.0)
+            };
         }
     }
 }
@@ -690,14 +696,14 @@ fn handle_game_over_event(
 
             let style = TextStyle {
                 font: app_assets.font.clone(),
-                font_size: 10.0,
+                font_size: 40.0,
                 color: Color::WHITE,
             };
 
             commands.spawn((
                 Text2dBundle {
                     text: Text::from_section(text, style).with_alignment(TextAlignment::CENTER),
-                    transform: Transform::from_xyz(0., -106.5, 10.0),
+                    transform: layout::bottom().z(Z::UI_TEXT).scale(1.).offset_y(54.),
                     ..default()
                 },
                 Cleanup,
@@ -757,9 +763,7 @@ fn spawn_battler_stats(commands: &mut Commands, app_assets: &AppAssets, battler:
     const WIDTH_3_DIGIT_2_POS: Vec2 = Vec2::new(16., 24.);
     const WIDTH_3_DIGIT_3_POS: Vec2 = Vec2::new(26., 24.);
 
-    let mut position = calc_board_card_screen_pos(battler.cell as usize);
-    position.z = z_index::BOARD_CARD_STARTS;
-    let transform = Transform::from_translation(position);
+    let transform = calc_board_card_screen_pos(battler.cell as usize).z(Z::BOARD_CARD_STATS);
     commands
         .spawn((
             BattlerStatDisplay,

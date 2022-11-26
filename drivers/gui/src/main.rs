@@ -1,24 +1,36 @@
 use bevy::prelude::*;
 use clap::Parser;
 
+#[macro_use]
+mod macros;
+
 mod debug;
 
 mod camera;
 mod common;
 mod hover;
+mod layout;
 mod random_setup_generator;
 
 mod app_state_in_game;
 mod app_state_picking_hands;
 mod app_state_start_menu;
 
-const RENDER_SIZE: Vec2 = Vec2::new(320., 240.);
-const RENDER_HSIZE: Vec2 = Vec2::new(RENDER_SIZE.x / 2., RENDER_SIZE.y / 2.);
-const SCREEN_SIZE: Vec2 = Vec2::new(RENDER_SIZE.x * 4., RENDER_SIZE.y * 4.);
+use layout::{TransformExt as _, Z};
 
-const CARD_SIZE: Vec2 = Vec2::new(42., 51.);
-const COIN_SIZE: Vec2 = Vec2::new(40., 40.);
-const DIGIT_SIZE: Vec2 = Vec2::new(10., 14.);
+// all image assets are created with ASSET_SIZE as the assumed screen size
+const ASSET_SIZE: Vec2 = Vec2::new(320., 240.);
+
+// but render assets at a larger size so that text can be rendered at a higher resolution
+const ASSET_SCALE: f32 = 4.0;
+const RENDER_SIZE: Vec2 = vec2!(ASSET_SIZE * ASSET_SCALE);
+
+const CARD_ASSET_SIZE: Vec2 = Vec2::new(42., 51.);
+const COIN_ASSET_SIZE: Vec2 = Vec2::new(40., 40.);
+const DIGIT_ASSET_SIZE: Vec2 = Vec2::new(10., 14.);
+
+const CARD_SIZE: Vec2 = vec2!(CARD_ASSET_SIZE * ASSET_SCALE);
+const COIN_SIZE: Vec2 = vec2!(COIN_ASSET_SIZE * ASSET_SCALE);
 
 // color picked from the background.png file
 const CLEAR_COLOR: Color = Color::rgb(0.03137255, 0.03137255, 0.03137255);
@@ -49,13 +61,8 @@ fn main() {
                 .set(WindowPlugin {
                     window: WindowDescriptor {
                         title: "Tetra Master".to_string(),
-                        width: SCREEN_SIZE.x,
-                        height: SCREEN_SIZE.y,
-                        resize_constraints: bevy::window::WindowResizeConstraints {
-                            min_width: RENDER_SIZE.x,
-                            min_height: RENDER_SIZE.y,
-                            ..default()
-                        },
+                        width: RENDER_SIZE.x,
+                        height: RENDER_SIZE.y,
                         fit_canvas_to_parent: true,
                         ..default()
                     },
@@ -124,7 +131,7 @@ fn setup(
 
     app_assets.battle_digits = {
         let handle = asset_server.load("battle-digits.png");
-        let atlas = TextureAtlas::from_grid(handle, DIGIT_SIZE, 10, 1, None, None);
+        let atlas = TextureAtlas::from_grid(handle, DIGIT_ASSET_SIZE, 10, 1, None, None);
         texture_atlases.add(atlas)
     };
 
@@ -135,7 +142,7 @@ fn setup(
 
     app_assets.coin_flip = {
         let handle = asset_server.load("coin-flip.png");
-        let atlas = TextureAtlas::from_grid(handle, COIN_SIZE, 8, 1, None, None);
+        let atlas = TextureAtlas::from_grid(handle, COIN_ASSET_SIZE, 8, 1, None, None);
         texture_atlases.add(atlas)
     };
 
@@ -154,7 +161,7 @@ fn setup(
 
     app_assets.card_faces = {
         let handle = asset_server.load("card-faces.png");
-        let atlas = TextureAtlas::from_grid(handle, CARD_SIZE, 10, 10, None, None);
+        let atlas = TextureAtlas::from_grid(handle, CARD_ASSET_SIZE, 10, 10, None, None);
         texture_atlases.add(atlas)
     };
 
@@ -200,7 +207,7 @@ fn setup(
     commands.insert_resource(ClearColor(CLEAR_COLOR));
     commands.spawn(SpriteBundle {
         texture: app_assets.background.clone(),
-        transform: Transform::from_xyz(0., 0., common::z_index::BG),
+        transform: layout::center().z(Z::BG),
         ..default()
     });
 

@@ -1,51 +1,31 @@
-use crate::{AppAssets, AppState, CARD_SIZE, RENDER_HSIZE};
+use crate::{
+    layout::{self, TransformExt as _, Z},
+    AppAssets, AppState, CARD_SIZE,
+};
 use bevy::{prelude::*, sprite::Anchor};
 use tetra_master_core as core;
 
-const PLAYER_HAND_VOFFSET: f32 = 27.;
-const PLAYER_HAND_PADDING: f32 = 4.;
+const PLAYER_HAND_VOFFSET: f32 = 108.;
+const PLAYER_HAND_PADDING: f32 = 16.;
 
-const PLAYER_HAND_ACTIVE_HOFFSET: f32 = 12.;
-const PLAYER_HAND_HOVERED_HOFFSET: f32 = 12.;
+const PLAYER_HAND_ACTIVE_HOFFSET: f32 = 48.;
+const PLAYER_HAND_HOVERED_HOFFSET: f32 = 48.;
 
-const BOARD_POS: Vec2 = Vec2::new(-88.5, -95.5);
-pub const CELL_SIZE: Vec2 = Vec2::new(CARD_SIZE.x + 1., CARD_SIZE.y + 1.);
+const BOARD_POS: Vec2 = Vec2::new(-354., -382.);
+pub const CELL_SIZE: Vec2 = vec2!(CARD_SIZE + (4., 4.));
 
-pub const CANDIDATE_PADDING: f32 = 3.;
+pub const CANDIDATE_PADDING: f32 = 12.;
 
 pub struct Plugin;
 
 impl bevy::app::Plugin for Plugin {
+    #[allow(unused_variables)]
     fn build(&self, app: &mut App) {
         #[cfg(debug_assertions)]
         {
             app.add_system(dont_allow_card_to_change);
         }
     }
-}
-
-pub mod z_index {
-    pub const BG: f32 = 0.;
-
-    pub const CARD_COUNTER: f32 = 1.;
-    pub const TURN_INDICATOR_COIN: f32 = 1.;
-
-    pub const CANDIDATE_HAND_CARD: f32 = 1.;
-
-    pub const HAND_CARD: f32 = 1.;
-    pub const HAND_CARD_ACTIVE: f32 = 5.;
-    pub const HAND_CARD_HOVERED: f32 = 10.;
-
-    pub const BOARD_CARD: f32 = 1.;
-    pub const BOARD_BLOCKED_CELL: f32 = 1.;
-    pub const BOARD_CARD_STARTS: f32 = 2.;
-    pub const BOARD_CARD_SELECT_INDICATOR: f32 = 2.;
-
-    // hover areas
-    // pub const CANDIDATE_HAND_HOVER_AREA: f32 = 100.;
-    pub const BOARD_CELL_HOVER_AREA: f32 = 100.;
-
-    pub const DEBUG: f32 = 666.;
 }
 
 #[derive(Resource)]
@@ -141,7 +121,7 @@ pub(crate) fn start_new_game(
 pub(crate) fn spawn_card<'w, 's, 'a>(
     commands: &'a mut Commands<'w, 's>,
     app_assets: &AppAssets,
-    translation: Vec3,
+    transform: Transform,
     card: Card,
     owner: Option<core::Player>,
 ) -> bevy::ecs::system::EntityCommands<'w, 's, 'a> {
@@ -155,7 +135,7 @@ pub(crate) fn spawn_card<'w, 's, 'a>(
             Some(core::Player::Blue) => app_assets.card_bg_blue.clone(),
             Some(core::Player::Red) => app_assets.card_bg_red.clone(),
         },
-        transform: Transform::from_translation(translation),
+        transform,
         ..default()
     });
     entity_commands.insert(card).with_children(|p| {
@@ -218,7 +198,7 @@ pub(crate) fn spawn_card<'w, 's, 'a>(
             ..default()
         });
 
-        for (arrow, texture) in &[
+        for (arrow, texture) in [
             (core::Arrows::UP, app_assets.card_arrow_up.clone()),
             (
                 core::Arrows::UP_RIGHT,
@@ -237,7 +217,7 @@ pub(crate) fn spawn_card<'w, 's, 'a>(
             (core::Arrows::LEFT, app_assets.card_arrow_left.clone()),
             (core::Arrows::UP_LEFT, app_assets.card_arrow_up_left.clone()),
         ] {
-            if card.stats.arrows.has_any(*arrow) {
+            if card.stats.arrows.has_any(arrow) {
                 p.spawn(SpriteBundle {
                     sprite: Sprite {
                         anchor: Anchor::BottomLeft,
@@ -253,61 +233,81 @@ pub(crate) fn spawn_card<'w, 's, 'a>(
     entity_commands
 }
 
-pub fn calc_candidate_card_screen_pos(candidate_idx: usize, hand_idx: usize) -> Vec3 {
-    let candidate_idx = candidate_idx as f32;
-    let hand_idx = hand_idx as f32;
-    Vec3::new(
-        CARD_SIZE.x * -2.5 + CANDIDATE_PADDING * -2. + hand_idx * (CARD_SIZE.x + CANDIDATE_PADDING),
-        CARD_SIZE.y * 0.5 + CANDIDATE_PADDING + candidate_idx * -(CARD_SIZE.y + CANDIDATE_PADDING),
-        z_index::CANDIDATE_HAND_CARD,
-    )
+pub fn calc_candidate_card_screen_pos(candidate_idx: usize, hand_idx: usize) -> Transform {
+    // calc center position of the layout
+    let pos = layout::center()
+        .z(Z::CANDIDATE_HAND_CARD)
+        // offset based on whether this is the blue or red hand
+        .offset_y(-(candidate_idx as f32 - 0.5) * (CARD_SIZE.y + CANDIDATE_PADDING));
+
+    layout::line_horizontal(pos)
+        .num_entities(core::HAND_SIZE)
+        .entity_size(CARD_SIZE)
+        .padding(CANDIDATE_PADDING)
+        .index(hand_idx)
 }
 
-pub fn calc_hand_card_screen_pos(owner: core::Player, hand_idx: usize) -> Vec3 {
-    let hand_idx = hand_idx as f32;
-    Vec3::new(
-        match owner {
-            core::Player::Blue => RENDER_HSIZE.x - CARD_SIZE.x - PLAYER_HAND_PADDING,
-            core::Player::Red => -RENDER_HSIZE.x + PLAYER_HAND_PADDING,
-        },
-        RENDER_HSIZE.y - CARD_SIZE.y - PLAYER_HAND_PADDING - PLAYER_HAND_VOFFSET * hand_idx,
-        z_index::HAND_CARD + core::HAND_SIZE as f32 - hand_idx,
-    )
+pub fn calc_hand_card_screen_pos(owner: core::Player, hand_idx: usize) -> Transform {
+    // size is smaller, making the cards overlap
+    let size = CARD_SIZE - Vec2::new(0., PLAYER_HAND_VOFFSET);
+
+    let offset = CARD_SIZE.x / 2. + PLAYER_HAND_PADDING;
+    let pos = match owner {
+        core::Player::Blue => layout::top_right().offset_x(-offset),
+        core::Player::Red => layout::top_left().offset_x(offset),
+    }
+    .offset_y(-size.y * 1.5 - CARD_SIZE.y - PLAYER_HAND_PADDING)
+    .z(Z::HAND_CARD);
+
+    layout::line_vertical(pos)
+        .num_entities(core::HAND_SIZE)
+        .entity_size(size)
+        .index(hand_idx)
+        .offset_z(hand_idx as f32)
 }
 
-pub fn calc_hand_card_active_screen_pos(owner: core::Player, hand_idx: usize) -> Vec3 {
-    let mut pos = calc_hand_card_screen_pos(owner, hand_idx);
-    pos.x += match owner {
-        core::Player::Blue => -PLAYER_HAND_ACTIVE_HOFFSET,
-        core::Player::Red => PLAYER_HAND_ACTIVE_HOFFSET,
-    };
-    pos.z += z_index::HAND_CARD_ACTIVE;
-    pos
+pub fn calc_hand_card_active_screen_pos(owner: core::Player, hand_idx: usize) -> Transform {
+    calc_hand_card_screen_pos(owner, hand_idx)
+        .offset_x(match owner {
+            core::Player::Blue => -PLAYER_HAND_ACTIVE_HOFFSET,
+            core::Player::Red => PLAYER_HAND_ACTIVE_HOFFSET,
+        })
+        .offset_z(Z::HAND_CARD_ACTIVE)
 }
 
-pub fn calc_hand_card_hovered_screen_pos(owner: core::Player, hand_idx: usize) -> Vec3 {
-    let mut pos = calc_hand_card_screen_pos(owner, hand_idx);
-    pos.x += match owner {
-        core::Player::Blue => -PLAYER_HAND_HOVERED_HOFFSET,
-        core::Player::Red => PLAYER_HAND_HOVERED_HOFFSET,
-    };
-    pos.z += z_index::HAND_CARD_HOVERED;
-    pos
+pub fn calc_hand_card_hovered_screen_pos(owner: core::Player, hand_idx: usize) -> Transform {
+    calc_hand_card_screen_pos(owner, hand_idx)
+        .offset_x(match owner {
+            core::Player::Blue => -PLAYER_HAND_HOVERED_HOFFSET,
+            core::Player::Red => PLAYER_HAND_HOVERED_HOFFSET,
+        })
+        .offset_z(Z::HAND_CARD_HOVERED)
 }
 
-pub fn calc_board_cell_screen_pos(cell: usize) -> Vec2 {
-    Vec2::new(
-        BOARD_POS.x + (cell % 4) as f32 * CELL_SIZE.x,
-        BOARD_POS.y + (3 - cell / 4) as f32 * CELL_SIZE.y,
-    )
+pub fn calc_blocked_cell_screen_pos(cell: usize) -> Transform {
+    layout::absolute(BOARD_POS)
+        .z(Z::BOARD_BLOCKED_CELL)
+        .offset((
+            (cell % 4) as f32 * CELL_SIZE.x + 2.,
+            (3 - cell / 4) as f32 * CELL_SIZE.y + 2.,
+        ))
 }
 
-pub fn calc_board_card_screen_pos(cell: usize) -> Vec3 {
-    Vec3::new(
-        BOARD_POS.x + (cell % 4) as f32 * CELL_SIZE.x + 0.5,
-        BOARD_POS.y + (3 - cell / 4) as f32 * CELL_SIZE.y + 0.5,
-        z_index::BOARD_CARD,
-    )
+pub fn calc_board_cell_hover_area_screen_pos(cell: usize) -> Transform {
+    layout::absolute(BOARD_POS)
+        .z(Z::BOARD_CELL_HOVER_AREA)
+        .scale(1.)
+        .offset((
+            (cell % 4) as f32 * CELL_SIZE.x,
+            (3 - cell / 4) as f32 * CELL_SIZE.y,
+        ))
+}
+
+pub fn calc_board_card_screen_pos(cell: usize) -> Transform {
+    layout::absolute(BOARD_POS).z(Z::BOARD_CARD).offset((
+        (cell % 4) as f32 * CELL_SIZE.x + 2.,
+        (3 - cell / 4) as f32 * CELL_SIZE.y + 2.,
+    ))
 }
 
 #[cfg(debug_assertions)]

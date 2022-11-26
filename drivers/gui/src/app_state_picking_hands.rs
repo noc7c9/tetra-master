@@ -96,7 +96,7 @@ fn next(
         // iterate over each of the cards
         for (mut transform, owner, hand_idx) in &mut cards {
             // move it to the appropriate side
-            transform.translation = calc_hand_card_screen_pos(owner.0, hand_idx.0);
+            *transform = calc_hand_card_screen_pos(owner.0, hand_idx.0);
         }
 
         let _ = app_state.set(AppState::InGame);
