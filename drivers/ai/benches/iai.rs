@@ -14,7 +14,7 @@ const GAME_SEED: u64 = 11237964071758638171;
 macro_rules! benchmark {
     ($mod:ident, $($arg:expr),* $(,)?) => {
         fn $mod() {
-            use ai::Ai;
+            use ai::AIInterface;
 
             let mut driver = core::Driver::reference().seed(GAME_SEED).build();
             let setup = driver.random_setup(core::BattleSystem::Original);

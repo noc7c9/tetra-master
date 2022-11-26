@@ -20,7 +20,7 @@ const MAX_DEPTH: usize = 10 - SWITCH_POINT as usize;
 type PreAlloc = Vec<Action>;
 type PreAllocFull = [PreAlloc; MAX_DEPTH];
 
-pub struct Ai {
+pub struct AI {
     prealloc: PreAllocFull,
     rng: Rng,
     con: ConstantState,
@@ -29,8 +29,8 @@ pub struct Ai {
     move_number: u8,
 }
 
-pub fn init(player: core::Player, setup: &core::Setup) -> Ai {
-    Ai {
+pub fn init(player: core::Player, setup: &core::Setup) -> AI {
+    AI {
         prealloc: prealloc(setup),
         rng: Rng::from_entropy(),
         con: ConstantState::new(player, setup),
@@ -40,7 +40,7 @@ pub fn init(player: core::Player, setup: &core::Setup) -> Ai {
     }
 }
 
-impl Ai {
+impl AI {
     pub fn init(player: core::Player, setup: &core::Setup) -> Self {
         init(player, setup)
     }
@@ -57,7 +57,7 @@ impl Ai {
     }
 }
 
-impl super::Ai for Ai {
+impl super::AIInterface for AI {
     fn get_action(&mut self) -> crate::Action {
         let action = if self.has_switched() {
             expectiminimax_search(&mut self.prealloc, &self.con, &self.var)
@@ -294,7 +294,7 @@ impl Node {
         if self.visits == 0 {
             f32::INFINITY
         } else {
-            let score = self.score as f32;
+            let score = self.score;
             let visits = self.visits as f32;
             let parent_visits = parent_visits as f32;
             (score / visits) + C * (parent_visits.ln() / visits).sqrt()

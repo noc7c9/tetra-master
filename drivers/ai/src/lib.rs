@@ -60,7 +60,7 @@ impl std::fmt::Display for Action {
     }
 }
 
-pub trait Ai {
+pub trait AIInterface {
     fn get_action(&mut self) -> Action;
 
     fn apply_place_card(&mut self, cmd: core::PlaceCard);
@@ -72,6 +72,37 @@ pub trait Ai {
             Action::PlaceCard(cmd) => self.apply_place_card(cmd),
             Action::PickBattle(cmd) => self.apply_pick_battle(cmd),
         }
+    }
+}
+
+// expose the main AI as just AI
+pub use hybrid_1_simplify::AI;
+
+// expose AIInterface methods as direct methods for the main AI
+impl AI {
+    #[inline(always)]
+    pub fn get_action(&mut self) -> Action {
+        AIInterface::get_action(self)
+    }
+
+    #[inline(always)]
+    pub fn apply_place_card(&mut self, cmd: core::PlaceCard) {
+        AIInterface::apply_place_card(self, cmd)
+    }
+
+    #[inline(always)]
+    pub fn apply_pick_battle(&mut self, cmd: core::PickBattle) {
+        AIInterface::apply_pick_battle(self, cmd)
+    }
+
+    #[inline(always)]
+    pub fn apply_resolve_battle(&mut self, cmd: &core::ResolveBattle) {
+        AIInterface::apply_resolve_battle(self, cmd)
+    }
+
+    #[inline(always)]
+    pub fn apply_action(&mut self, action: Action) {
+        AIInterface::apply_action(self, action)
     }
 }
 
@@ -90,7 +121,7 @@ mod tests {
         Player::{Blue, Red},
     };
 
-    use super::{Action, Ai};
+    use super::{AIInterface, Action};
 
     const CARD: Card = Card::physical(0, 0, 0, Arrows(0));
 
@@ -332,7 +363,7 @@ mod tests {
                        },
                    );
 
-                   let apply_place_card = |state: &mut dyn Ai, card, cell, player| {
+                   let apply_place_card = |state: &mut dyn AIInterface, card, cell, player| {
                        let cmd = core::PlaceCard { player, card, cell };
                        state.apply_place_card(cmd);
                    };
@@ -403,7 +434,7 @@ mod tests {
                    let setup = driver.random_setup(core::BattleSystem::Deterministic);
                    let mut state = $init(core::Player::Red, &setup);
 
-                   let apply_place_card = |state: &mut dyn Ai, card, cell, player| {
+                   let apply_place_card = |state: &mut dyn AIInterface, card, cell, player| {
                        let cmd = core::PlaceCard { player, card, cell };
                        state.apply_place_card(cmd);
                    };
@@ -425,7 +456,7 @@ mod tests {
                    let setup = driver.random_setup(core::BattleSystem::Deterministic);
                    let mut state = $init(core::Player::Red, &setup);
 
-                   let apply_place_card = |state: &mut dyn Ai, card, cell, player| {
+                   let apply_place_card = |state: &mut dyn AIInterface, card, cell, player| {
                        let cmd = core::PlaceCard { player, card, cell };
                        state.apply_place_card(cmd);
                    };
@@ -476,7 +507,7 @@ mod tests {
                            },
                        );
 
-                       let apply_place_card = |state: &mut dyn Ai, card, cell, player| {
+                       let apply_place_card = |state: &mut dyn AIInterface, card, cell, player| {
                            let cmd = core::PlaceCard { player, card, cell };
                            state.apply_place_card(cmd);
                        };

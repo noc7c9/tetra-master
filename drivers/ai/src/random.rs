@@ -2,13 +2,13 @@ use tetra_master_core as core;
 
 use super::Action;
 
-pub struct Ai(State);
+pub struct AI(State);
 
-pub fn init(player: core::Player, setup: &core::Setup) -> Ai {
-    Ai(State::new(player, setup))
+pub fn init(player: core::Player, setup: &core::Setup) -> AI {
+    AI(State::new(player, setup))
 }
 
-impl super::Ai for Ai {
+impl super::AIInterface for AI {
     fn get_action(&mut self) -> Action {
         use rand::Rng;
         let actions = self.0.actions();

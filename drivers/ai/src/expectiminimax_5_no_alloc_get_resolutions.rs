@@ -3,19 +3,19 @@ use tetra_master_core as core;
 
 use super::Action;
 
-pub struct Ai {
+pub struct AI {
     metrics: crate::metrics::Metrics,
     state: State,
 }
 
-pub fn init(max_depth: usize, prob_cutoff: f32, player: core::Player, setup: &core::Setup) -> Ai {
-    Ai {
+pub fn init(max_depth: usize, prob_cutoff: f32, player: core::Player, setup: &core::Setup) -> AI {
+    AI {
         metrics: crate::metrics::Metrics::new(module_path!()),
         state: State::new(max_depth, prob_cutoff, player, setup),
     }
 }
 
-impl super::Ai for Ai {
+impl super::AIInterface for AI {
     fn get_action(&mut self) -> crate::Action {
         match expectiminimax_search(self, self.state.clone()) {
             Action::PlaceCard(cmd) => crate::Action::PlaceCard(cmd),
@@ -52,7 +52,7 @@ enum ResolveBattle<'a> {
 //**************************************************************************************************
 // expectiminimax logic
 
-fn expectiminimax_search(ai: &mut Ai, state: State) -> Action {
+fn expectiminimax_search(ai: &mut AI, state: State) -> Action {
     reset!();
     indent!(module_path!());
 
@@ -84,7 +84,7 @@ fn expectiminimax_search(ai: &mut Ai, state: State) -> Action {
 }
 
 #[inline(always)]
-fn state_value(ai: &mut Ai, state: State, alpha: f32, beta: f32) -> f32 {
+fn state_value(ai: &mut AI, state: State, alpha: f32, beta: f32) -> f32 {
     ai.metrics.inc_expanded_nodes();
 
     match &state.status {
@@ -101,7 +101,7 @@ fn state_value(ai: &mut Ai, state: State, alpha: f32, beta: f32) -> f32 {
     }
 }
 
-fn negamax_value(ai: &mut Ai, state: State, mut alpha: f32, beta: f32) -> f32 {
+fn negamax_value(ai: &mut AI, state: State, mut alpha: f32, beta: f32) -> f32 {
     if state.is_terminal() {
         ai.metrics.inc_depth_limit_leafs();
 
@@ -132,7 +132,7 @@ fn negamax_value(ai: &mut Ai, state: State, mut alpha: f32, beta: f32) -> f32 {
     curr_value
 }
 
-fn chance_value(ai: &mut Ai, state: State, mut alpha: f32, mut beta: f32) -> f32 {
+fn chance_value(ai: &mut AI, state: State, mut alpha: f32, mut beta: f32) -> f32 {
     let resolutions = state.get_resolutions();
 
     // Reset the alpha-beta values if we hit a chance node with multiple children to avoid

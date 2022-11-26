@@ -12,7 +12,7 @@ use crate::{
 };
 use bevy::{prelude::*, sprite::Anchor};
 use rand::prelude::*;
-use tetra_master_ai::{self as ai, hybrid_1_simplify::Ai, Ai as _};
+use tetra_master_ai as ai;
 use tetra_master_core as core;
 
 const CARD_COUNTER_PADDING: Vec2 = Vec2::new(40., 20.);
@@ -107,7 +107,7 @@ struct ActiveCard(Option<Entity>);
 struct HoveredCell(Option<usize>);
 
 #[derive(Resource)]
-struct AI(Ai);
+struct AI(ai::AI);
 
 #[derive(Component)]
 struct Cleanup;
@@ -286,7 +286,7 @@ fn on_enter(
     ));
 
     // Setup the AI
-    let ai = Ai::init(
+    let ai = ai::AI::init(
         core::Player::Red,
         &core::Setup {
             blocked_cells: blocked_cells.0,
@@ -489,7 +489,7 @@ fn handle_play_ok(
     commands: &mut Commands,
     event: &mut EventWriter<core::Event>,
     driver: &mut core::Driver,
-    ai: &mut impl ai::Ai,
+    ai: &mut ai::AI,
     app_assets: &AppAssets,
 ) -> Status {
     for evt in play_ok.events {

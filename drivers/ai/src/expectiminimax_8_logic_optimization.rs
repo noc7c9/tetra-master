@@ -3,21 +3,21 @@ use crate::metrics::Metrics;
 use crate::win_probabilities;
 use tetra_master_core as core;
 
-pub struct Ai {
+pub struct AI {
     prealloc: Vec<Vec<Action>>,
     con: ConstantState,
     var: VariableState,
 }
 
-pub fn init(max_depth: usize, prob_cutoff: f32, player: core::Player, setup: &core::Setup) -> Ai {
-    Ai {
+pub fn init(max_depth: usize, prob_cutoff: f32, player: core::Player, setup: &core::Setup) -> AI {
+    AI {
         prealloc: prealloc(max_depth, setup),
         con: ConstantState::new(max_depth as u8, prob_cutoff, player, setup),
         var: VariableState::new(setup),
     }
 }
 
-impl Ai {
+impl AI {
     pub fn reinit(&mut self, player: core::Player, setup: &core::Setup) {
         let max_depth = self.con.max_depth;
         let prob_cutoff = self.con.prob_cutoff;
@@ -26,7 +26,7 @@ impl Ai {
     }
 }
 
-impl super::Ai for Ai {
+impl super::AIInterface for AI {
     fn get_action(&mut self) -> crate::Action {
         let player = self.con.player;
         match expectiminimax_search(&mut self.prealloc, &mut self.con, self.var.clone()) {

@@ -81,7 +81,7 @@ impl From<BattleSystemArg> for core::BattleSystem {
 }
 
 type AiName = &'static str;
-type Initializer = Box<dyn Fn(core::Player, &core::Setup) -> Box<dyn ai::Ai>>;
+type Initializer = Box<dyn Fn(core::Player, &core::Setup) -> Box<dyn ai::AIInterface>>;
 
 fn main() -> anyhow::Result<()> {
     macro_rules! register {

@@ -11,7 +11,7 @@ type PreAlloc = Vec<PlaceCard>;
 type PlaceCard = (CardHandIdx, CellIdx);
 type PickBattle = CellIdx;
 
-pub struct Ai {
+pub struct AI {
     prealloc: PreAlloc,
     rng: Rng,
     con: ConstantState,
@@ -24,8 +24,8 @@ pub fn init(
     prob_cutoff: f32,
     player: core::Player,
     setup: &core::Setup,
-) -> Ai {
-    Ai {
+) -> AI {
+    AI {
         prealloc: prealloc(setup),
         rng: Rng::from_entropy(),
         con: ConstantState::new(max_time_ms, c_value, prob_cutoff, player, setup),
@@ -33,7 +33,7 @@ pub fn init(
     }
 }
 
-impl Ai {
+impl AI {
     pub fn reinit(&mut self, player: core::Player, setup: &core::Setup) {
         let max_time_ms = self.con.max_time_ms;
         let c_value = self.con.c_value;
@@ -43,7 +43,7 @@ impl Ai {
     }
 }
 
-impl super::Ai for Ai {
+impl super::AIInterface for AI {
     fn get_action(&mut self) -> crate::Action {
         monte_carlo_tree_search(&mut self.prealloc, &mut self.rng, &self.con, &mut self.root)
     }
@@ -234,7 +234,7 @@ impl Node {
         if self.visits == 0 {
             f32::INFINITY
         } else {
-            let score = self.score as f32;
+            let score = self.score;
             let visits = self.visits as f32;
             let parent_visits = parent_visits as f32;
             (score / visits) + c_value * (parent_visits.ln() / visits).sqrt()

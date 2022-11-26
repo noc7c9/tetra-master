@@ -3,13 +3,13 @@ use tetra_master_core as core;
 
 use super::Action;
 
-pub struct Ai(State);
+pub struct AI(State);
 
-pub fn init(max_depth: usize, prob_cutoff: f32, player: core::Player, setup: &core::Setup) -> Ai {
-    Ai(State::new(max_depth, prob_cutoff, player, setup))
+pub fn init(max_depth: usize, prob_cutoff: f32, player: core::Player, setup: &core::Setup) -> AI {
+    AI(State::new(max_depth, prob_cutoff, player, setup))
 }
 
-impl super::Ai for Ai {
+impl super::AIInterface for AI {
     fn get_action(&mut self) -> crate::Action {
         match expectiminimax_search(self.0.clone()) {
             Action::PlaceCard(cmd) => crate::Action::PlaceCard(cmd),
