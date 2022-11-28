@@ -27,10 +27,12 @@ const RENDER_SIZE: Vec2 = vec2!(ASSET_SIZE * ASSET_SCALE);
 
 const CARD_ASSET_SIZE: Vec2 = Vec2::new(42., 51.);
 const COIN_ASSET_SIZE: Vec2 = Vec2::new(40., 40.);
+const CURSOR_ASSET_SIZE: Vec2 = Vec2::new(24., 13.);
 const DIGIT_ASSET_SIZE: Vec2 = Vec2::new(10., 14.);
 
 const CARD_SIZE: Vec2 = vec2!(CARD_ASSET_SIZE * ASSET_SCALE);
 const COIN_SIZE: Vec2 = vec2!(COIN_ASSET_SIZE * ASSET_SCALE);
+const CURSOR_SIZE: Vec2 = vec2!(CURSOR_ASSET_SIZE * ASSET_SCALE);
 
 // color picked from the background.png file
 const CLEAR_COLOR: Color = Color::rgb(0.03137255, 0.03137255, 0.03137255);
@@ -95,6 +97,7 @@ struct AppAssets {
     board: Handle<Image>,
     blocked_cell: [Handle<Image>; 2],
     coin_flip: Handle<TextureAtlas>,
+    cursor: Handle<TextureAtlas>,
     card_bg_gray: Handle<Image>,
     card_bg_blue: Handle<Image>,
     card_bg_red: Handle<Image>,
@@ -143,6 +146,12 @@ fn setup(
     app_assets.coin_flip = {
         let handle = asset_server.load("coin-flip.png");
         let atlas = TextureAtlas::from_grid(handle, COIN_ASSET_SIZE, 8, 1, None, None);
+        texture_atlases.add(atlas)
+    };
+
+    app_assets.cursor = {
+        let handle = asset_server.load("cursor.png");
+        let atlas = TextureAtlas::from_grid(handle, CURSOR_ASSET_SIZE, 8, 1, None, None);
         texture_atlases.add(atlas)
     };
 
