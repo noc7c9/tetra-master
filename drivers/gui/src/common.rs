@@ -2,10 +2,10 @@ use crate::{
     layout::{self, TransformExt as _, Z},
     AppAssets, AppState, CARD_SIZE,
 };
-use bevy::{prelude::*, sprite::Anchor};
+use bevy::prelude::*;
 use tetra_master_core as core;
 
-const PLAYER_HAND_VOFFSET: f32 = 108.;
+const PLAYER_HAND_VOFFSET: f32 = 94.;
 const PLAYER_HAND_PADDING: f32 = 16.;
 
 const PLAYER_HAND_ACTIVE_HOFFSET: f32 = 48.;
@@ -130,10 +130,6 @@ pub(crate) fn spawn_card<'w, 's, 'a>(
     owner: Option<core::Player>,
 ) -> bevy::ecs::system::EntityCommands<'w, 's, 'a> {
     let mut entity_commands = commands.spawn(SpriteBundle {
-        sprite: Sprite {
-            anchor: Anchor::BottomLeft,
-            ..default()
-        },
         texture: match owner {
             None => app_assets.card_bg_gray.clone(),
             Some(core::Player::Blue) => app_assets.card_bg_blue.clone(),
@@ -142,63 +138,15 @@ pub(crate) fn spawn_card<'w, 's, 'a>(
         transform,
         ..default()
     });
+
     entity_commands.insert(card).with_children(|p| {
         p.spawn(SpriteSheetBundle {
             sprite: TextureAtlasSprite {
                 index: card.image_index,
-                anchor: Anchor::BottomLeft,
                 ..default()
             },
             texture_atlas: app_assets.card_faces.clone(),
             transform: Transform::from_xyz(0., 0., 0.1),
-            ..default()
-        });
-
-        let x = 9.0;
-        let y = 6.0;
-        p.spawn(SpriteSheetBundle {
-            sprite: TextureAtlasSprite {
-                index: card.stats.attack as usize,
-                anchor: Anchor::BottomLeft,
-                ..default()
-            },
-            texture_atlas: app_assets.card_stat_font.clone(),
-            transform: Transform::from_xyz(x, y, 0.2),
-            ..default()
-        });
-        p.spawn(SpriteSheetBundle {
-            sprite: TextureAtlasSprite {
-                index: match card.stats.card_type {
-                    core::CardType::Physical => 16,
-                    core::CardType::Magical => 17,
-                    core::CardType::Exploit => 18,
-                    core::CardType::Assault => 10,
-                },
-                anchor: Anchor::BottomLeft,
-                ..default()
-            },
-            texture_atlas: app_assets.card_stat_font.clone(),
-            transform: Transform::from_xyz(x + 6., y, 0.2),
-            ..default()
-        });
-        p.spawn(SpriteSheetBundle {
-            sprite: TextureAtlasSprite {
-                index: card.stats.physical_defense as usize,
-                anchor: Anchor::BottomLeft,
-                ..default()
-            },
-            texture_atlas: app_assets.card_stat_font.clone(),
-            transform: Transform::from_xyz(x + 12., y, 0.2),
-            ..default()
-        });
-        p.spawn(SpriteSheetBundle {
-            sprite: TextureAtlasSprite {
-                index: card.stats.magical_defense as usize,
-                anchor: Anchor::BottomLeft,
-                ..default()
-            },
-            texture_atlas: app_assets.card_stat_font.clone(),
-            transform: Transform::from_xyz(x + 18., y, 0.2),
             ..default()
         });
 
@@ -223,17 +171,36 @@ pub(crate) fn spawn_card<'w, 's, 'a>(
         ] {
             if card.stats.arrows.has_any(arrow) {
                 p.spawn(SpriteBundle {
-                    sprite: Sprite {
-                        anchor: Anchor::BottomLeft,
-                        ..default()
-                    },
                     texture: texture.clone(),
                     transform: Transform::from_xyz(0., 0., 0.2),
                     ..default()
                 });
             }
         }
+
+        for (index, x) in [
+            (card.stats.attack as usize, -8.5),
+            (
+                match card.stats.card_type {
+                    core::CardType::Physical => 16,
+                    core::CardType::Magical => 17,
+                    core::CardType::Exploit => 18,
+                    core::CardType::Assault => 10,
+                },
+                -2.5,
+            ),
+            (card.stats.physical_defense as usize, 3.5),
+            (card.stats.magical_defense as usize, 9.5),
+        ] {
+            p.spawn(SpriteSheetBundle {
+                sprite: TextureAtlasSprite { index, ..default() },
+                texture_atlas: app_assets.card_stat_font.clone(),
+                transform: Transform::from_xyz(x, -16., 0.2),
+                ..default()
+            });
+        }
     });
+
     entity_commands
 }
 
@@ -249,6 +216,7 @@ pub fn calc_candidate_card_screen_pos(candidate_idx: usize, hand_idx: usize) -> 
         .entity_size(CARD_SIZE)
         .padding(CANDIDATE_PADDING)
         .index(hand_idx)
+        .offset_z(hand_idx as f32)
 }
 
 pub fn calc_hand_card_screen_pos(owner: core::Player, hand_idx: usize) -> Transform {
@@ -260,7 +228,7 @@ pub fn calc_hand_card_screen_pos(owner: core::Player, hand_idx: usize) -> Transf
         core::Player::Blue => layout::top_right().offset_x(-offset),
         core::Player::Red => layout::top_left().offset_x(offset),
     }
-    .offset_y(-size.y * 1.5 - CARD_SIZE.y - PLAYER_HAND_PADDING)
+    .offset_y(-size.y * 1.5 - CARD_SIZE.y + PLAYER_HAND_PADDING * 2.)
     .z(Z::HAND_CARD);
 
     layout::line_vertical(pos)
@@ -291,6 +259,7 @@ pub fn calc_hand_card_hovered_screen_pos(owner: core::Player, hand_idx: usize) -
 pub fn calc_blocked_cell_screen_pos(cell: usize) -> Transform {
     layout::absolute(BOARD_POS)
         .z(Z::BOARD_BLOCKED_CELL)
+        .offset(CARD_SIZE / 2.)
         .offset((
             (cell % 4) as f32 * CELL_SIZE.x + 2.,
             (3 - cell / 4) as f32 * CELL_SIZE.y + 2.,
@@ -301,6 +270,7 @@ pub fn calc_board_cell_hover_area_screen_pos(cell: usize) -> Transform {
     layout::absolute(BOARD_POS)
         .z(Z::BOARD_CELL_HOVER_AREA)
         .scale(1.)
+        .offset(CARD_SIZE / 2.)
         .offset((
             (cell % 4) as f32 * CELL_SIZE.x,
             (3 - cell / 4) as f32 * CELL_SIZE.y,
@@ -308,10 +278,13 @@ pub fn calc_board_cell_hover_area_screen_pos(cell: usize) -> Transform {
 }
 
 pub fn calc_board_card_screen_pos(cell: usize) -> Transform {
-    layout::absolute(BOARD_POS).z(Z::BOARD_CARD).offset((
-        (cell % 4) as f32 * CELL_SIZE.x + 2.,
-        (3 - cell / 4) as f32 * CELL_SIZE.y + 2.,
-    ))
+    layout::absolute(BOARD_POS)
+        .z(Z::BOARD_CARD)
+        .offset(CARD_SIZE / 2.)
+        .offset((
+            (cell % 4) as f32 * CELL_SIZE.x + 2.,
+            (3 - cell / 4) as f32 * CELL_SIZE.y + 2.,
+        ))
 }
 
 #[cfg(debug_assertions)]

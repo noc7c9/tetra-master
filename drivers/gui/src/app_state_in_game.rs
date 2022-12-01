@@ -8,15 +8,15 @@ use crate::{
     },
     hover,
     layout::{self, TransformExt as _, Z},
-    AppAssets, AppState, CARD_ASSET_SIZE, COIN_SIZE,
+    AppAssets, AppState, CARD_ASSET_SIZE, CARD_COUNTER_SIZE, COIN_SIZE,
 };
-use bevy::{prelude::*, sprite::Anchor};
+use bevy::prelude::*;
 use rand::prelude::*;
 use tetra_master_ai as ai;
 use tetra_master_core as core;
 
 const CARD_COUNTER_PADDING: Vec2 = Vec2::new(40., 20.);
-const COIN_PADDING: Vec2 = Vec2::new(80., 80.);
+const COIN_PADDING: Vec2 = Vec2::new(160., 160.);
 
 pub struct Plugin;
 
@@ -170,10 +170,6 @@ fn on_enter(
         let texture_idx = rng.gen_range(0..app_assets.blocked_cell.len());
         commands
             .spawn(SpriteBundle {
-                sprite: Sprite {
-                    anchor: Anchor::BottomLeft,
-                    ..default()
-                },
                 texture: app_assets.blocked_cell[texture_idx].clone(),
                 transform: calc_blocked_cell_screen_pos(cell as usize),
                 ..default()
@@ -224,13 +220,10 @@ fn on_enter(
     // card counter
     let transform = layout::bottom_left()
         .z(Z::CARD_COUNTER)
+        .offset(CARD_COUNTER_SIZE / 2.)
         .offset(CARD_COUNTER_PADDING);
     commands.spawn((
         SpriteBundle {
-            sprite: Sprite {
-                anchor: Anchor::BottomLeft,
-                ..default()
-            },
             texture: app_assets.card_counter_center.clone(),
             transform,
             ..default()
@@ -239,10 +232,6 @@ fn on_enter(
     ));
     commands.spawn((
         SpriteBundle {
-            sprite: Sprite {
-                anchor: Anchor::BottomLeft,
-                ..default()
-            },
             texture: app_assets.card_counter_red[0].clone(),
             transform,
             ..default()
@@ -252,10 +241,6 @@ fn on_enter(
     ));
     commands.spawn((
         SpriteBundle {
-            sprite: Sprite {
-                anchor: Anchor::BottomLeft,
-                ..default()
-            },
             texture: app_assets.card_counter_blue[0].clone(),
             transform,
             ..default()
@@ -267,13 +252,11 @@ fn on_enter(
     // turn indicator coin
     let transform = layout::bottom_right()
         .z(Z::TURN_INDICATOR_COIN)
-        .offset_x(-COIN_SIZE.x - COIN_PADDING.x)
-        .offset_y(COIN_PADDING.y);
+        .offset((COIN_SIZE + COIN_PADDING) / Vec2::new(-2., 2.));
     commands.spawn((
         SpriteSheetBundle {
             sprite: TextureAtlasSprite {
                 index: 0,
-                anchor: Anchor::BottomLeft,
                 ..default()
             },
             texture_atlas: app_assets.coin_flip.clone(),
@@ -511,10 +494,6 @@ fn handle_play_ok(
         let cell = cell as usize;
         commands
             .spawn(SpriteBundle {
-                sprite: Sprite {
-                    anchor: Anchor::BottomLeft,
-                    ..default()
-                },
                 texture: app_assets.card_select_indicator.clone(),
                 transform: calc_board_card_screen_pos(cell).z(Z::BOARD_CARD_SELECT_INDICATOR),
                 ..default()
@@ -756,14 +735,14 @@ fn update_card_counter(
 // }
 
 fn spawn_battler_stats(commands: &mut Commands, app_assets: &AppAssets, battler: core::Battler) {
-    const WIDTH_1_DIGIT_1_POS: Vec2 = Vec2::new(16., 24.);
+    const WIDTH_1_DIGIT_1_POS: Vec2 = Vec2::new(1., 2.);
 
-    const WIDTH_2_DIGIT_1_POS: Vec2 = Vec2::new(11., 24.);
-    const WIDTH_2_DIGIT_2_POS: Vec2 = Vec2::new(21., 24.);
+    const WIDTH_2_DIGIT_1_POS: Vec2 = Vec2::new(-5., 2.);
+    const WIDTH_2_DIGIT_2_POS: Vec2 = Vec2::new(5., 2.);
 
-    const WIDTH_3_DIGIT_1_POS: Vec2 = Vec2::new(6., 24.);
-    const WIDTH_3_DIGIT_2_POS: Vec2 = Vec2::new(16., 24.);
-    const WIDTH_3_DIGIT_3_POS: Vec2 = Vec2::new(26., 24.);
+    const WIDTH_3_DIGIT_1_POS: Vec2 = Vec2::new(-10., 2.);
+    const WIDTH_3_DIGIT_2_POS: Vec2 = Vec2::new(1., 2.);
+    const WIDTH_3_DIGIT_3_POS: Vec2 = Vec2::new(10., 2.);
 
     let transform = calc_board_card_screen_pos(battler.cell as usize).z(Z::BOARD_CARD_STATS);
     commands
@@ -784,7 +763,6 @@ fn spawn_battler_stats(commands: &mut Commands, app_assets: &AppAssets, battler:
                 p.spawn(SpriteSheetBundle {
                     sprite: TextureAtlasSprite {
                         index: index as usize,
-                        anchor: Anchor::BottomLeft,
                         ..default()
                     },
                     texture_atlas: app_assets.battle_digits.clone(),
@@ -811,16 +789,15 @@ fn spawn_battler_stats(commands: &mut Commands, app_assets: &AppAssets, battler:
 
             // highlight digit used for the battle
             let x = match battler.digit {
-                core::Digit::Attack => 9.,
-                core::Digit::PhysicalDefense => 21.,
-                core::Digit::MagicalDefense => 27.,
+                core::Digit::Attack => -8.5,
+                core::Digit::PhysicalDefense => 3.5,
+                core::Digit::MagicalDefense => 9.5,
             };
-            let y = 6.;
+            let y = -16.;
             p.spawn(SpriteSheetBundle {
                 sprite: TextureAtlasSprite {
                     color: Color::GREEN,
                     index: battler.value as usize,
-                    anchor: Anchor::BottomLeft,
                     ..default()
                 },
                 texture_atlas: app_assets.card_stat_font.clone(),

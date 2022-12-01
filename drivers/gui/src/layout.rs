@@ -171,8 +171,6 @@ impl LineLayout {
     }
 
     pub fn index(&self, index: usize) -> Transform {
-        // note: this function assumes the entities are positioned anchored to the bottom-left
-
         // panic if all necessary fields have been not initialized
         let entity_size = self.entity_size.unwrap();
         let num_entities = self.num_entities.unwrap() as f32;
@@ -184,20 +182,16 @@ impl LineLayout {
         match self.direction {
             Direction::Horizontal => {
                 // move to the bottom-left corner of the layout (ie. position of the first entity)
-                x -= (num_entities / 2.) * entity_size.x;
+                x -= (num_entities / 2. - 0.5) * entity_size.x;
                 x -= (num_entities / 2. - 0.5) * self.padding;
-
-                y -= entity_size.y / 2.;
 
                 // offset based on the index of the entity
                 x += index as f32 * (entity_size.x + self.padding);
             }
             Direction::Vertical => {
                 // move to the bottom-left corner of the layout (ie. position of the first entity)
-                y -= (num_entities / 2.) * entity_size.y;
+                y -= (num_entities / 2. - 0.5) * entity_size.y;
                 y -= (num_entities / 2. - 0.5) * self.padding;
-
-                x -= entity_size.x / 2.;
 
                 // offset based on the index of the entity
                 y += index as f32 * (entity_size.y + self.padding);

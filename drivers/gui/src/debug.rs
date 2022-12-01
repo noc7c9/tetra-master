@@ -73,7 +73,7 @@ mod debug_only {
 
             let shape = shapes::Rectangle {
                 extents: rect.size,
-                origin: RectangleOrigin::BottomLeft,
+                ..default()
             };
 
             let mut fill = rect.fill;

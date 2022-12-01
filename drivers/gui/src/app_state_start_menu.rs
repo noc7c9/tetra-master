@@ -47,9 +47,9 @@ impl MenuOption {
 
     const fn offset_y(self) -> f32 {
         match self {
-            MenuOption::Draft => -210.0,
-            MenuOption::Constructed => -280.0,
-            MenuOption::Collection => -350.0,
+            MenuOption::Draft => -150.0,
+            MenuOption::Constructed => -220.0,
+            MenuOption::Collection => -290.0,
         }
     }
 
@@ -71,27 +71,27 @@ struct AnimationTimer(Timer);
 fn setup(mut commands: Commands, app_assets: Res<AppAssets>) {
     commands.insert_resource(ActiveMenuOption(None));
 
-    let text = |color, text| {
-        let style = TextStyle {
-            font: app_assets.font.clone(),
-            font_size: 60.0,
-            color,
-        };
-        Text::from_section(text, style)
-    };
-
-    let transform = layout::center().z(Z::UI_TEXT).scale(1.).offset_x(-320.);
+    let transform = layout::center().z(Z::UI_TEXT).scale(1.);
     for menu_option in [
         MenuOption::Draft,
         MenuOption::Constructed,
         MenuOption::Collection,
     ] {
-        let transform = transform.offset_y(menu_option.offset_y());
+        let text = |color, text| {
+            let style = TextStyle {
+                font: app_assets.font.clone(),
+                font_size: 60.0,
+                color,
+            };
+            Text::from_section(text, style).with_alignment(TextAlignment::CENTER)
+        };
+
+        let transform = transform.offset_y(menu_option.offset_y()).offset_x(2.5);
         commands
             .spawn((
                 Text2dBundle {
                     text: text(Color::WHITE, menu_option.text()),
-                    transform: transform.offset_y(60.).offset_z(0.1),
+                    transform: transform.offset_z(0.1),
                     ..default()
                 },
                 Cleanup,
@@ -106,7 +106,7 @@ fn setup(mut commands: Commands, app_assets: Res<AppAssets>) {
 
                 // hover area
                 let hover_area_size = Vec2::new(menu_option.width(), 50.);
-                let transform = Transform::from_xyz(-5., -60., 0.);
+                let transform = Transform::from_xyz(0., -5., 0.);
                 p.spawn((
                     menu_option,
                     TransformBundle::from_transform(transform),
@@ -120,13 +120,26 @@ fn setup(mut commands: Commands, app_assets: Res<AppAssets>) {
         SpriteSheetBundle {
             sprite: TextureAtlasSprite {
                 index: 0,
-                anchor: bevy::sprite::Anchor::BottomLeft,
                 ..default()
             },
             texture_atlas: app_assets.cursor.clone(),
-            transform: layout::center()
-                .z(Z::UI_TEXT)
-                .offset_x(-340.0 - CURSOR_SIZE.x),
+            transform: layout::center().z(Z::UI_TEXT),
+            visibility: Visibility::INVISIBLE,
+            ..default()
+        },
+        Cursor,
+        AnimationTimer(Timer::from_seconds(0.08, TimerMode::Repeating)),
+        Cleanup,
+    ));
+    commands.spawn((
+        SpriteSheetBundle {
+            sprite: TextureAtlasSprite {
+                index: 0,
+                flip_x: true,
+                ..default()
+            },
+            texture_atlas: app_assets.cursor.clone(),
+            transform: layout::center().z(Z::UI_TEXT),
             visibility: Visibility::INVISIBLE,
             ..default()
         },
@@ -143,15 +156,24 @@ fn detect_hover(
     mut cursor: Query<(&mut Visibility, &mut Transform), With<Cursor>>,
     menu_options: Query<&MenuOption>,
 ) {
-    let mut cursor = cursor.single_mut();
     for _ in hover_end.iter() {
-        cursor.0.is_visible = false;
+        for mut cursor in &mut cursor {
+            cursor.0.is_visible = false;
+        }
         active_menu_option.0 = None;
     }
+
     for evt in hover_start.iter() {
-        cursor.0.is_visible = true;
         if let Ok(menu_option) = menu_options.get(evt.entity) {
-            cursor.1.translation.y = menu_option.offset_y();
+            for (idx, mut cursor) in cursor.iter_mut().enumerate() {
+                cursor.0.is_visible = true;
+
+                let offset_x = menu_option.width() / 2. + CURSOR_SIZE.x / 2. + 20.;
+                cursor.1.translation.x = offset_x * (idx as f32 * 2. - 1.);
+
+                cursor.1.translation.y = menu_option.offset_y() - 5.;
+            }
+
             active_menu_option.0 = Some(*menu_option);
         }
     }

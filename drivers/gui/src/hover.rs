@@ -41,8 +41,9 @@ impl Area {
 
     fn contains(&self, transform: &GlobalTransform, point: Vec2) -> bool {
         let scale = transform.compute_transform().scale.truncate();
-        let a = transform.translation().truncate();
-        let b = a + self.size * scale;
+        let size = self.size * scale;
+        let a = transform.translation().truncate() - size / 2.;
+        let b = a + size;
         (a.x..b.x).contains(&point.x) && (a.y..b.y).contains(&point.y)
     }
 }

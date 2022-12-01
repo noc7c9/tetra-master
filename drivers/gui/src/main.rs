@@ -29,10 +29,12 @@ const CARD_ASSET_SIZE: Vec2 = Vec2::new(42., 51.);
 const COIN_ASSET_SIZE: Vec2 = Vec2::new(40., 40.);
 const CURSOR_ASSET_SIZE: Vec2 = Vec2::new(24., 13.);
 const DIGIT_ASSET_SIZE: Vec2 = Vec2::new(10., 14.);
+const CARD_COUNTER_ASSET_SIZE: Vec2 = Vec2::new(57., 65.);
 
 const CARD_SIZE: Vec2 = vec2!(CARD_ASSET_SIZE * ASSET_SCALE);
 const COIN_SIZE: Vec2 = vec2!(COIN_ASSET_SIZE * ASSET_SCALE);
 const CURSOR_SIZE: Vec2 = vec2!(CURSOR_ASSET_SIZE * ASSET_SCALE);
+const CARD_COUNTER_SIZE: Vec2 = vec2!(CARD_COUNTER_ASSET_SIZE * ASSET_SCALE);
 
 // color picked from the background.png file
 const CLEAR_COLOR: Color = Color::rgb(0.03137255, 0.03137255, 0.03137255);
