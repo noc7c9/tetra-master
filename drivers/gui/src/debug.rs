@@ -111,4 +111,28 @@ mod debug_only {
             fill: DEFAULT_FILL,
         }
     }
+
+    pub fn grid(commands: &mut Commands, cols: usize, rows: usize) {
+        use crate::RENDER_SIZE;
+
+        let mut builder = GeometryBuilder::new();
+
+        for idx in 1..cols {
+            let x = -RENDER_SIZE.x / 2. + idx as f32 * (RENDER_SIZE.x / cols as f32);
+            let start = Vec2::new(x, RENDER_SIZE.y);
+            let end = Vec2::new(x, -RENDER_SIZE.y);
+            builder = builder.add(&shapes::Line(start, end));
+        }
+        for idx in 1..rows {
+            let y = -RENDER_SIZE.y / 2. + idx as f32 * (RENDER_SIZE.y / rows as f32);
+            let start = Vec2::new(RENDER_SIZE.x, y);
+            let end = Vec2::new(-RENDER_SIZE.x, y);
+            builder = builder.add(&shapes::Line(start, end));
+        }
+
+        commands.spawn(builder.build(
+            DrawMode::Stroke(StrokeMode::new(Color::rgba(1., 0., 1., 0.25), 1.0)),
+            Transform::from_xyz(0., 0., Z::DEBUG),
+        ));
+    }
 }
