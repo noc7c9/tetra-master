@@ -2,12 +2,14 @@ mod display;
 mod driver;
 mod random_setup;
 mod ref_impl;
+mod rng;
 
 mod command;
 mod response;
 
-pub use driver::{Driver, DriverBuilder, Seed};
+pub use driver::{Driver, DriverBuilder};
 pub use ref_impl::ReferenceImplementation;
+pub use rng::{Rng, Seed};
 
 /*****************************************************************************************
  * Command / Response

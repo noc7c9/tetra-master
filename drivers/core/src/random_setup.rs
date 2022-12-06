@@ -1,9 +1,8 @@
 use super::{
-    driver, Arrows, BoardCells, Card, CardType, Hand, Player, BOARD_SIZE, MAX_NUMBER_OF_BLOCKS,
+    Arrows, BoardCells, Card, CardType, Hand, Player, Rng, BOARD_SIZE, MAX_NUMBER_OF_BLOCKS,
 };
-use rand::Rng as _;
 
-pub(super) fn random_starting_player(rng: &mut driver::Rng) -> Player {
+pub(super) fn random_starting_player(rng: &mut Rng) -> Player {
     if rng.gen() {
         Player::Blue
     } else {
@@ -11,7 +10,7 @@ pub(super) fn random_starting_player(rng: &mut driver::Rng) -> Player {
     }
 }
 
-pub(super) fn random_blocked_cells(rng: &mut driver::Rng) -> BoardCells {
+pub(super) fn random_blocked_cells(rng: &mut Rng) -> BoardCells {
     let mut blocked_cells = BoardCells::NONE;
     for _ in 0..rng.gen_range(0..=MAX_NUMBER_OF_BLOCKS) {
         loop {
@@ -25,7 +24,7 @@ pub(super) fn random_blocked_cells(rng: &mut driver::Rng) -> BoardCells {
     blocked_cells
 }
 
-pub(super) fn random_hands(rng: &mut driver::Rng) -> [Hand; 2] {
+pub(super) fn random_hands(rng: &mut Rng) -> [Hand; 2] {
     fn estimate_card_value(card: &Card) -> f64 {
         // very simple, we *don't* want this to be super accurate to allow the player to
         // strategize
@@ -101,15 +100,15 @@ pub(super) fn random_hands(rng: &mut driver::Rng) -> [Hand; 2] {
         .expect("pick should have correct length")
 }
 
-fn random_card(rng: &mut driver::Rng) -> Card {
-    fn randpick(rng: &mut driver::Rng, values: &[u8]) -> u8 {
+fn random_card(rng: &mut Rng) -> Card {
+    fn randpick(rng: &mut Rng, values: &[u8]) -> u8 {
         let len = values.len();
         debug_assert!(len <= u8::MAX as usize);
         let idx = rng.gen_range(0..(len as u8)) as usize;
         values[idx]
     }
 
-    fn random_stat(rng: &mut driver::Rng) -> u8 {
+    fn random_stat(rng: &mut Rng) -> u8 {
         match rng.gen() {
             0u8..=12 => randpick(rng, &[0, 1]),           // 5%
             13..=89 => randpick(rng, &[2, 3, 4, 5]),      // 30%

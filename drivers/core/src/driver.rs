@@ -3,18 +3,13 @@ use crate::{
     random_setup,
     ref_impl::{ReferenceImplementation, Step},
     response::{self, ErrorResponse, Response},
-    BattleSystem, CommandResponse, Error, Result,
+    BattleSystem, CommandResponse, Error, Result, Rng, Seed,
 };
-use rand::{thread_rng, Rng as _, SeedableRng as _};
-
-pub type Seed = u64;
-pub type Rng = rand_pcg::Pcg32;
 
 pub struct Driver {
     inner: Inner,
-    pub initial_seed: Seed,
-    rng: Rng,
     log: bool,
+    pub rng: Rng,
 }
 
 enum Inner {
@@ -133,7 +128,7 @@ impl DriverBuilder {
     }
 
     pub fn build(mut self) -> Driver {
-        let initial_seed = self.seed.unwrap_or_else(|| thread_rng().gen());
+        let rng = self.seed.map_or_else(Rng::new, Rng::from_seed);
 
         if self.log {
             if log::log_enabled!(log::Level::Info) {
@@ -149,7 +144,7 @@ impl DriverBuilder {
                     }
                     Inner::Reference(_) => write!(s, "{}", "Reference Driver".green()),
                 };
-                let _ = write!(s, " | Seed: {}", initial_seed.green());
+                let _ = write!(s, " | Seed: {}", rng.initial_seed.green());
                 log::info!("{s}");
             }
 
@@ -162,8 +157,7 @@ impl DriverBuilder {
 
         Driver {
             inner: self.inner,
-            initial_seed,
-            rng: Rng::seed_from_u64(initial_seed),
+            rng,
             log: self.log,
         }
     }

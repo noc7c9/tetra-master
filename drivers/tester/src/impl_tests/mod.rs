@@ -44,7 +44,7 @@ fn game_setup_tests(s: &mut Suite<Ctx>) {
     test!(s "Setup with set seed should use random initialization with given seed"; |ctx| {
         let mut driver = ctx.new_driver().seed(None).build();
         let first = driver.send_random_setup(BattleSystem::Original)?;
-        let seed = driver.initial_seed;
+        let seed = driver.rng.initial_seed;
 
         let second = ctx.new_driver().seed(seed).build().send_random_setup(BattleSystem::Original)?;
 

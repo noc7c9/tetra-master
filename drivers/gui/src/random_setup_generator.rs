@@ -1,5 +1,4 @@
 use rand::distributions::WeightedIndex;
-use rand::prelude::*;
 use tetra_master_core as core;
 
 use super::common::{Card, Hand};
@@ -156,7 +155,7 @@ impl CardTemplate {
     }
 }
 
-fn random_card(rng: &mut impl Rng) -> Card {
+fn random_card(rng: &mut core::Rng) -> Card {
     let index = rng.gen_range(15..=35);
 
     let arrows = {
@@ -175,7 +174,7 @@ fn random_card(rng: &mut impl Rng) -> Card {
         ])
         .unwrap();
 
-        let num_arrows = num_arrows.sample(rng);
+        let num_arrows = rng.sample(num_arrows);
         loop {
             let arrows: u8 = rng.gen();
             if arrows.count_ones() == num_arrows as u32 {
@@ -187,7 +186,7 @@ fn random_card(rng: &mut impl Rng) -> Card {
     TEMPLATES[index].init(arrows)
 }
 
-pub fn random_hand(rng: &mut impl Rng) -> Hand {
+pub fn random_hand(rng: &mut core::Rng) -> Hand {
     [
         random_card(rng),
         random_card(rng),
@@ -197,7 +196,7 @@ pub fn random_hand(rng: &mut impl Rng) -> Hand {
     ]
 }
 
-pub fn random_starting_player(rng: &mut impl Rng) -> core::Player {
+pub fn random_starting_player(rng: &mut core::Rng) -> core::Player {
     if rng.gen() {
         core::Player::Blue
     } else {
@@ -205,7 +204,7 @@ pub fn random_starting_player(rng: &mut impl Rng) -> core::Player {
     }
 }
 
-pub fn random_blocked_cells(rng: &mut impl Rng) -> core::BoardCells {
+pub fn random_blocked_cells(rng: &mut core::Rng) -> core::BoardCells {
     let mut blocked_cells = core::BoardCells::NONE;
     for _ in 0..rng.gen_range(0..=core::MAX_NUMBER_OF_BLOCKS) {
         loop {
