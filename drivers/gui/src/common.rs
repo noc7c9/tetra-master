@@ -93,11 +93,11 @@ pub(crate) fn start_new_game(
     // .seed(15256155310125961462)
     .build();
 
-    let mut rng = driver.get_rng();
-    let starting_player = crate::random_setup_generator::random_starting_player(&mut rng);
-    let blocked_cells = crate::random_setup_generator::random_blocked_cells(&mut rng);
-    let hand_blue = crate::random_setup_generator::random_hand(&mut rng);
-    let hand_red = crate::random_setup_generator::random_hand(&mut rng);
+    let rng = driver.get_rng();
+    let starting_player = crate::random_setup_generator::random_starting_player(rng);
+    let blocked_cells = crate::random_setup_generator::random_blocked_cells(rng);
+    let hand_blue = crate::random_setup_generator::random_hand(rng);
+    let hand_red = crate::random_setup_generator::random_hand(rng);
     let setup = core::Setup {
         battle_system: core::BattleSystem::Dice { sides: 12 },
         starting_player,
