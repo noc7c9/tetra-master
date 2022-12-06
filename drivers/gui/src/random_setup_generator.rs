@@ -1,4 +1,3 @@
-use rand::distributions::WeightedIndex;
 use tetra_master_core as core;
 
 use super::common::{Card, Hand};
@@ -160,7 +159,7 @@ fn random_card(rng: &mut core::Rng) -> Card {
 
     let arrows = {
         // TODO: pop this in a once cell
-        let num_arrows = WeightedIndex::new(&[
+        let num_arrows = core::Rng::weighted_index(&[
             // index is the number of arrows
             1,  // 0
             5,  // 1
@@ -171,8 +170,7 @@ fn random_card(rng: &mut core::Rng) -> Card {
             9,  // 6
             5,  // 7
             1,  // 8
-        ])
-        .unwrap();
+        ]);
 
         let num_arrows = rng.sample(num_arrows);
         loop {

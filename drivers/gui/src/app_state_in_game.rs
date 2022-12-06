@@ -11,7 +11,6 @@ use crate::{
     AppAssets, AppState, CARD_ASSET_SIZE, CARD_COUNTER_SIZE, COIN_SIZE,
 };
 use bevy::prelude::*;
-use rand::prelude::*;
 use tetra_master_ai as ai;
 use tetra_master_core as core;
 
@@ -165,7 +164,7 @@ fn on_enter(
         .insert(Cleanup);
 
     // blocked cells
-    let mut rng = rand::thread_rng();
+    let mut rng = core::Rng::new();
     for cell in blocked_cells.0 {
         let texture_idx = rng.gen_range(0..app_assets.blocked_cell.len());
         commands
