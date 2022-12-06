@@ -1,7 +1,9 @@
 use rand::{
-    distributions::{uniform, Distribution, Standard, WeightedIndex},
+    distributions::{uniform, Distribution, Standard},
     thread_rng, Rng as _, SeedableRng as _,
 };
+
+pub use rand::distributions::WeightedIndex;
 
 pub type Seed = u64;
 

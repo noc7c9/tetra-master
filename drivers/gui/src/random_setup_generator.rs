@@ -155,11 +155,9 @@ impl CardTemplate {
 }
 
 fn random_card(rng: &mut core::Rng) -> Card {
-    let index = rng.gen_range(15..=35);
-
-    let arrows = {
-        // TODO: pop this in a once cell
-        let num_arrows = core::Rng::weighted_index(&[
+    use once_cell::sync::Lazy;
+    static NUM_ARROWS_WEIGHTS: Lazy<core::WeightedIndex<u8>> = Lazy::new(|| {
+        core::Rng::weighted_index(&[
             // index is the number of arrows
             1,  // 0
             5,  // 1
@@ -170,9 +168,13 @@ fn random_card(rng: &mut core::Rng) -> Card {
             9,  // 6
             5,  // 7
             1,  // 8
-        ]);
+        ])
+    });
 
-        let num_arrows = rng.sample(num_arrows);
+    let index = rng.gen_range(15..=35);
+
+    let arrows = {
+        let num_arrows = rng.sample(&*NUM_ARROWS_WEIGHTS);
         loop {
             let arrows: u8 = rng.gen();
             if arrows.count_ones() == num_arrows as u32 {

@@ -9,7 +9,7 @@ mod response;
 
 pub use driver::{Driver, DriverBuilder};
 pub use ref_impl::ReferenceImplementation;
-pub use rng::{Rng, Seed};
+pub use rng::{Rng, Seed, WeightedIndex};
 
 /*****************************************************************************************
  * Command / Response
