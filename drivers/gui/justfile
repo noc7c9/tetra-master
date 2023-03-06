@@ -4,11 +4,21 @@ _list:
 start:
     RUST_BACKTRACE=1 just watch _start-actual
 
-@_start-actual: build
+_start-actual: build
+    #!/usr/bin/env bash
     echo
-    read -p "Build Successful, press enter to run!"
+    echo "Build Successful"
+    read -p "Press enter to run."
     echo
-    just run
+
+    while true; do
+        just run
+        echo
+
+        echo "Closed (exit code: $?)"
+        read -p "Press enter to run again."
+        echo
+    done
 
 watch CMD='check' +ARGS='':
     watchexec \
