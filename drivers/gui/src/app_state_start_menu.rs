@@ -186,10 +186,21 @@ fn mouse_input(
     args: Res<crate::Args>,
     active_menu_option: Res<ActiveMenuOption>,
 ) {
-    if btns.just_pressed(MouseButton::Left)
-        && matches!(active_menu_option.0, Some(MenuOption::Draft))
-    {
-        start_new_game(&mut commands, &mut app_state, &args);
+    if btns.just_pressed(MouseButton::Left) {
+        match active_menu_option.0 {
+            Some(MenuOption::Draft) => {
+                app_state.overwrite_set(AppState::DraftingHand).unwrap();
+            }
+            Some(MenuOption::Constructed) => {
+                log::warn!("not implemented");
+            }
+            Some(MenuOption::Collection) => {
+                log::warn!("not implemented");
+            }
+            None => {}
+        }
+
+        // start_new_game(&mut commands, &mut app_state, &args);
 
         // required to workaround bug?
         btns.reset(MouseButton::Left);

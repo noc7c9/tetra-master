@@ -9,9 +9,11 @@ mod debug;
 mod camera;
 mod common;
 mod hover;
+mod interact;
 mod layout;
 mod random_setup_generator;
 
+mod app_state_drafting_hand;
 mod app_state_in_game;
 mod app_state_picking_hands;
 mod app_state_start_menu;
@@ -43,6 +45,7 @@ const CLEAR_COLOR: Color = Color::rgb(0.03137255, 0.03137255, 0.03137255);
 enum AppState {
     Initialization,
     StartMenu,
+    DraftingHand,
     PickingHands,
     InGame,
 }
@@ -77,7 +80,9 @@ fn main() {
         .add_plugin(debug::Plugin)
         .add_plugin(common::Plugin)
         .add_plugin(hover::Plugin)
+        .add_plugin(interact::Plugin)
         .add_plugin(app_state_start_menu::Plugin)
+        .add_plugin(app_state_drafting_hand::Plugin)
         .add_plugin(app_state_picking_hands::Plugin)
         .add_plugin(app_state_in_game::Plugin)
         .add_state(AppState::Initialization)

@@ -97,28 +97,49 @@ pub fn absolute(translation: impl Into<Vec2>) -> Transform {
     }
 }
 
+#[allow(dead_code)]
 pub fn center() -> Transform {
     absolute((0., 0.))
 }
 
+#[allow(dead_code)]
+pub fn left() -> Transform {
+    absolute((-RENDER_HALF_SIZE.x, 0.))
+}
+
+#[allow(dead_code)]
+pub fn right() -> Transform {
+    absolute((RENDER_HALF_SIZE.x, -0.))
+}
+
+#[allow(dead_code)]
+pub fn top() -> Transform {
+    absolute((0., RENDER_HALF_SIZE.y))
+}
+
+#[allow(dead_code)]
 pub fn bottom() -> Transform {
     absolute((0., -RENDER_HALF_SIZE.y))
 }
 
-pub fn bottom_left() -> Transform {
-    absolute((-RENDER_HALF_SIZE.x, -RENDER_HALF_SIZE.y))
-}
-
-pub fn bottom_right() -> Transform {
-    absolute((RENDER_HALF_SIZE.x, -RENDER_HALF_SIZE.y))
-}
-
+#[allow(dead_code)]
 pub fn top_left() -> Transform {
     absolute((-RENDER_HALF_SIZE.x, RENDER_HALF_SIZE.y))
 }
 
+#[allow(dead_code)]
 pub fn top_right() -> Transform {
     absolute((RENDER_HALF_SIZE.x, RENDER_HALF_SIZE.y))
+}
+
+#[allow(dead_code)]
+pub fn bottom_left() -> Transform {
+    absolute((-RENDER_HALF_SIZE.x, -RENDER_HALF_SIZE.y))
+}
+
+#[allow(dead_code)]
+pub fn bottom_right() -> Transform {
+    absolute((RENDER_HALF_SIZE.x, -RENDER_HALF_SIZE.y))
 }
 
 pub fn line_horizontal(transform: Transform) -> LineLayout {

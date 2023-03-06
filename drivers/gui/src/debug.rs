@@ -14,7 +14,10 @@ impl bevy::app::Plugin for Plugin {
 #[cfg(debug_assertions)]
 mod debug_only {
     use super::*;
-    use crate::layout::Z;
+    use crate::{
+        layout::{self, TransformExt as _, Z},
+        AppAssets,
+    };
     use bevy::app::AppExit;
     use bevy_prototype_lyon::prelude::*;
 
@@ -25,6 +28,7 @@ mod debug_only {
         fn build(&self, app: &mut App) {
             app.insert_resource(Msaa { samples: 4 })
                 .add_plugin(ShapePlugin)
+                .add_system(text_initialization)
                 .add_system(rect_initialization)
                 .add_system(quit_on_ctrl_escape);
         }
@@ -34,6 +38,38 @@ mod debug_only {
         let ctrl_down = keys.pressed(KeyCode::LControl) || keys.pressed(KeyCode::RControl);
         if keys.just_pressed(KeyCode::Escape) && ctrl_down {
             exit.send(AppExit)
+        }
+    }
+
+    #[derive(Component)]
+    pub struct TextInit {
+        text: String,
+    }
+
+    pub fn text(text: impl Into<String>) -> TextInit {
+        TextInit { text: text.into() }
+    }
+
+    #[allow(clippy::type_complexity)]
+    fn text_initialization(
+        mut commands: Commands,
+        app_assets: Res<AppAssets>,
+        query: Query<(Entity, &TextInit)>,
+    ) {
+        for (entity, text) in &query {
+            let style = TextStyle {
+                font: app_assets.font.clone(),
+                font_size: 10.0,
+                color: Color::FUCHSIA,
+            };
+            commands
+                .entity(entity)
+                .remove::<TextInit>()
+                .insert(Text2dBundle {
+                    text: Text::from_section(text.text.clone(), style),
+                    transform: layout::bottom_left().z(Z::UI_TEXT).offset((10., 50.)),
+                    ..Default::default()
+                });
         }
     }
 

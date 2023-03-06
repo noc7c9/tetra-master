@@ -154,10 +154,10 @@ impl CardTemplate {
     }
 }
 
-fn random_card(rng: &mut core::Rng) -> Card {
+pub fn random_card(rng: &mut core::Rng) -> Card {
     use once_cell::sync::Lazy;
     static NUM_ARROWS_WEIGHTS: Lazy<core::WeightedIndex<u8>> = Lazy::new(|| {
-        core::Rng::weighted_index(&[
+        core::Rng::weighted_index([
             // index is the number of arrows
             1,  // 0
             5,  // 1
